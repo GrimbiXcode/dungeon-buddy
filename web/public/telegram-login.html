@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Telegram-Anmeldung</title>
+    <!--
+      Rahmendokument für das offizielle Telegram Login Widget. Wird nur von der
+      Landingpage (src/pages/Landing.svelte) als iframe eingebettet und erst
+      nach ausdrücklicher Zustimmung geladen. Das Telegram-Skript braucht
+      `eval`; diese Ausnahme gilt per CSP nur für dieses Dokument
+      (server/src/app.ts), nicht für die eigentliche App.
+    -->
+    <script src="/telegram-login.js" defer></script>
+    <style>
+      html, body { margin: 0; padding: 0; background: transparent; }
+      html { display: flex; justify-content: center; overflow: hidden; }
+      body { display: flex; width: max-content; }
+    </style>
+  </head>
+  <body></body>
+</html>

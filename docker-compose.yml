@@ -1,0 +1,42 @@
+# Beispiel-Deployment für Dungeon Buddy (App + PostgreSQL).
+#
+#   1. cp .env.example .env   und APP_SECRET + Telegram-Werte eintragen
+#   2. POSTGRES_PASSWORD unten und in DATABASE_URL gleich setzen
+#   3. docker compose up -d --build
+#
+# Die App spielt Datenbank-Migrationen beim Start automatisch ein.
+# Davor gehört ein Reverse Proxy mit HTTPS (z. B. Caddy oder Traefik):
+# Das Sitzungs-Cookie wird in Produktion nur über HTTPS gesendet.
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dungeonbuddy
+      POSTGRES_USER: dungeonbuddy
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    image: dungeon-buddy:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Überschreibt DATABASE_URL aus .env; Passwort wie POSTGRES_PASSWORD oben
+      DATABASE_URL: postgres://dungeonbuddy:change-me@db:5432/dungeonbuddy
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:
