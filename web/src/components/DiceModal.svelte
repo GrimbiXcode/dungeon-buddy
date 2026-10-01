@@ -58,6 +58,7 @@
     if (k == null) return;
     rolled = true;
     const total = d20Total(r, k);
+    r.onResult?.(k, total);
     logRoll({
       title: r.title,
       detail: `W20 ${values.join(" / ")}${mode !== "normal" ? (mode === "advantage" ? " (Vorteil)" : " (Nachteil)") : ""} ${formatMod(r.modifier)}${r.penalty ? ` ${formatMod(r.penalty)}` : ""}`,

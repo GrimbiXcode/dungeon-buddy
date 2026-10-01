@@ -97,8 +97,8 @@ export class ForceSim {
     }
 
     // Schwerkraft zur Mitte
-    const gx = this.gravity * Math.max(1, this.aspect / 0.6);
-    const gy = this.gravity * Math.max(1, 0.6 / this.aspect);
+    const gx = this.gravity * Math.max(1, (this.aspect / 0.6) ** 2);
+    const gy = this.gravity * Math.max(1, (0.6 / this.aspect) ** 2);
     for (const p of nodes) {
       p.vx -= p.x * gx * alpha;
       p.vy -= p.y * gy * alpha;

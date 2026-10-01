@@ -248,6 +248,7 @@
   function frame() {
     raf = 0;
     if (!sim) return;
+    if (w && h) sim.aspect = h / w;
     sim.tick();
     sim.tick();
     publish();

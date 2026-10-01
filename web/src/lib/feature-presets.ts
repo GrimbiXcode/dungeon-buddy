@@ -1,0 +1,258 @@
+import { newFeature, type Feature } from "./features";
+import type { Ruleset } from "./types";
+
+/**
+ * Vorlagen für häufige Fähigkeiten als Startpunkt. Alle Werte sind danach
+ * frei anpassbar. Die Regeltexte sind bewusst knapp in eigenen Worten
+ * gehalten; massgeblich ist das Regelwerk der Kampagne.
+ */
+type Preset = { key: string; group: string; build: (r: Ruleset) => Partial<Feature> };
+
+export const FEATURE_PRESETS: Preset[] = [
+  {
+    key: "rage",
+    group: "Barbar",
+    build: () => ({
+      name: "Kampfrausch",
+      category: "Klasse",
+      tags: ["Barbar"],
+      activation: "bonus",
+      effectType: "buff",
+      target: "self",
+      benefit: "Schadensbonus auf STR-Nahkampfangriffe, Resistenz gegen Wucht-, Stich- und Hiebschaden, Vorteil auf STR-Würfe",
+      condition: "Keine schwere Rüstung",
+      duration: { kind: "minutes", amount: 1, text: "" },
+      uses: { max: 2, used: 0, reset: "long" },
+      appliesTo: { scope: "melee", attackIds: [] },
+      attackMods: { toHit: 0, damageBonus: 2, advantage: false },
+    }),
+  },
+  {
+    key: "reckless",
+    group: "Barbar",
+    build: () => ({
+      name: "Rücksichtsloser Angriff",
+      category: "Klasse",
+      tags: ["Barbar"],
+      activation: "before",
+      effectType: "buff",
+      target: "self",
+      benefit: "Vorteil auf STR-Nahkampfangriffe in diesem Zug; Angriffe gegen dich haben Vorteil bis zu deinem nächsten Zug",
+      condition: "Beim ersten Angriff im Zug entscheiden",
+      duration: { kind: "rounds", amount: 1, text: "" },
+      triggers: ["attack"],
+      appliesTo: { scope: "melee", attackIds: [] },
+      attackMods: { toHit: 0, damageBonus: 0, advantage: true },
+    }),
+  },
+  {
+    key: "sneak",
+    group: "Schurke",
+    build: () => ({
+      name: "Hinterhältiger Angriff",
+      category: "Klasse",
+      tags: ["Schurke"],
+      activation: "free",
+      effectType: "damage",
+      target: "enemy",
+      benefit: "Zusätzlicher Schaden einmal pro Zug",
+      condition: "Finesse- oder Fernkampfwaffe; Vorteil oder ein Verbündeter neben dem Ziel, kein Nachteil",
+      damage: "1d6",
+      uses: { max: 1, used: 0, reset: "turn" },
+      triggers: ["hit"],
+      appliesTo: { scope: "all", attackIds: [] },
+    }),
+  },
+  {
+    key: "cunning",
+    group: "Schurke",
+    build: () => ({
+      name: "Raffinierte Aktion",
+      category: "Klasse",
+      tags: ["Schurke"],
+      activation: "bonus",
+      effectType: "mobility",
+      target: "self",
+      benefit: "Spurt, Rückzug oder Verstecken als Bonusaktion",
+    }),
+  },
+  {
+    key: "secondWind",
+    group: "Kämpfer",
+    build: r => ({
+      name: "Durchschnaufen",
+      category: "Klasse",
+      tags: ["Kämpfer"],
+      activation: "bonus",
+      effectType: "healing",
+      target: "self",
+      benefit: "Heilt 1W10 + Kämpferstufe",
+      damage: "1d10+1",
+      uses: { max: r === "2024" ? 2 : 1, used: 0, reset: r === "2024" ? "long" : "short" },
+      description: r === "2024" ? "2024: Eine Nutzung kehrt nach einer kurzen Rast zurück." : "",
+    }),
+  },
+  {
+    key: "actionSurge",
+    group: "Kämpfer",
+    build: () => ({
+      name: "Tatendrang",
+      category: "Klasse",
+      tags: ["Kämpfer"],
+      activation: "free",
+      effectType: "utility",
+      target: "self",
+      benefit: "Eine zusätzliche Aktion in diesem Zug",
+      uses: { max: 1, used: 0, reset: "short" },
+    }),
+  },
+  {
+    key: "smite",
+    group: "Paladin",
+    build: r => ({
+      name: r === "2024" ? "Göttlicher Niederschlag (Zauber)" : "Göttliches Niederstrecken",
+      category: "Klasse",
+      tags: ["Paladin", "Zauberplatz"],
+      activation: r === "2024" ? "bonus" : "free",
+      effectType: "damage",
+      target: "enemy",
+      benefit: "Gleissender Zusatzschaden, +1W8 pro höherem Grad (gegen Untote/Unholde +1W8)",
+      condition: "Verbraucht einen Zauberplatz",
+      damage: "2d8",
+      damageType: "Gleissend",
+      triggers: ["hit"],
+      appliesTo: { scope: "melee", attackIds: [] },
+    }),
+  },
+  {
+    key: "gwm",
+    group: "Talent",
+    build: r =>
+      r === "2024"
+        ? {
+            name: "Meister der schweren Waffen",
+            category: "Talent",
+            tags: ["Schwere Waffe"],
+            activation: "passive",
+            effectType: "damage",
+            target: "enemy",
+            benefit: "Schadensbonus in Höhe deines Übungsbonus bei Treffern mit schweren Waffen",
+            condition: "Waffe mit der Eigenschaft Schwer, als Teil der Angriffsaktion",
+            appliesTo: { scope: "specific", attackIds: [] },
+            attackMods: { toHit: 0, damageBonus: 2, advantage: false },
+          }
+        : {
+            name: "Meister der schweren Waffen (−5/+10)",
+            category: "Talent",
+            tags: ["Schwere Waffe"],
+            activation: "before",
+            effectType: "damage",
+            target: "enemy",
+            benefit: "−5 auf den Angriffswurf, +10 Schaden",
+            condition: "Geübte schwere Nahkampfwaffe",
+            triggers: ["attack"],
+            appliesTo: { scope: "specific", attackIds: [] },
+            attackMods: { toHit: -5, damageBonus: 10, advantage: false },
+          },
+  },
+  {
+    key: "archery",
+    group: "Kampfstil",
+    build: () => ({
+      name: "Kampfstil: Bogenschiessen",
+      category: "Klasse",
+      tags: ["Kampfstil"],
+      activation: "passive",
+      effectType: "buff",
+      target: "self",
+      benefit: "+2 auf Fernkampf-Angriffswürfe",
+      appliesTo: { scope: "ranged", attackIds: [] },
+      attackMods: { toHit: 2, damageBonus: 0, advantage: false },
+    }),
+  },
+  {
+    key: "dueling",
+    group: "Kampfstil",
+    build: () => ({
+      name: "Kampfstil: Duellieren",
+      category: "Klasse",
+      tags: ["Kampfstil"],
+      activation: "passive",
+      effectType: "buff",
+      target: "self",
+      benefit: "+2 Schaden mit einer einhändigen Nahkampfwaffe ohne weitere Waffe",
+      condition: "Keine andere Waffe in der Hand",
+      appliesTo: { scope: "melee", attackIds: [] },
+      attackMods: { toHit: 0, damageBonus: 2, advantage: false },
+    }),
+  },
+  {
+    key: "shield",
+    group: "Zauber",
+    build: () => ({
+      name: "Schild",
+      category: "Zauber",
+      tags: ["Zauberplatz"],
+      activation: "reaction",
+      effectType: "defense",
+      target: "self",
+      benefit: "+5 RK bis zum Beginn deines nächsten Zugs, kein Schaden durch Magisches Geschoss",
+      condition: "Wenn du getroffen wirst oder Ziel von Magisches Geschoss bist",
+      duration: { kind: "rounds", amount: 1, text: "" },
+      triggers: ["attacked"],
+    }),
+  },
+  {
+    key: "bardic",
+    group: "Barde",
+    build: r => ({
+      name: "Bardische Inspiration",
+      category: "Klasse",
+      tags: ["Barde"],
+      activation: "bonus",
+      effectType: "buff",
+      target: "ally",
+      targetText: "Eine Kreatur in 18 m, die dich hört",
+      benefit: "Würfel (W6, später W8–W12) auf einen W20-Test",
+      duration: { kind: r === "2024" ? "hours" : "minutes", amount: r === "2024" ? 1 : 10, text: "" },
+      uses: { max: 3, used: 0, reset: "long" },
+    }),
+  },
+  {
+    key: "breath",
+    group: "Spezies",
+    build: () => ({
+      name: "Odemwaffe",
+      category: "Spezies",
+      tags: ["Drachenblütiger"],
+      activation: "action",
+      effectType: "damage",
+      target: "area",
+      targetText: "Kegel oder Linie",
+      damage: "1d10",
+      save: "GES-Rettungswurf (SG 8 + KON + Übung), halber Schaden",
+      uses: { max: 2, used: 0, reset: "long" },
+    }),
+  },
+  {
+    key: "lucky",
+    group: "Talent",
+    build: () => ({
+      name: "Glückspilz",
+      category: "Talent",
+      tags: ["Herkunft"],
+      activation: "free",
+      effectType: "buff",
+      target: "self",
+      benefit: "Vorteil auf einen W20-Test oder Nachteil für einen Angriff gegen dich",
+      uses: { max: 3, used: 0, reset: "long" },
+      triggers: ["attack", "save", "check", "attacked"],
+    }),
+  },
+];
+
+export function buildPreset(key: string, ruleset: Ruleset, speciesLabel: string): Feature {
+  const preset = FEATURE_PRESETS.find(p => p.key === key)!;
+  const partial = preset.build(ruleset);
+  return newFeature({ ...partial, category: partial.category === "Spezies" ? speciesLabel : partial.category });
+}

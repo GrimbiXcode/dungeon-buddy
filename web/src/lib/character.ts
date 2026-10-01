@@ -7,6 +7,13 @@ import {
   type SkillKey,
 } from "./dnd";
 import { uid } from "./format";
+import {
+  normalizeCombat,
+  normalizeFeature,
+  restFeatures,
+  type CombatState,
+  type Feature,
+} from "./features";
 
 export type RollModeSetting = "inherit" | "digital" | "physical";
 
@@ -28,6 +35,17 @@ export type Attack = {
   /** Waffenmeisterschaft (nur 5e 2024) */
   mastery: string;
   notes: string;
+  /** Nah- oder Fernkampf – wichtig für passende Fähigkeiten */
+  kind: "melee" | "ranged";
+  /** Waffeneigenschaften: Finesse, Leicht, Schwer … */
+  properties: string[];
+  /** Reichweite, z. B. "1,5 m" oder "24/96 m" */
+  range: string;
+  /** Schaden bei zweihändiger Führung (Vielseitig) */
+  versatileDamage: string;
+  /** Zusätzlicher Schaden der Waffe selbst, z. B. Flammenzunge 2d6 Feuer */
+  extraDamage: string;
+  extraDamageType: string;
 };
 
 export type Resource = {
@@ -61,6 +79,10 @@ export type CharacterData = {
   exhaustion: number;
   conditions: string[];
   attacks: Attack[];
+  /** Konfigurierbare Fähigkeiten: Klasse, Herkunft, Talente, Ausrüstung … */
+  features: Feature[];
+  /** Zustand des Kampf-Assistenten */
+  combat: CombatState;
   spellcasting: {
     ability: Ability | null;
     attackBonusExtra: number;
@@ -71,7 +93,8 @@ export type CharacterData = {
   resources: Resource[];
   proficiencies: string;
   languages: string;
-  features: string;
+  /** Weitere Merkmale als Freitext */
+  featureNotes: string;
   equipment: string;
   currency: { cp: number; sp: number; ep: number; gp: number; pp: number };
   appearance: string;
@@ -101,6 +124,12 @@ export function newAttack(partial: Partial<Attack> = {}): Attack {
     damageType: "",
     mastery: "",
     notes: "",
+    kind: "melee",
+    properties: [],
+    range: "",
+    versatileDamage: "",
+    extraDamage: "",
+    extraDamageType: "",
     ...partial,
   };
 }
@@ -176,8 +205,16 @@ export function normalizeCharacter(raw: unknown): CharacterData {
         damageType: str(o.damageType),
         mastery: str(o.mastery),
         notes: str(o.notes),
+        kind: o.kind === "ranged" ? "ranged" : "melee",
+        properties: arr(o.properties).filter((x): x is string => typeof x === "string"),
+        range: str(o.range),
+        versatileDamage: str(o.versatileDamage),
+        extraDamage: str(o.extraDamage),
+        extraDamageType: str(o.extraDamageType),
       });
     }),
+    features: Array.isArray(d.features) ? d.features.map(normalizeFeature) : [],
+    combat: normalizeCombat(d.combat),
     spellcasting: {
       ability: (ABILITIES as readonly string[]).includes(str(sc.ability)) ? (sc.ability as Ability) : null,
       attackBonusExtra: num(sc.attackBonusExtra, 0),
@@ -201,7 +238,8 @@ export function normalizeCharacter(raw: unknown): CharacterData {
     }),
     proficiencies: str(d.proficiencies),
     languages: str(d.languages),
-    features: str(d.features),
+    // früher hiess der Freitext "features"
+    featureNotes: str(d.featureNotes) || (typeof d.features === "string" ? d.features : ""),
     equipment: str(d.equipment),
     currency: {
       cp: num(currency.cp, 0),
@@ -303,6 +341,7 @@ export function classSummary(c: CharacterData) {
 export function shortRest(c: CharacterData) {
   c.spellcasting.pact.used = 0;
   for (const r of c.resources) if (r.reset === "short") r.used = 0;
+  restFeatures(c, "short");
 }
 
 export function longRest(c: CharacterData, ruleset: "2014" | "2024") {
@@ -317,6 +356,7 @@ export function longRest(c: CharacterData, ruleset: "2014" | "2024") {
   const regain = ruleset === "2024" ? total : Math.max(1, Math.floor(total / 2));
   c.hitDiceUsed = Math.max(0, c.hitDiceUsed - regain);
   c.exhaustion = Math.max(0, c.exhaustion - 1);
+  restFeatures(c, "long");
 }
 
 /** Schaden anwenden: zuerst temporäre TP, dann aktuelle. */

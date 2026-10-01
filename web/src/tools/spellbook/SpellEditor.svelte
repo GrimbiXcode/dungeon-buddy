@@ -72,7 +72,14 @@
   async function submit(e: SubmitEvent) {
     e.preventDefault();
     submitted = true;
-    if (!valid || saving) return;
+    if (!valid) {
+      // Zum ersten fehlerhaften Feld springen
+      const ids: Record<keyof typeof errors, string> = { name: "sp-name", damage: "sp-dmg", heal: "sp-heal", upcast: "sp-up" };
+      const first = (Object.keys(ids) as (keyof typeof errors)[]).find(k => errors[k]);
+      if (first) document.getElementById(ids[first])?.focus();
+      return;
+    }
+    if (saving) return;
     saving = true;
     const data: SpellData = {
       ...fullData(spell?.data),

@@ -28,11 +28,16 @@
   import TextBlocks from "./character/TextBlocks.svelte";
   import Currency from "./character/Currency.svelte";
   import RollLog from "./character/RollLog.svelte";
+  import Features from "./character/Features.svelte";
+  import CombatAssistant from "./character/CombatAssistant.svelte";
+  import AttackWizard from "./character/AttackWizard.svelte";
+  import { useFeature, type Feature } from "../lib/features";
+  import type { Attack } from "../lib/character";
 
   let { campaign, characterId }: { campaign: Campaign; characterId: string } = $props();
 
   type SaveState = "saved" | "dirty" | "saving" | "error" | "conflict";
-  type Tab = "werte" | "kampf" | "zauber" | "inventar" | "merkmale" | "notizen";
+  type Tab = "werte" | "kampf" | "faehigkeiten" | "zauber" | "inventar" | "merkmale" | "notizen";
 
   let record = $state<CharacterRecord | null>(null);
   let data = $state<CharacterData>(normalizeCharacter({}));
@@ -41,6 +46,7 @@
   let saveState = $state<SaveState>("saved");
   let editing = $state(new URLSearchParams(route.search).has("bearbeiten"));
   let tab = $state<Tab>(readTab());
+  let attackWizard = $state<Attack | null>(null);
 
   const url = $derived(`${campaignApi(campaign.id, "characters")}/${characterId}`);
   const terms = $derived(rulesTerms(campaign.ruleset));
@@ -103,6 +109,24 @@
         canCrit: !opts.heal,
         physical: isPhysical(data.rollMode),
       });
+    },
+    useFeature(f: Feature) {
+      for (const note of useFeature(data, f)) toast(note);
+      const dice = f.damage.trim();
+      // Fähigkeiten, die an Treffer/Angriffe gebunden sind, wirken erst im Angriff
+      const attackBound = f.triggers.includes("hit") || f.triggers.includes("attack");
+      if (dice && !attackBound && (f.effectType === "damage" || f.effectType === "healing")) {
+        this.rollDamage(f.name, dice, {
+          heal: f.effectType === "healing",
+          damageType: f.damageType || undefined,
+          subtitle: f.save ? `Rettungswurf: ${f.save}` : undefined,
+        });
+      } else {
+        toast(`${f.name} eingesetzt${f.benefit ? `: ${f.benefit}` : "."}`, "success");
+      }
+    },
+    openAttack(a: Attack) {
+      attackWizard = a;
     },
   });
 
@@ -201,6 +225,7 @@
   const tabs: { key: Tab; label: string }[] = [
     { key: "werte", label: "Werte" },
     { key: "kampf", label: "Kampf" },
+    { key: "faehigkeiten", label: "Fähigkeiten" },
     { key: "zauber", label: "Zauber" },
     { key: "inventar", label: "Inventar" },
     { key: "merkmale", label: "Merkmale" },
@@ -274,8 +299,11 @@
         <Skills />
       </div>
     {:else if tab === "kampf"}
+      <CombatAssistant />
       <Attacks />
       <Combat />
+    {:else if tab === "faehigkeiten"}
+      <Features />
     {:else if tab === "zauber"}
       <Spellcasting />
     {:else if tab === "inventar"}
@@ -290,7 +318,7 @@
     {:else if tab === "merkmale"}
       <TextBlocks
         fields={[
-          { key: "features", label: `Klassen-, ${terms.species}s- & Talentmerkmale`, placeholder: "**Zweite Luft** – Bonusaktion: 1W10 + Stufe TP …" },
+          { key: "featureNotes", label: "Weitere Merkmale (Freitext)", placeholder: "Was nicht als Fähigkeit erfasst werden muss …" },
           { key: "personality", label: "Persönlichkeit, Ideale, Bindungen, Makel" },
           { key: "appearance", label: "Aussehen" },
           { key: "backstory", label: "Hintergrundgeschichte" },
@@ -301,6 +329,10 @@
     {/if}
     <RollLog />
   </div>
+{/if}
+
+{#if attackWizard}
+  <AttackWizard attack={attackWizard} onclose={() => (attackWizard = null)} />
 {/if}
 
 <style>

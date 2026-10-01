@@ -9,6 +9,18 @@ Als Web-App für Smartphone, Tablet und Desktop, installierbar als PWA.
 - **Charakterbogen**: Attribute, Rettungswürfe, Fertigkeiten, Angriffe, TP, Zustände, Erschöpfung, Ressourcen, Zauberplätze, Inventar und Rasten.
   - **Digital würfeln** oder **mit echten Würfeln**: Du tippst auf ein Attribut, im Dialog auf die gewürfelte Zahl (1–20), und die App rechnet das Ergebnis aus. Das gilt für Attributs- und Rettungswürfe, Fertigkeiten, Initiative, Angriffe mit Schaden (auch kritisch), Zauber und Todesrettungswürfe.
   - Vorteil und Nachteil werden unterstützt, ebenso die Erschöpfung nach 2014- oder 2024-Regeln.
+  - **Fähigkeiten selbst konfigurieren**: Klassenmerkmale, Herkunft, Talente, Ausrüstung usw. Pro Eintrag legst du fest:
+    - Kategorie und eigene Schlagworte
+    - Einsatz (vor der Aktion, Aktion, Bonusaktion, Reaktion, frei, passiv)
+    - wie oft einsetzbar (pro Zug, Rast, Tagesanbruch) oder welche Ressource verbraucht wird
+    - Wirkung (Buff, Fluff, Schaden, Heilung …), Ziel, Nutzen, Bedingung und Dauer
+    - Auslöser (beim Angriff, bei Treffer …) und für welche Waffen sie gilt, mit Treffer- und Schadensbonus oder Vorteil
+    - Vorlagen für häufige Fähigkeiten helfen beim Einstieg.
+  - **Waffen mit Spezialitäten**: Nah- oder Fernkampf, Reichweite, Eigenschaften (Finesse, Schwer, Vielseitig …), Zusatzschaden und Meisterschaft (2024).
+  - **Kampf-Assistent**:
+    - verfolgt Runden, Aktion, Bonusaktion, Reaktion, Bewegung und laufende Effekte samt Dauer und Konzentration
+    - schlägt Fähigkeiten, Angriffe und Zauber vor, gruppiert nach *vor der Aktion / Aktion / Bonusaktion / Reaktion / frei* und filterbar nach Kategorie und Wirkung
+    - Angriff mit einer Waffe: Der Assistent schlägt passende Fähigkeiten vor (z. B. Vorteil oder Bonus vor dem Wurf, Zusatzschaden bei Treffer) und rechnet sie in Treffer- und Schadenswurf ein.
 - **Zauberbuch**: Zauber aus dem SRD übernehmen oder eigene anlegen. Zauber kannst du vorbereiten und Charakteren zuordnen. Zauberangriffe, Schaden und Heilung würfelst du direkt, inklusive Hochstufen und Zaubertrick-Skalierung. Zauberplätze lassen sich direkt verbrauchen.
 
 Zwischen den Tools wechselst du ab Tablet-Breite über die Seitenleiste, auf dem Smartphone über die untere Navigation.

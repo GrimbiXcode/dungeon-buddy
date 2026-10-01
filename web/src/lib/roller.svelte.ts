@@ -35,6 +35,8 @@ export type D20Request = {
   target?: number;
   /** Anschliessender Schadenswurf (Angriffe) */
   followUp?: Omit<DamageRequest, "physical" | "type">;
+  /** Rückmeldung des Ergebnisses (behaltener W20 und Gesamtwert) */
+  onResult?: (kept: number, total: number) => void;
 };
 
 export type RollRequest = D20Request | DamageRequest;
@@ -86,6 +88,7 @@ export function d20Request(opts: {
   rollMode: RollModeSetting;
   target?: number;
   followUp?: D20Request["followUp"];
+  onResult?: D20Request["onResult"];
 }): D20Request {
   const ex = exhaustionEffect(opts.ruleset, opts.exhaustion, opts.kind);
   return {
@@ -100,5 +103,6 @@ export function d20Request(opts: {
     notes: ex.note ? [ex.note] : [],
     target: opts.target,
     followUp: opts.followUp,
+    onResult: opts.onResult,
   };
 }

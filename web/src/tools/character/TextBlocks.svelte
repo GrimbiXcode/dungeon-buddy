@@ -3,7 +3,7 @@
   import type { CharacterData } from "../../lib/character";
   import { sheet } from "./context";
 
-  type TextKey = "features" | "proficiencies" | "languages" | "equipment" | "appearance" | "personality" | "backstory" | "notes";
+  type TextKey = "featureNotes" | "proficiencies" | "languages" | "equipment" | "appearance" | "personality" | "backstory" | "notes";
 
   let { fields }: { fields: { key: TextKey; label: string; placeholder?: string; alwaysEdit?: boolean }[] } = $props();
 

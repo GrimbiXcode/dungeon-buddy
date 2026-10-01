@@ -59,7 +59,7 @@
     background: var(--c);
     box-shadow: 0 0 0 2px color-mix(in oklab, var(--c) 25%, transparent);
   }
-  .txt { max-width: 100%; text-align: center; line-height: 1.2; overflow-wrap: anywhere; hyphens: manual; }
+  .txt { max-width: 100%; text-align: center; line-height: 1.2; hyphens: manual; }
   .compact .opt { padding: 0.3rem 0.15rem; font-size: 0.72rem; }
   @media (max-width: 420px) {
     .opt { font-size: 0.68rem; }

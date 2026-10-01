@@ -10,7 +10,7 @@
     type CharacterData,
   } from "../lib/character";
   import { confirmDialog } from "../lib/confirm.svelte";
-  import { ABILITY_NAMES, SPELL_LEVEL_NAMES, formatMod } from "../lib/dnd";
+  import { ABILITY_NAMES, ABILITY_SHORT, SPELL_LEVEL_NAMES, formatMod } from "../lib/dnd";
   import { navigate, route } from "../lib/router.svelte";
   import { toast, toastError } from "../lib/toast.svelte";
   import type { Campaign, CharacterRecord, Spell, SrdSpell } from "../lib/types";
@@ -352,7 +352,7 @@
         <div class="stats">
           <div class="stat">
             <span class="label">Zauberattribut</span>
-            <strong>{ABILITY_NAMES[ab]}</strong>
+            <strong><span class="long">{ABILITY_NAMES[ab]}</span><span class="short">{ABILITY_SHORT[ab]}</span></strong>
           </div>
           <div class="stat">
             <span class="label">Zauberangriff</span>
@@ -511,7 +511,8 @@
     background: var(--surface-2);
     min-width: 0;
   }
-  .stat .label { font-size: 0.68rem; }
+  .stat .label { font-size: 0.68rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stat .short { display: none; }
   .stat strong { font-size: 1.25rem; font-family: var(--font-display); overflow: hidden; text-overflow: ellipsis; }
   .hint {
     margin: 0.8rem 0 0;
@@ -567,6 +568,9 @@
     .stats { gap: 0.35rem; }
     .stat { padding: 0.45rem 0.5rem; }
     .stat strong { font-size: 1.05rem; }
+    .stat .label { font-size: 0.6rem; letter-spacing: 0.02em; }
+    .stat .long { display: none; }
+    .stat .short { display: inline; }
     .search { max-width: none; }
   }
 </style>
