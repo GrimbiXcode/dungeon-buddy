@@ -9,6 +9,7 @@
   import ConfirmDialog from "./components/ConfirmDialog.svelte";
   import DiceModal from "./components/DiceModal.svelte";
   import PwaPrompt from "./components/PwaPrompt.svelte";
+  import UnitCalculator from "./components/UnitCalculator.svelte";
   import Landing from "./pages/Landing.svelte";
   import Dashboard from "./pages/Dashboard.svelte";
   import Profile from "./pages/Profile.svelte";
@@ -75,6 +76,9 @@
   <NotFound />
 {/if}
 
+{#if session.user && session.user.settings.unitCalculator !== false}
+  <UnitCalculator />
+{/if}
 <DiceModal />
 <ConfirmDialog />
 <Toasts />

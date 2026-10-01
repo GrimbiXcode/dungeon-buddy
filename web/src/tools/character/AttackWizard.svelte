@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { unitSystem } from "../../lib/session.svelte";
+  import { convertText } from "../../lib/units";
   import { Crosshair, Dices, Swords, X } from "@lucide/svelte";
   import Modal from "../../components/Modal.svelte";
   import { attackDamageBonus, attackToHit, type Attack } from "../../lib/character";
@@ -135,12 +137,12 @@
           f.attackMods.toHit ? `Treffer ${formatMod(f.attackMods.toHit)}` : "",
           f.attackMods.damageBonus ? `Schaden ${formatMod(f.attackMods.damageBonus)}` : "",
           f.effectType === "damage" && parseDice(f.damage) ? `+${formatDice(parseDice(f.damage)!)} ${f.damageType}` : "",
-          f.benefit,
+          convertText(f.benefit, unitSystem()),
         ]
           .filter(Boolean)
           .join(" · ")}
       </span>
-      {#if f.condition}<span class="tiny faint block">Bedingung: {f.condition}</span>{/if}
+      {#if f.condition}<span class="tiny faint block">Bedingung: {convertText(f.condition, unitSystem())}</span>{/if}
     </span>
     {#if left != null}<span class="tiny muted nowrap">{left} übrig</span>{/if}
   </label>
@@ -153,7 +155,7 @@
   </div>
   {#if attack.properties.length || attack.mastery || attack.range}
     <p class="tiny muted props">
-      {[attack.kind === "ranged" ? "Fernkampf" : "Nahkampf", attack.range, ...attack.properties, attack.mastery ? `Meisterschaft: ${attack.mastery}` : ""].filter(Boolean).join(" · ")}
+      {[attack.kind === "ranged" ? "Fernkampf" : "Nahkampf", convertText(attack.range, unitSystem()), ...attack.properties, attack.mastery ? `Meisterschaft: ${attack.mastery}` : ""].filter(Boolean).join(" · ")}
     </p>
   {/if}
 

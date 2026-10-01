@@ -110,6 +110,30 @@
     </section>
 
     <section class="card">
+      <h2>Einheiten</h2>
+      <div class="segmented" role="group" aria-label="Einheitensystem">
+        <button aria-pressed={(user.settings.units ?? "imperial") === "imperial"} onclick={() => saveSettings({ units: "imperial" })}>
+          Imperial (ft, lb)
+        </button>
+        <button aria-pressed={user.settings.units === "metric"} onclick={() => saveSettings({ units: "metric" })}>
+          Metrisch (m, kg)
+        </button>
+      </div>
+      <p class="tiny muted">
+        Bewegungsrate, Reichweiten und Flächen werden in dieser Einheit angezeigt und eingegeben (Umrechnung wie in den
+        deutschen Regelwerken: 5 ft = 1.5 m). Gespeichert wird intern weiterhin in Fuss.
+      </p>
+      <label class="checkbox calc-toggle">
+        <input
+          type="checkbox"
+          checked={user.settings.unitCalculator !== false}
+          onchange={e => saveSettings({ unitCalculator: (e.currentTarget as HTMLInputElement).checked })}
+        />
+        Einheitenrechner am Bildschirmrand anzeigen
+      </label>
+    </section>
+
+    <section class="card">
       <h2>Würfeln</h2>
       <p class="small muted">Standard für alle Charakterbögen. Jeder Bogen kann das überschreiben.</p>
       <div class="stack">
@@ -184,5 +208,6 @@
   .option.active { border-color: var(--accent); background: var(--accent-soft); }
   .option input { margin-top: 0.25rem; accent-color: var(--accent-strong); }
   .block { display: block; }
+  .calc-toggle { margin-top: 0.4rem; }
   .danger-zone { border-color: color-mix(in oklab, var(--danger) 35%, var(--border)); }
 </style>

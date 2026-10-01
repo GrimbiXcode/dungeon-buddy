@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { unitSystem } from "../../lib/session.svelte";
+  import { convertText } from "../../lib/units";
   import { ChevronDown, Pencil, Play, Trash2 } from "@lucide/svelte";
   import Markdown from "../../components/Markdown.svelte";
   import { formatDice, parseDice } from "../../lib/dice";
@@ -53,14 +55,14 @@
     <span class="badge act-{feature.activation}">{label.activation(feature.activation)}</span>
     <span class="badge">{label.effect(feature.effectType)}</span>
     {#if !compact}<span class="badge">{feature.category}</span>{/if}
-    {#if feature.target !== "self" || feature.targetText}<span class="badge">{feature.targetText || label.target(feature.target)}</span>{/if}
+    {#if feature.target !== "self" || feature.targetText}<span class="badge">{convertText(feature.targetText, unitSystem()) || label.target(feature.target)}</span>{/if}
     {#if feature.duration.kind !== "instant"}<span class="badge">{label.duration(feature)}</span>{/if}
     {#if dice}<span class="badge mono">{formatDice(dice)}{feature.damageType ? ` ${feature.damageType}` : ""}</span>{/if}
     {#each feature.tags as t (t)}<span class="badge tag">#{t}</span>{/each}
   </div>
 
-  {#if feature.benefit}<p class="benefit small">{feature.benefit}</p>{/if}
-  {#if feature.condition}<p class="condition tiny muted">Bedingung: {feature.condition}</p>{/if}
+  {#if feature.benefit}<p class="benefit small">{convertText(feature.benefit, unitSystem())}</p>{/if}
+  {#if feature.condition}<p class="condition tiny muted">Bedingung: {convertText(feature.condition, unitSystem())}</p>{/if}
 
   {#if feature.uses.max != null || resource}
     <div class="uses small">
@@ -94,7 +96,7 @@
           {#if feature.attackMods.damageBonus} · Schaden {feature.attackMods.damageBonus > 0 ? "+" : ""}{feature.attackMods.damageBonus}{/if}
         </p>
       {/if}
-      {#if feature.description}<Markdown source={feature.description} />{/if}
+      {#if feature.description}<Markdown source={convertText(feature.description, unitSystem())} />{/if}
       {#if onedit || ondelete}
         <div class="row actions">
           {#if onedit}<button class="btn btn-sm" onclick={onedit}><Pencil size={13} /> Bearbeiten</button>{/if}

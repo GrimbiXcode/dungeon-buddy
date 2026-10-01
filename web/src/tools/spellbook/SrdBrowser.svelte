@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { unitSystem } from "../../lib/session.svelte";
+  import { convertText } from "../../lib/units";
   import { Check, ChevronDown, Plus, Search } from "@lucide/svelte";
   import Markdown from "../../components/Markdown.svelte";
   import Modal from "../../components/Modal.svelte";
@@ -146,13 +148,13 @@
           {#if open === s.key}
             <div class="desc">
               <p class="small muted">
-                {s.castingTime} · {s.range} · {s.components} · {s.duration}<br />
+                {s.castingTime} · {convertText(s.range, unitSystem())} · {convertText(s.components, unitSystem())} · {s.duration}<br />
                 {s.classes.map(className).join(", ")}
               </p>
-              <Markdown source={s.description} />
+              <Markdown source={convertText(s.description, unitSystem())} />
               {#if s.higherLevel}
                 <h4>Auf höheren Graden</h4>
-                <Markdown source={s.higherLevel} />
+                <Markdown source={convertText(s.higherLevel, unitSystem())} />
               {/if}
             </div>
           {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { unitSystem } from "../../lib/session.svelte";
   import Modal from "../../components/Modal.svelte";
   import { parseDice } from "../../lib/dice";
   import { rulesTerms } from "../../lib/dnd";
@@ -150,7 +151,7 @@
           </select>
         </label>
       </div>
-      <label class="field"><span class="label">Ziel genauer</span><input class="input" bind:value={f.targetText} placeholder="z. B. eine Kreatur in 9 m, 4,5-m-Kegel" /></label>
+      <label class="field"><span class="label">Ziel genauer</span><input class="input" bind:value={f.targetText} placeholder={unitSystem() === "metric" ? "z. B. eine Kreatur in 9 m, 4.5-m-Kegel" : "z. B. eine Kreatur in 30 ft, 15-ft-Kegel"} /></label>
       <label class="field"><span class="label">Nutzen (kurz)</span><input class="input" bind:value={f.benefit} placeholder="z. B. +2 RK, Vorteil auf den nächsten Angriff" /></label>
       <div class="grid-3">
         <label class="field"><span class="label">{f.effectType === "healing" ? "Heilung" : "Schaden"} (Würfel)</span><input class="input mono" bind:value={f.damage} placeholder="2d6+3" /></label>

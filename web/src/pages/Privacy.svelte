@@ -14,7 +14,7 @@
   <ul>
     <li>Deine <strong>Telegram-ID</strong> (Zahl), um dich bei der nächsten Anmeldung wiederzuerkennen.</li>
     <li>Dein <strong>Anzeigename</strong> (bei der ersten Anmeldung aus Telegram übernommen, jederzeit änderbar).</li>
-    <li>Deine <strong>Einstellungen</strong> (Farbschema, Würfelmodus, zuletzt geöffnete Kampagne).</li>
+    <li>Deine <strong>Einstellungen</strong> (Farbschema, Würfelmodus, Einheiten, zuletzt geöffnete Kampagne).</li>
     <li>Die <strong>Inhalte</strong>, die du selbst anlegst: Kampagnen, Tagebucheinträge, NPCs, Charakterbögen, Zauber.</li>
     <li>
       Kurzlebige <strong>Login-Codes</strong> des Telegram-Bots (max. 5 Minuten, danach oder beim Einlösen gelöscht).

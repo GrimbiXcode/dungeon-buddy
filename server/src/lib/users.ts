@@ -4,6 +4,8 @@ import { sql } from "../db.js";
 export const userSettingsSchema = z.object({
   colorMode: z.enum(["system", "light", "dark"]).optional(),
   diceMode: z.enum(["digital", "physical"]).optional(),
+  units: z.enum(["imperial", "metric"]).optional(),
+  unitCalculator: z.boolean().optional(),
   lastCampaignId: z.uuid().nullable().optional(),
 });
 export type UserSettings = z.infer<typeof userSettingsSchema>;

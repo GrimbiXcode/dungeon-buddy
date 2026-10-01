@@ -4,6 +4,10 @@ export type ColorMode = "system" | "light" | "dark";
 
 export type UserSettings = {
   colorMode?: ColorMode;
+  /** Anzeige von Strecken/Gewichten; intern bleibt alles in ft/lb */
+  units?: "imperial" | "metric";
+  /** Einheitenrechner am Bildschirmrand (Standard: an) */
+  unitCalculator?: boolean;
   diceMode?: DiceMode;
   lastCampaignId?: string | null;
 };

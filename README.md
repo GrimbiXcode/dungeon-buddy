@@ -23,6 +23,9 @@ Als Web-App für Smartphone, Tablet und Desktop, installierbar als PWA.
     - Angriff mit einer Waffe: Der Assistent schlägt passende Fähigkeiten vor (z. B. Vorteil oder Bonus vor dem Wurf, Zusatzschaden bei Treffer) und rechnet sie in Treffer- und Schadenswurf ein.
 - **Zauberbuch**: Zauber aus dem SRD übernehmen oder eigene anlegen. Zauber kannst du vorbereiten und Charakteren zuordnen. Zauberangriffe, Schaden und Heilung würfelst du direkt, inklusive Hochstufen und Zaubertrick-Skalierung. Zauberplätze lassen sich direkt verbrauchen.
 
+- **Einheiten**: Im Profil wählst du imperial (ft, lb) oder metrisch (m, kg). Metrisch rechnet die App nach der Konvention der deutschen Regelwerke um (5 ft = 1.5 m). Das betrifft Bewegung, Reichweiten, Zaubertexte und Fähigkeiten.
+- **Einheitenrechner**: über eine Lasche am Bildschirmrand als Overlay. Er rechnet Länge, Strecke, Gewicht, Volumen, Felder, Runden/Minuten, Temperatur und Münzen um, wahlweise mit Spieltisch-Werten oder exakt. Im Profil lässt er sich komplett ausblenden.
+
 Zwischen den Tools wechselst du ab Tablet-Breite über die Seitenleiste, auf dem Smartphone über die untere Navigation.
 
 ## Datenschutz
@@ -33,7 +36,7 @@ Gespeichert werden ausschliesslich Anwendungsdaten:
 | --- | --- |
 | Telegram-ID (Zahl) zur Wiedererkennung | IP-Adressen, Zugriffsprotokolle, Tracking |
 | Anzeigename (änderbar) | Telegram-Benutzername, Telefonnummer, Profilbild |
-| Einstellungen (Farbschema, Würfelmodus) | Sitzungen auf dem Server (signiertes Cookie im Browser) |
+| Einstellungen (Farbschema, Würfelmodus, Einheiten) | Sitzungen auf dem Server (signiertes Cookie im Browser) |
 | Deine Inhalte (Kampagnen, Tagebuch, NPCs, Bögen, Zauber) | Würfelverlauf |
 | Login-Codes, maximal 5 Minuten lang | |
 

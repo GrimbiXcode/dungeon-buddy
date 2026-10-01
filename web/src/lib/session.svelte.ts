@@ -6,3 +6,8 @@ export const session = $state({
   info: null as AuthInfo | null,
   loaded: false,
 });
+
+/** Einheitensystem des Benutzers (Standard: imperial wie in den Regelwerken). */
+export function unitSystem(): "imperial" | "metric" {
+  return session.user?.settings.units ?? "imperial";
+}

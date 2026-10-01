@@ -39,7 +39,7 @@ export type Attack = {
   kind: "melee" | "ranged";
   /** Waffeneigenschaften: Finesse, Leicht, Schwer … */
   properties: string[];
-  /** Reichweite, z. B. "1,5 m" oder "24/96 m" */
+  /** Reichweite, z. B. "5 ft", "1.5 m" oder "80/320 ft" */
   range: string;
   /** Schaden bei zweihändiger Führung (Vielseitig) */
   versatileDamage: string;

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { unitSystem } from "../../lib/session.svelte";
+  import { convertText } from "../../lib/units";
   import { Check, ChevronDown, Crosshair, Heart, Lock, Pencil, Sparkles, Star, Swords, Trash2 } from "@lucide/svelte";
   import Markdown from "../../components/Markdown.svelte";
   import { spellAttackBonus, spellSaveDc } from "../../lib/character";
@@ -68,7 +70,7 @@
   const dmgType = $derived(damageTypeName(d.damageType));
   const upcastSuffix = $derived(!cantrip && slotLevel > spell.level ? ` (Grad ${slotLevel})` : "");
 
-  const metaLine = $derived([d.castingTime, d.range, d.duration].filter(Boolean).join(" · "));
+  const metaLine = $derived(convertText([d.castingTime, d.range, d.duration].filter(Boolean).join(" · "), unitSystem()));
   const hasActions = $derived(Boolean(d.save) || (char && (!cantrip || d.attack || damageDice || healDice)));
 
   function rollAttack() {
@@ -232,10 +234,10 @@
         {#if d.heal}<dt>Heilung</dt><dd>{d.heal}{d.healAddsModifier ? " + Zaubermodifikator" : ""}{#if d.upcast}<span class="muted">&nbsp;(+{d.upcast} pro höherem Grad)</span>{/if}</dd>{/if}
         <dt>Charakter</dt><dd>{ownerName ?? "– keinem zugeordnet –"}</dd>
       </dl>
-      {#if d.description}<Markdown source={d.description} class="desc" />{/if}
+      {#if d.description}<Markdown source={convertText(d.description, unitSystem())} class="desc" />{/if}
       {#if d.higherLevel}
         <h4 class="hl">Auf höheren Graden</h4>
-        <Markdown source={d.higherLevel} />
+        <Markdown source={convertText(d.higherLevel, unitSystem())} />
       {/if}
       {#if spell.notes}
         <div class="notes">

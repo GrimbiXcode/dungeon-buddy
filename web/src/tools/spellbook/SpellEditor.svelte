@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { unitSystem } from "../../lib/session.svelte";
   import { untrack } from "svelte";
   import Modal from "../../components/Modal.svelte";
   import { campaignApi, patch, post } from "../../lib/api";
@@ -154,7 +155,7 @@
       </div>
       <div class="field">
         <label for="sp-range">Reichweite</label>
-        <input id="sp-range" class="input" bind:value={form.range} placeholder="18 m" />
+        <input id="sp-range" class="input" bind:value={form.range} placeholder={unitSystem() === "metric" ? "18 m" : "60 feet"} />
       </div>
       <div class="field">
         <label for="sp-comp">Komponenten</label>

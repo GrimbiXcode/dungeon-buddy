@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { unitSystem } from "../../lib/session.svelte";
+  import { convertText, distanceUnit, feetToInput, formatDistance, inputToFeet } from "../../lib/units";
   import { onMount } from "svelte";
   import { Flag, Hourglass, Plus, Swords, Timer, Trash2, Zap } from "@lucide/svelte";
   import Modal from "../../components/Modal.svelte";
@@ -185,9 +187,9 @@
         {#if left != null}<span class="badge" class:badge-danger={left === 0}>{left}×</span>{/if}
       </div>
       <span class="tiny muted">
-        {[label.effect(f.effectType), f.benefit, f.damage ? `${f.damage} ${f.damageType}` : "", f.duration.kind !== "instant" ? label.duration(f) : ""].filter(Boolean).join(" · ")}
+        {convertText([label.effect(f.effectType), f.benefit, f.damage ? `${f.damage} ${f.damageType}` : "", f.duration.kind !== "instant" ? label.duration(f) : ""].filter(Boolean).join(" · "), unitSystem())}
       </span>
-      {#if f.condition}<span class="tiny faint block">{f.condition}</span>{/if}
+      {#if f.condition}<span class="tiny faint block">{convertText(f.condition, unitSystem())}</span>{/if}
     </div>
     <button class="btn btn-sm" disabled={!ok} onclick={() => ctx.useFeature(f)}>Einsetzen</button>
   </div>
@@ -197,7 +199,7 @@
   <div class="sugg">
     <div class="grow">
       <div class="sugg-name"><Swords size={14} /> <strong>{a.name || "Angriff"}</strong> <span class="badge mono">{formatMod(attackToHit(c, a))}</span></div>
-      <span class="tiny muted">{a.kind === "ranged" ? "Fernkampf" : "Nahkampf"} · {a.damage} {a.damageType}</span>
+      <span class="tiny muted">{a.kind === "ranged" ? "Fernkampf" : "Nahkampf"}{a.range ? ` ${convertText(a.range, unitSystem())}` : ""} · {a.damage} {a.damageType}</span>
     </div>
     <button class="btn btn-sm btn-primary" onclick={() => ctx.openAttack(a)}>Angreifen</button>
   </div>
@@ -211,7 +213,7 @@
         <span class="badge">{SPELL_LEVEL_NAMES[s.level]}</span>
         {#if s.data.concentration}<span class="badge" title="Konzentration">K</span>{/if}
       </div>
-      <span class="tiny muted">{[s.data.range, s.data.duration].filter(Boolean).join(" · ")}</span>
+      <span class="tiny muted">{convertText([s.data.range, s.data.duration].filter(Boolean).join(" · "), unitSystem())}</span>
     </div>
     <button class="btn btn-sm" onclick={() => castSpell(s, activation)}>Wirken</button>
   </div>
@@ -249,8 +251,16 @@
       {/each}
       <label class="move small">
         Bewegung
-        <input class="input input-sm mono" type="number" min="0" step="5" bind:value={c.combat.movement} aria-label="Verbrauchte Bewegung" />
-        <span class="muted">/ {c.speed} ft</span>
+        <input
+          class="input input-sm mono"
+          type="number"
+          min="0"
+          step={unitSystem() === "metric" ? 1.5 : 5}
+          value={feetToInput(c.combat.movement, unitSystem())}
+          onchange={e => (c.combat.movement = inputToFeet(Number((e.currentTarget as HTMLInputElement).value), unitSystem()))}
+          aria-label="Verbrauchte Bewegung in {distanceUnit(unitSystem())}"
+        />
+        <span class="muted">/ {formatDistance(c.speed, unitSystem())}</span>
       </label>
     </div>
 

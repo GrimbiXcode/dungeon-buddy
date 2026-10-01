@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { unitSystem } from "../../lib/session.svelte";
+  import { convertText, distanceUnit, feetToInput, formatDistance, inputToFeet } from "../../lib/units";
   import { Heart, Minus, Plus, Shield, Sparkles, Zap, Footprints, Award } from "@lucide/svelte";
   import { applyDamage, applyHealing, initiative, profBonus } from "../../lib/character";
   import { formatMod, rulesTerms } from "../../lib/dnd";
@@ -22,7 +24,7 @@
   const hpPercent = $derived(c.hp.max > 0 ? Math.min(100, Math.round((c.hp.current / c.hp.max) * 100)) : 0);
   const exhaustionText = $derived.by(() => {
     if (!c.exhaustion) return "";
-    if (ctx.ruleset === "2024") return `${-2 * c.exhaustion} auf W20-Tests, −${5 * c.exhaustion} ft Bewegung`;
+    if (ctx.ruleset === "2024") return `${-2 * c.exhaustion} auf W20-Tests, −${formatDistance(5 * c.exhaustion, unitSystem())} Bewegung`;
     return [
       "Nachteil auf Attributswürfe",
       "Bewegungsrate halbiert",
@@ -52,9 +54,16 @@
   <div class="stat">
     <span class="label"><Footprints size={13} /> Bewegung</span>
     {#if ctx.editing}
-      <input class="input input-sm mono" type="number" step="5" bind:value={c.speed} aria-label="Bewegungsrate" />
+      <input
+        class="input input-sm mono"
+        type="number"
+        step={unitSystem() === "metric" ? 1.5 : 5}
+        value={feetToInput(c.speed, unitSystem())}
+        onchange={e => (c.speed = inputToFeet(Number((e.currentTarget as HTMLInputElement).value), unitSystem()))}
+        aria-label="Bewegungsrate in {distanceUnit(unitSystem())}"
+      />
     {:else}
-      <span class="value mono">{c.speed}<small> ft</small></span>
+      <span class="value mono">{formatDistance(c.speed, unitSystem()).split(" ")[0]}<small> {distanceUnit(unitSystem())}</small></span>
     {/if}
   </div>
   <div class="stat">

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { unitSystem } from "../../lib/session.svelte";
+  import { convertText } from "../../lib/units";
   import { Plus, Swords, Trash2, Dices } from "@lucide/svelte";
   import { attackDamageBonus, attackToHit, newAttack, type Attack } from "../../lib/character";
   import { ABILITIES, ABILITY_SHORT, formatMod } from "../../lib/dnd";
@@ -83,7 +85,7 @@
               </select>
             </label>
             <label class="tiny muted">Reichweite
-              <input class="input input-sm" bind:value={a.range} placeholder="1,5 m / 24/96 m" />
+              <input class="input input-sm" bind:value={a.range} placeholder={unitSystem() === "metric" ? "1.5 m / 24/96 m" : "5 ft / 80/320 ft"} />
             </label>
             {#if a.properties.includes("Vielseitig")}
               <label class="tiny muted">Zweihändig
@@ -125,7 +127,7 @@
             <strong class="truncate">{a.name || "Angriff"}</strong>
             <span class="tiny muted">
               {damageString(a)} {a.damageType}{#if a.extraDamage} + {a.extraDamage} {a.extraDamageType}{/if}
-              · {a.kind === "ranged" ? "Fernkampf" : "Nahkampf"}{#if a.range} {a.range}{/if}
+              · {a.kind === "ranged" ? "Fernkampf" : "Nahkampf"}{#if a.range} {convertText(a.range, unitSystem())}{/if}
               {#if a.properties.length} · {a.properties.join(", ")}{/if}{#if a.mastery} · {a.mastery}{/if}{#if a.notes} · {a.notes}{/if}
             </span>
             {#if featureCount(a)}<span class="tiny accent">{featureCount(a)} passende Fähigkeit{featureCount(a) === 1 ? "" : "en"}</span>{/if}
