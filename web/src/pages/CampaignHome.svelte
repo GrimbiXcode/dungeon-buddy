@@ -6,18 +6,18 @@
   import { formatDate } from "../lib/format";
   import { rulesetLabel } from "../lib/themes";
   import { TOOLS } from "../lib/tools";
-  import type { Campaign, CharacterRecord, JournalEntry } from "../lib/types";
+  import type { Campaign, CampaignCharacter, JournalEntry } from "../lib/types";
 
   let { campaign }: { campaign: Campaign } = $props();
 
   let entries = $state<JournalEntry[]>([]);
-  let characters = $state<CharacterRecord[]>([]);
+  let characters = $state<CampaignCharacter[]>([]);
   let counts = $state<Record<string, number>>({});
 
   onMount(async () => {
     const [j, c, list] = await Promise.all([
       get<JournalEntry[]>(campaignApi(campaign.id, "journal")).catch(() => []),
-      get<CharacterRecord[]>(campaignApi(campaign.id, "characters")).catch(() => []),
+      get<CampaignCharacter[]>(campaignApi(campaign.id, "characters")).then(list => list.filter(c => c.active)).catch(() => []),
       get<Campaign[]>("/api/campaigns").catch(() => []),
     ]);
     entries = j.slice(0, 3);

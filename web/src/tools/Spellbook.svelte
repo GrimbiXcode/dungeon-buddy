@@ -13,14 +13,20 @@
   import { ABILITY_NAMES, ABILITY_SHORT, SPELL_LEVEL_NAMES, formatMod } from "../lib/dnd";
   import { navigate, route } from "../lib/router.svelte";
   import { toast, toastError } from "../lib/toast.svelte";
-  import type { Campaign, CharacterRecord, Spell, SrdSpell } from "../lib/types";
+  import type { Campaign, CampaignCharacter, CharacterRecord, Spell, SrdSpell } from "../lib/types";
   import SlotTracker from "./spellbook/SlotTracker.svelte";
   import SpellEditor from "./spellbook/SpellEditor.svelte";
   import SpellRow from "./spellbook/SpellRow.svelte";
   import SrdBrowser from "./spellbook/SrdBrowser.svelte";
   import { isPrepared, schoolName, type RollChar } from "./spellbook/spells";
 
-  let { campaign }: { campaign: Campaign } = $props();
+  /**
+   * Zwei Einsatzorte: in einer Kampagne (Zauber aller aktiven Charaktere plus
+   * Kampagnennotizen) oder für einen einzelnen Charakter ausserhalb von
+   * Kampagnen (/charaktere/:id/zauber).
+   */
+  let { campaign = null, character = null }: { campaign?: Campaign | null; character?: CharacterRecord | null } = $props();
+  const ruleset = $derived(campaign?.ruleset ?? character?.ruleset ?? "2024");
 
   type CharEntry = { record: CharacterRecord; data: CharacterData };
 
@@ -37,18 +43,21 @@
   let srdOpen = $state(false);
   let editing = $state<Spell | "new" | null>(null);
 
-  const spellUrl = $derived(campaignApi(campaign.id, "spells"));
-  const charUrl = $derived(campaignApi(campaign.id, "characters"));
+  const spellUrl = $derived(campaign ? campaignApi(campaign.id, "spells") : `/api/characters/${character!.id}/spells`);
+  const charUrl = "/api/characters";
 
   // ── Laden ──────────────────────────────────────────────────────────────
   $effect(() => {
-    const id = campaign.id;
+    const url = spellUrl;
+    const charsUrl = campaign ? campaignApi(campaign.id, "characters") : `/api/characters/${character!.id}`;
     let alive = true;
     loaded = false;
     error = null;
     Promise.all([
-      get<Spell[]>(campaignApi(id, "spells")),
-      get<CharacterRecord[]>(campaignApi(id, "characters")),
+      get<Spell[]>(url),
+      get<CampaignCharacter[] | CharacterRecord>(charsUrl).then(r =>
+        Array.isArray(r) ? r.filter(c => c.active) : [r]
+      ),
     ])
       .then(([s, c]) => {
         if (!alive) return;
@@ -65,13 +74,14 @@
   });
 
   // ── Charakterauswahl (in der URL: ?charakter=<id> bzw. ?charakter=ohne) ──
-  const selParam = $derived(new URLSearchParams(route.search).get("charakter") ?? "");
+  const selParam = $derived(character ? character.id : (new URLSearchParams(route.search).get("charakter") ?? ""));
   const selected = $derived(
     selParam && selParam !== "ohne" && loaded && !chars.some(c => c.record.id === selParam) ? "" : selParam
   );
   const selectedChar = $derived(chars.find(c => c.record.id === selected) ?? null);
 
   function select(value: string) {
+    if (!campaign) return;
     const q = value ? `?charakter=${encodeURIComponent(value)}` : "";
     navigate(`/k/${campaign.id}/zauberbuch${q}`, { replace: true });
   }
@@ -324,6 +334,7 @@
   <div class="loading"><div class="spinner"></div></div>
 {:else}
   <div class="toolbar">
+    {#if campaign}
     <label class="char-select">
       <span class="label">Charakter</span>
       <select class="select" value={selected} onchange={e => select((e.currentTarget as HTMLSelectElement).value)}>
@@ -334,12 +345,13 @@
         <option value="ohne">Ohne Charakter</option>
       </select>
     </label>
+    {/if}
   </div>
 
   {#if selectedChar}
     {@const d = selectedChar.data}
     {@const ab = d.spellcasting.ability}
-    {@const sheet = `/k/${campaign.id}/charaktere/${selectedChar.record.id}`}
+    {@const sheet = campaign ? `/k/${campaign.id}/charaktere/${selectedChar.record.id}` : `/charaktere/${selectedChar.record.id}`}
     <section class="card char-card">
       <div class="row-between char-head">
         <div class="grow">
@@ -415,7 +427,7 @@
       <div class="empty-icon"><Wand size={30} /></div>
       {#if !spells.length}
         <h3>Dein Zauberbuch ist noch leer</h3>
-        <p>Übernimm Zauber aus dem SRD ({campaign.ruleset === "2024" ? "5e 2024" : "5e 2014"}) oder lege eigene an.</p>
+        <p>Übernimm Zauber aus dem SRD ({ruleset === "2024" ? "5e 2024" : "5e 2014"}) oder lege eigene an.</p>
       {:else if selected === "ohne"}
         <h3>Keine Zauber ohne Charakter</h3>
         <p>Alle Zauber sind einem Charakter zugeordnet.</p>
@@ -455,7 +467,7 @@
               char={rc}
               ownerName={spell.characterId ? (rollChars.get(spell.characterId)?.name ?? null) : null}
               showOwner={selected === ""}
-              ruleset={campaign.ruleset}
+              ruleset={ruleset}
               onpatch={changes => patchSpell(spell, changes)}
               onedit={() => (editing = spell)}
               ondelete={() => removeSpell(spell)}
@@ -470,7 +482,7 @@
 
 {#if srdOpen}
   <SrdBrowser
-    ruleset={campaign.ruleset}
+    ruleset={ruleset}
     {spells}
     characterId={selectedChar?.record.id ?? null}
     {targetLabel}
@@ -481,7 +493,7 @@
 
 {#if editing}
   <SpellEditor
-    campaignId={campaign.id}
+    {spellUrl}
     spell={editing === "new" ? null : editing}
     characters={chars.map(c => ({ id: c.record.id, name: c.record.name }))}
     defaultCharacterId={selectedChar?.record.id ?? null}

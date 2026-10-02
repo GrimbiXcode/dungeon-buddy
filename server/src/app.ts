@@ -12,6 +12,7 @@ import { SESSION_COOKIE, verifySession } from "./auth/session.js";
 import { HttpError } from "./lib/http.js";
 import { findUserById, type User } from "./lib/users.js";
 import { campaignRoutes } from "./routes/campaigns.js";
+import { characterRoutes } from "./routes/characters.js";
 import { meRoutes } from "./routes/me.js";
 import { srdRoutes } from "./routes/srd.js";
 import { toolRoutes } from "./routes/tools.js";
@@ -106,6 +107,7 @@ export async function buildApp() {
   await app.register(meRoutes);
   await app.register(campaignRoutes);
   await app.register(toolRoutes);
+  await app.register(characterRoutes);
   await app.register(srdRoutes);
 
   // ── Frontend (gebautes SPA) ausliefern ─────────────────────────────────

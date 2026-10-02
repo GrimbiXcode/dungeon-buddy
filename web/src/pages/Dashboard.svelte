@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArchiveRestore, ChevronDown, Plus, Trash2, UserPen } from "@lucide/svelte";
+  import { ArchiveRestore, Users, ChevronDown, Plus, Trash2, UserPen } from "@lucide/svelte";
   import AppShell from "../components/AppShell.svelte";
   import CampaignForm from "../components/CampaignForm.svelte";
   import Modal from "../components/Modal.svelte";
@@ -80,7 +80,10 @@
       <h1>Willkommen, {session.user?.displayName}</h1>
       <p class="muted">Wähle ein Werkzeug oder eine Kampagne.</p>
     </div>
-    <a class="btn" href="/profil"><UserPen size={16} /> Profil bearbeiten</a>
+    <div class="row">
+      <a class="btn" href="/charaktere"><Users size={16} /> Meine Charaktere</a>
+      <a class="btn" href="/profil"><UserPen size={16} /> Profil bearbeiten</a>
+    </div>
   </div>
 
   <section>

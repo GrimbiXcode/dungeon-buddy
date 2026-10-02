@@ -87,14 +87,42 @@ export type NpcRelation = {
   createdAt: string;
 };
 
+export type CharacterStatus = "active" | "dead" | "retired";
+
+/** Zuordnung eines Charakters zu einer Kampagne (in der Charakterliste). */
+export type CharacterCampaignLink = {
+  campaignId: string;
+  name: string;
+  theme: string;
+  ruleset: Ruleset;
+  archived: boolean;
+  active: boolean;
+  joinedAt: string;
+  leftAt: string | null;
+  leftReason: string;
+};
+
 export type CharacterRecord = {
   id: string;
-  campaignId: string;
+  userId: string;
   name: string;
   data: Record<string, unknown>;
   revision: number;
+  ruleset: Ruleset;
+  status: CharacterStatus;
+  forkedFrom: string | null;
+  forkedFromName?: string | null;
+  campaigns?: CharacterCampaignLink[];
   createdAt: string;
   updatedAt: string;
+};
+
+/** Charakter aus Sicht einer Kampagne (mit Zuordnungsdaten). */
+export type CampaignCharacter = CharacterRecord & {
+  active: boolean;
+  joinedAt: string;
+  leftAt: string | null;
+  leftReason: string;
 };
 
 /** Zauberdaten, wie sie im SRD-Export und im Zauberbuch vorliegen. */
@@ -129,7 +157,7 @@ export type SrdSpellList = {
 
 export type Spell = {
   id: string;
-  campaignId: string;
+  campaignId: string | null;
   characterId: string | null;
   srdKey: string | null;
   name: string;

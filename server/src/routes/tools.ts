@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.js";
-import { HttpError, idParam, notFound, parse } from "../lib/http.js";
-import { campaignCrud, requireCampaign } from "../lib/crud.js";
+import { HttpError } from "../lib/http.js";
+import { campaignCrud } from "../lib/crud.js";
 
 const text = (max: number) => z.string().max(max);
 const attitude = z.number().int().min(-2).max(2);
@@ -12,12 +12,6 @@ async function assertNpcsInCampaign(campaignId: string, ids: (string | undefined
   if (!wanted.length) return;
   const rows = await sql`SELECT id FROM npcs WHERE campaign_id = ${campaignId} AND id IN ${sql(wanted)}`;
   if (rows.length !== new Set(wanted).size) throw new HttpError(400, "NPC gehört nicht zu dieser Kampagne.");
-}
-
-async function assertCharacterInCampaign(campaignId: string, id: string | null | undefined) {
-  if (!id) return;
-  const rows = await sql`SELECT id FROM characters WHERE campaign_id = ${campaignId} AND id = ${id}`;
-  if (!rows.length) throw new HttpError(400, "Charakter gehört nicht zu dieser Kampagne.");
 }
 
 export async function toolRoutes(app: FastifyInstance) {
@@ -72,63 +66,5 @@ export async function toolRoutes(app: FastifyInstance) {
       }
       await assertNpcsInCampaign(campaignId, [input.fromNpcId, input.toNpcId]);
     },
-  });
-
-  // ── Charakterbögen ──────────────────────────────────────────────────────
-  const characterSchema = z.object({
-    name: z.string().trim().min(1).max(200),
-    data: z.record(z.string(), z.unknown()).default({}),
-  });
-
-  campaignCrud(app, {
-    path: "characters",
-    table: "characters",
-    orderBy: "created_at ASC",
-    jsonFields: ["data"],
-    schema: characterSchema,
-  });
-
-  /**
-   * Speichern mit Revisionsprüfung: Ist der Bogen inzwischen auf einem anderen
-   * Gerät geändert worden, gibt es 409 statt eines stillen Überschreibens.
-   */
-  app.put("/api/campaigns/:campaignId/characters/:id", async req => {
-    const campaign = await requireCampaign(req);
-    const input = parse(
-      characterSchema.extend({ revision: z.number().int().min(1) }),
-      req.body
-    );
-    const id = idParam(req);
-    const [row] = await sql`
-      UPDATE characters
-      SET name = ${input.name}, data = ${sql.json(input.data as never)},
-          revision = revision + 1, updated_at = now()
-      WHERE id = ${id} AND campaign_id = ${campaign.id} AND revision = ${input.revision}
-      RETURNING *
-    `;
-    if (row) return row;
-    const [exists] = await sql`SELECT revision FROM characters WHERE id = ${id} AND campaign_id = ${campaign.id}`;
-    if (!exists) throw notFound("Charakter");
-    throw new HttpError(409, "Der Charakterbogen wurde inzwischen an anderer Stelle geändert.");
-  });
-
-  // ── Zauberbuch ──────────────────────────────────────────────────────────
-  campaignCrud(app, {
-    path: "spells",
-    table: "spells",
-    orderBy: "level ASC, name ASC",
-    jsonFields: ["data"],
-    schema: z.object({
-      characterId: z.uuid().nullable().default(null),
-      srdKey: z.string().max(100).nullable().default(null),
-      name: z.string().trim().min(1).max(200),
-      level: z.number().int().min(0).max(9).default(0),
-      data: z.record(z.string(), z.unknown()).default({}),
-      prepared: z.boolean().default(false),
-      alwaysPrepared: z.boolean().default(false),
-      favorite: z.boolean().default(false),
-      notes: text(20_000).default(""),
-    }),
-    validate: (campaignId, input) => assertCharacterInCampaign(campaignId, input.characterId),
   });
 }

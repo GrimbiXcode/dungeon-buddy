@@ -1,166 +1,319 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Heart, Plus, Shield, Trash2 } from "@lucide/svelte";
+  import { ArrowLeftRight, LogOut, Plus, RotateCcw, Trash2, UserPlus, Users } from "@lucide/svelte";
+  import CharacterCard from "../components/CharacterCard.svelte";
   import Modal from "../components/Modal.svelte";
-  import { campaignApi, del, get, post } from "../lib/api";
-  import { classSummary, newCharacterData, normalizeCharacter, totalLevel } from "../lib/character";
+  import NewCharacterModal from "../components/NewCharacterModal.svelte";
+  import { campaignApi, del, get, patch, post } from "../lib/api";
   import { confirmDialog } from "../lib/confirm.svelte";
-  import { CLASSES, rulesTerms } from "../lib/dnd";
-  import { uid } from "../lib/format";
+  import { formatDate } from "../lib/format";
   import { navigate } from "../lib/router.svelte";
+  import { rulesetLabel } from "../lib/themes";
   import { toast, toastError } from "../lib/toast.svelte";
-  import type { Campaign, CharacterRecord } from "../lib/types";
+  import type { Campaign, CampaignCharacter, CharacterRecord } from "../lib/types";
 
   let { campaign }: { campaign: Campaign } = $props();
 
-  let characters = $state<CharacterRecord[]>([]);
+  const LEAVE_REASONS = ["Gestorben", "Abgereist", "Ruhestand", "Charakterwechsel"];
+
+  let roster = $state<CampaignCharacter[]>([]);
+  let mine = $state<CharacterRecord[]>([]);
   let loading = $state(true);
-  let creating = $state(false);
-  let name = $state("");
-  let species = $state("");
-  let className = $state("");
-  let level = $state(1);
 
-  const terms = $derived(rulesTerms(campaign.ruleset));
+  /** Offene Dialoge */
+  let assigning = $state(false);
+  let creating = $state<null | "assign" | "replace">(null);
+  let replacing = $state<CampaignCharacter | null>(null);
+  let leaving = $state<CampaignCharacter | null>(null);
+  let reason = $state("Gestorben");
+  let markDead = $state(true);
+  let replacementId = $state<string | null>(null);
+
   const base = $derived(campaignApi(campaign.id, "characters"));
+  const active = $derived(roster.filter(c => c.active));
+  const former = $derived(roster.filter(c => !c.active));
+  /** Eigene Charaktere, die hier nicht aktiv sind (für Zuweisen/Austauschen) */
+  const available = $derived(mine.filter(m => !active.some(a => a.id === m.id)));
 
-  onMount(async () => {
+  onMount(load);
+
+  async function load() {
     try {
-      characters = await get<CharacterRecord[]>(base);
+      [roster, mine] = await Promise.all([get<CampaignCharacter[]>(base), get<CharacterRecord[]>("/api/characters")]);
     } catch (e) {
       toastError(e);
     } finally {
       loading = false;
     }
-  });
+  }
 
-  async function create(e: SubmitEvent) {
-    e.preventDefault();
-    const data = newCharacterData();
-    data.species = species;
-    const cls = CLASSES.find(c => c.name === className);
-    data.classes = [{ id: uid(), name: className, subclass: "", level, hitDie: cls?.hitDie ?? 8 }];
-    data.spellcasting.ability = cls?.spellAbility ?? null;
-    const hp = (cls?.hitDie ?? 8) + Math.max(0, level - 1) * ((cls?.hitDie ?? 8) / 2 + 1);
-    data.hp = { max: hp, current: hp, temp: 0 };
+  async function assign(characterId: string) {
     try {
-      const created = await post<CharacterRecord>(base, { name, data });
-      navigate(`/k/${campaign.id}/charaktere/${created.id}?bearbeiten=1`);
-    } catch (err) {
-      toastError(err);
+      await post(base, { characterId });
+      assigning = false;
+      await load();
+      toast("Charakter zugewiesen.", "success");
+    } catch (e) {
+      toastError(e);
     }
   }
 
-  async function remove(c: CharacterRecord) {
-    const ok = await confirmDialog(`Charakterbogen „${c.name}“ endgültig löschen? Zugeordnete Zauber bleiben im Zauberbuch erhalten.`, {
-      title: "Charakter löschen",
+  function openReplace(c: CampaignCharacter) {
+    replacing = c;
+    reason = "Gestorben";
+    markDead = true;
+    replacementId = null;
+  }
+
+  async function replace(newId: string) {
+    if (!replacing) return;
+    try {
+      await post(`${base}/${replacing.id}/replace`, { replacementId: newId, reason, markDead: markDead && reason === "Gestorben" });
+      toast(`${replacing.name} wurde ausgetauscht.`, "success");
+      replacing = null;
+      await load();
+    } catch (e) {
+      toastError(e);
+    }
+  }
+
+  function openLeave(c: CampaignCharacter) {
+    leaving = c;
+    reason = "Gestorben";
+    markDead = true;
+  }
+
+  async function leave() {
+    if (!leaving) return;
+    try {
+      await patch(`${base}/${leaving.id}`, { active: false, leftReason: reason });
+      if (markDead && reason === "Gestorben") await patch(`/api/characters/${leaving.id}`, { status: "dead" });
+      leaving = null;
+      await load();
+    } catch (e) {
+      toastError(e);
+    }
+  }
+
+  async function reactivate(c: CampaignCharacter) {
+    try {
+      await patch(`${base}/${c.id}`, { active: true });
+      if (c.status === "dead" && (await confirmDialog(`${c.name} ist als verstorben markiert. Wiederbeleben?`, { title: "Wiederbelebung", confirmLabel: "Wiederbeleben", danger: false }))) {
+        await patch(`/api/characters/${c.id}`, { status: "active" });
+      }
+      await load();
+    } catch (e) {
+      toastError(e);
+    }
+  }
+
+  async function removeFromHistory(c: CampaignCharacter) {
+    const ok = await confirmDialog(`${c.name} komplett aus dieser Kampagne entfernen (auch aus dem Verlauf)? Der Charakter selbst bleibt erhalten.`, {
+      title: "Aus Kampagne entfernen",
+      confirmLabel: "Entfernen",
     });
     if (!ok) return;
     try {
       await del(`${base}/${c.id}`);
-      characters = characters.filter(x => x.id !== c.id);
-      toast("Charakter gelöscht.", "success");
+      await load();
     } catch (e) {
       toastError(e);
+    }
+  }
+
+  async function createdNew(c: CharacterRecord) {
+    const mode = creating;
+    creating = null;
+    if (mode === "replace") await replace(c.id);
+    else {
+      await assign(c.id);
+      navigate(`/k/${campaign.id}/charaktere/${c.id}?bearbeiten=1`);
     }
   }
 </script>
 
 <div class="page-header">
   <div>
-    <h1>Charakterbögen</h1>
-    <p class="muted">Deine Charaktere in dieser Kampagne – digital würfeln oder mit echten Würfeln rechnen lassen.</p>
+    <h1>Charaktere</h1>
+    <p class="muted">Wer in dieser Kampagne mitspielt. Werte und Zauber gehören dem Charakter und gelten in allen seinen Kampagnen.</p>
   </div>
-  <button class="btn btn-primary" onclick={() => (creating = true)}><Plus size={16} /> Neuer Charakter</button>
+  <div class="row">
+    <a class="btn" href="/charaktere"><Users size={16} /> Alle Charaktere</a>
+    <button class="btn btn-primary" onclick={() => (assigning = true)}><UserPlus size={16} /> Charakter zuweisen</button>
+  </div>
 </div>
 
 {#if loading}
   <div class="spinner"></div>
-{:else if characters.length === 0}
-  <div class="empty">
-    <h3>Noch kein Charakter</h3>
-    <p>Lege deinen Charakter an. Du kannst alles digital würfeln oder deine echten Würfel benutzen und dir nur die Ergebnisse ausrechnen lassen.</p>
-    <button class="btn btn-primary" onclick={() => (creating = true)}><Plus size={16} /> Charakter erstellen</button>
-  </div>
 {:else}
-  <div class="grid-auto">
-    {#each characters as c (c.id)}
-      {@const d = normalizeCharacter(c.data)}
-      <div class="card char">
-        <a href="/k/{campaign.id}/charaktere/{c.id}" class="main">
-          <span class="level" title="Stufe">{totalLevel(d)}</span>
-          <span class="grow">
-            <strong class="block truncate">{c.name}</strong>
-            <span class="small muted block truncate">{[d.species, classSummary(d)].filter(Boolean).join(" · ") || "–"}</span>
-          </span>
-        </a>
-        <div class="row-between foot">
-          <span class="row small muted">
-            <span class="row stat"><Heart size={14} /> {d.hp.current}/{d.hp.max}</span>
-            <span class="row stat"><Shield size={14} /> {d.ac}</span>
-          </span>
-          <button class="btn btn-ghost btn-sm btn-icon" aria-label="{c.name} löschen" onclick={() => remove(c)}>
-            <Trash2 size={15} />
-          </button>
-        </div>
+  {#if active.length === 0}
+    <div class="empty">
+      <h3>Noch kein Charakter in dieser Kampagne</h3>
+      <p>Weise einen deiner Charaktere zu oder erstelle einen neuen. Ein Charakter kann in mehreren Kampagnen mitspielen.</p>
+      <div class="row center">
+        {#if available.length}<button class="btn" onclick={() => (assigning = true)}><UserPlus size={16} /> Vorhandenen zuweisen</button>{/if}
+        <button class="btn btn-primary" onclick={() => (creating = "assign")}><Plus size={16} /> Neuen Charakter erstellen</button>
       </div>
-    {/each}
-  </div>
+    </div>
+  {:else}
+    <div class="grid-auto">
+      {#each active as c (c.id)}
+        <CharacterCard character={c} href="/k/{campaign.id}/charaktere/{c.id}">
+          {#snippet meta()}
+            <span class="faint">Dabei seit {formatDate(c.joinedAt)}</span>
+            {#if c.ruleset !== campaign.ruleset}<span class="warn"> · {rulesetLabel(c.ruleset)} (Kampagne: {rulesetLabel(campaign.ruleset)})</span>{/if}
+          {/snippet}
+          {#snippet actions()}
+            <button class="btn btn-sm" onclick={() => openReplace(c)}><ArrowLeftRight size={14} /> Austauschen</button>
+            <button class="btn btn-sm btn-ghost" onclick={() => openLeave(c)}><LogOut size={14} /> Ausscheiden</button>
+          {/snippet}
+        </CharacterCard>
+      {/each}
+    </div>
+  {/if}
+
+  {#if former.length}
+    <h2 class="section">Ehemalige</h2>
+    <div class="stack">
+      {#each former as c (c.id)}
+        <div class="card former">
+          <div class="grow">
+            <a href="/k/{campaign.id}/charaktere/{c.id}"><strong>{c.name}</strong></a>
+            {#if c.status === "dead"}<span class="badge badge-danger">Verstorben</span>{/if}
+            <span class="small muted block">
+              {[c.leftReason || "Ausgeschieden", c.leftAt ? formatDate(c.leftAt) : "", `dabei seit ${formatDate(c.joinedAt)}`].filter(Boolean).join(" · ")}
+            </span>
+          </div>
+          <div class="row">
+            <button class="btn btn-sm" onclick={() => reactivate(c)}><RotateCcw size={14} /> Wieder aufnehmen</button>
+            <button class="btn btn-sm btn-ghost btn-icon" aria-label="{c.name} aus Verlauf entfernen" onclick={() => removeFromHistory(c)}><Trash2 size={14} /></button>
+          </div>
+        </div>
+      {/each}
+    </div>
+  {/if}
 {/if}
 
-{#if creating}
-  <Modal title="Neuer Charakter" size="sm" onclose={() => (creating = false)}>
-    <form id="new-char" onsubmit={create}>
-      <div class="field">
-        <label for="nc-name">Name</label>
-        <input id="nc-name" class="input" bind:value={name} required maxlength="200" />
+{#if assigning}
+  <Modal title="Charakter zuweisen" onclose={() => (assigning = false)}>
+    {#if available.length === 0}
+      <p class="muted small">Alle deine Charaktere spielen bereits mit.</p>
+    {:else}
+      <div class="stack">
+        {#each available as c (c.id)}
+          <div class="pick">
+            <div class="grow">
+              <strong>{c.name}</strong>
+              <span class="tiny muted block">
+                {rulesetLabel(c.ruleset)}{#if c.status === "dead"} · verstorben{/if}{#if c.campaigns?.length} · auch in {c.campaigns.filter(x => x.active).map(x => x.name).join(", ") || "–"}{/if}
+              </span>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick={() => assign(c.id)}>Zuweisen</button>
+          </div>
+        {/each}
       </div>
-      <div class="field">
-        <label for="nc-species">{terms.species}</label>
-        <input id="nc-species" class="input" bind:value={species} placeholder="z. B. Zwerg" />
-      </div>
-      <div class="grid-2">
-        <div class="field">
-          <label for="nc-class">Klasse</label>
-          <input id="nc-class" class="input" list="class-list" bind:value={className} placeholder="z. B. Magier" />
-          <datalist id="class-list">
-            {#each CLASSES as k (k.name)}<option value={k.name}></option>{/each}
-          </datalist>
-        </div>
-        <div class="field">
-          <label for="nc-level">Stufe</label>
-          <input id="nc-level" class="input" type="number" min="1" max="20" bind:value={level} />
-        </div>
-      </div>
-      <p class="tiny muted">Alles Weitere stellst du im Bogen ein. Trefferpunkte werden mit dem Durchschnitt vorbelegt.</p>
-    </form>
+    {/if}
     {#snippet footer()}
-      <button class="btn" onclick={() => (creating = false)}>Abbrechen</button>
-      <button class="btn btn-primary" type="submit" form="new-char" disabled={!name.trim()}>Erstellen</button>
+      <button class="btn" onclick={() => { assigning = false; creating = "assign"; }}><Plus size={16} /> Neuen Charakter erstellen</button>
     {/snippet}
   </Modal>
 {/if}
 
+{#if replacing}
+  {@const old = replacing}
+  <Modal title="{old.name} austauschen" onclose={() => (replacing = null)}>
+    <p class="small muted">{old.name} scheidet aus der Kampagne aus und bleibt im Verlauf. Ein anderer Charakter übernimmt.</p>
+    <div class="field">
+      <span class="label">Grund</span>
+      <div class="chip-row">
+        {#each LEAVE_REASONS as r (r)}
+          <button class="chip" aria-pressed={reason === r} onclick={() => (reason = r)}>{r}</button>
+        {/each}
+      </div>
+      <input class="input" bind:value={reason} aria-label="Grund" />
+    </div>
+    {#if reason === "Gestorben"}
+      <label class="checkbox small"><input type="checkbox" bind:checked={markDead} /> {old.name} als verstorben markieren (in allen Kampagnen sichtbar)</label>
+    {/if}
+    <h3 class="sub">Ersatz</h3>
+    <div class="stack">
+      {#each available.filter(c => c.id !== old.id) as c (c.id)}
+        <label class="pick selectable" class:selected={replacementId === c.id}>
+          <input type="radio" name="replacement" value={c.id} bind:group={replacementId} />
+          <span class="grow"><strong>{c.name}</strong> <span class="tiny muted">{rulesetLabel(c.ruleset)}{#if c.status === "dead"} · verstorben{/if}</span></span>
+        </label>
+      {:else}
+        <p class="small muted">Keine weiteren Charaktere vorhanden – erstelle einen neuen.</p>
+      {/each}
+    </div>
+    {#snippet footer()}
+      <button class="btn" onclick={() => (creating = "replace")}><Plus size={16} /> Neuen Charakter erstellen</button>
+      <button class="btn btn-primary" disabled={!replacementId} onclick={() => replacementId && replace(replacementId)}>
+        <ArrowLeftRight size={16} /> Austauschen
+      </button>
+    {/snippet}
+  </Modal>
+{/if}
+
+{#if leaving}
+  {@const c = leaving}
+  <Modal title="{c.name} scheidet aus" size="sm" onclose={() => (leaving = null)}>
+    <div class="field">
+      <span class="label">Grund</span>
+      <div class="chip-row">
+        {#each LEAVE_REASONS as r (r)}
+          <button class="chip" aria-pressed={reason === r} onclick={() => (reason = r)}>{r}</button>
+        {/each}
+      </div>
+      <input class="input" bind:value={reason} aria-label="Grund" />
+    </div>
+    {#if reason === "Gestorben"}
+      <label class="checkbox small"><input type="checkbox" bind:checked={markDead} /> Als verstorben markieren</label>
+    {/if}
+    {#snippet footer()}
+      <button class="btn" onclick={() => (leaving = null)}>Abbrechen</button>
+      <button class="btn btn-primary" onclick={leave}>Ausscheiden lassen</button>
+    {/snippet}
+  </Modal>
+{/if}
+
+{#if creating}
+  <NewCharacterModal
+    defaultRuleset={campaign.ruleset}
+    submitLabel={creating === "replace" ? "Erstellen & austauschen" : "Erstellen & zuweisen"}
+    onclose={() => (creating = null)}
+    oncreated={createdNew}
+  />
+{/if}
+
 <style>
-  .char { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.9rem; }
-  .main { display: flex; gap: 0.8rem; align-items: center; color: inherit; }
-  .main:hover { text-decoration: none; }
-  .main:hover strong { color: var(--accent-text); }
-  .level {
-    flex: none;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 1.2rem;
-    background: var(--accent-soft);
-    color: var(--accent-text);
-    border: 2px solid var(--accent);
-  }
+  .center { justify-content: center; }
+  .warn { color: var(--warning); }
+  .section { font-size: 1.05rem; margin: 2rem 0 0.7rem; }
+  .former { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; padding: 0.7rem 0.9rem; opacity: 0.85; }
   .block { display: block; }
-  .foot { border-top: 1px solid var(--border); padding-top: 0.5rem; }
-  .stat { gap: 0.3rem; }
+  .pick {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+  .selectable { cursor: pointer; }
+  .selectable.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .selectable input { accent-color: var(--accent-strong); }
+  .chip {
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+  .field .chip-row { margin-bottom: 0.4rem; }
+  .sub { font-size: 1rem; margin: 1rem 0 0.5rem; }
 </style>

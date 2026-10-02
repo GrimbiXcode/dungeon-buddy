@@ -4,7 +4,7 @@
   import { onMount } from "svelte";
   import { Flag, Hourglass, Plus, Swords, Timer, Trash2, Zap } from "@lucide/svelte";
   import Modal from "../../components/Modal.svelte";
-  import { campaignApi, get } from "../../lib/api";
+  import { get } from "../../lib/api";
   import { attackToHit, initiative, spellAttackBonus, type Attack } from "../../lib/character";
   import { formatMod, SPELL_LEVEL_NAMES } from "../../lib/dnd";
   import {
@@ -40,8 +40,8 @@
 
   onMount(async () => {
     try {
-      const all = await get<Spell[]>(campaignApi(ctx.campaignId, "spells"));
-      spells = all.filter(s => s.characterId === ctx.characterId && isPrepared(s));
+      const all = await get<Spell[]>(`/api/characters/${ctx.characterId}/spells`);
+      spells = all.filter(isPrepared);
     } catch {
       spells = [];
     }

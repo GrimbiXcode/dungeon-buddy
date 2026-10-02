@@ -6,6 +6,10 @@ Als Web-App für Smartphone, Tablet und Desktop, installierbar als PWA.
 - **Kampagnen**: Lege die Kampagnen an, in denen du spielst, mit Name, Beschreibung, Regelversion und Farbschema. Du kannst sie bearbeiten, archivieren und löschen. Jedes Tool speichert pro Kampagne getrennt.
 - **Tagebuch**: Einträge pro Session und pro Tag im Spiel, mit Markdown. Ansicht nach Session oder als Zeitleiste nach Spieltag.
 - **Soziales Netzwerk**: NPCs mit Rolle, Fraktion, Ort, Status, Notizen und deiner Beziehung zu ihnen. Dazu die Beziehungen der NPCs untereinander, als Liste oder als interaktiver Graph.
+- **Meine Charaktere**: Charaktere gehören dir, nicht einer Kampagne.
+  - Ein Charakter kann in mehreren Kampagnen spielen. Werte, Stufe und bekannte Zauber gelten überall: Steigt er in einer Kampagne auf, hat er die Stufe auch in den anderen.
+  - In der Kampagne weist du Charaktere zu. Stirbt einer, lässt du ihn ausscheiden oder tauschst ihn aus; er bleibt im Verlauf der Kampagne unter „Ehemalige“.
+  - Eine **Kopie (Fork)** übernimmt Bogen und Zauber, ist danach aber eigenständig. Änderungen an der Kopie wirken nicht auf das Original. Auf Wunsch ersetzt die Kopie das Original direkt in ausgewählten Kampagnen.
 - **Charakterbogen**: Attribute, Rettungswürfe, Fertigkeiten, Angriffe, TP, Zustände, Erschöpfung, Ressourcen, Zauberplätze, Inventar und Rasten.
   - **Digital würfeln** oder **mit echten Würfeln**: Du tippst auf ein Attribut, im Dialog auf die gewürfelte Zahl (1–20), und die App rechnet das Ergebnis aus. Das gilt für Attributs- und Rettungswürfe, Fertigkeiten, Initiative, Angriffe mit Schaden (auch kritisch), Zauber und Todesrettungswürfe.
   - Vorteil und Nachteil werden unterstützt, ebenso die Erschöpfung nach 2014- oder 2024-Regeln.
@@ -21,7 +25,7 @@ Als Web-App für Smartphone, Tablet und Desktop, installierbar als PWA.
     - verfolgt Runden, Aktion, Bonusaktion, Reaktion, Bewegung und laufende Effekte samt Dauer und Konzentration
     - schlägt Fähigkeiten, Angriffe und Zauber vor, gruppiert nach *vor der Aktion / Aktion / Bonusaktion / Reaktion / frei* und filterbar nach Kategorie und Wirkung
     - Angriff mit einer Waffe: Der Assistent schlägt passende Fähigkeiten vor (z. B. Vorteil oder Bonus vor dem Wurf, Zusatzschaden bei Treffer) und rechnet sie in Treffer- und Schadenswurf ein.
-- **Zauberbuch**: Zauber aus dem SRD übernehmen oder eigene anlegen. Zauber kannst du vorbereiten und Charakteren zuordnen. Zauberangriffe, Schaden und Heilung würfelst du direkt, inklusive Hochstufen und Zaubertrick-Skalierung. Zauberplätze lassen sich direkt verbrauchen.
+- **Zauberbuch**: Zauber aus dem SRD übernehmen oder eigene anlegen. Zauber eines Charakters wandern mit ihm in jede Kampagne; Zauber ohne Charakter bleiben Notizen der Kampagne. Zauber kannst du vorbereiten und Charakteren zuordnen. Zauberangriffe, Schaden und Heilung würfelst du direkt, inklusive Hochstufen und Zaubertrick-Skalierung. Zauberplätze lassen sich direkt verbrauchen.
 
 - **Einheiten**: Im Profil wählst du imperial (ft, lb) oder metrisch (m, kg). Metrisch rechnet die App nach der Konvention der deutschen Regelwerke um (5 ft = 1.5 m). Das betrifft Bewegung, Reichweiten, Zaubertexte und Fähigkeiten.
 - **Einheitenrechner**: über eine Lasche am Bildschirmrand als Overlay. Er rechnet Länge, Strecke, Gewicht, Volumen, Felder, Runden/Minuten, Temperatur und Münzen um, wahlweise mit Spieltisch-Werten oder exakt. Im Profil lässt er sich komplett ausblenden.

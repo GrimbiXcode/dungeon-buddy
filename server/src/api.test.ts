@@ -153,12 +153,117 @@ describe("Kampagnen und Tools", () => {
     const ch = (
       await app.inject({ method: "POST", url: `/api/campaigns/${c.id}/characters`, headers: { cookie }, payload: { name: "Thorin", data: { ac: 18 } } })
     ).json();
-    const url = `/api/campaigns/${c.id}/characters/${ch.id}`;
+    const url = `/api/characters/${ch.id}`;
     const ok = await app.inject({ method: "PUT", url, headers: { cookie }, payload: { name: "Thorin", data: { ac: 19 }, revision: 1 } });
     expect(ok.statusCode).toBe(200);
     expect(ok.json().revision).toBe(2);
     const stale = await app.inject({ method: "PUT", url, headers: { cookie }, payload: { name: "Thorin", data: { ac: 20 }, revision: 1 } });
     expect(stale.statusCode).toBe(409);
+  });
+});
+
+describe("Charaktere über Kampagnen hinweg", () => {
+  async function setup() {
+    const { cookie } = await cookieFor(1001);
+    const post = async (url: string, payload: unknown) =>
+      (await app.inject({ method: "POST", url, headers: { cookie }, payload })).json();
+    const a = await post("/api/campaigns", { name: "A" });
+    const b = await post("/api/campaigns", { name: "B" });
+    const hero = await post("/api/characters", { name: "Thorin", data: { classes: [{ level: 3 }] }, ruleset: "2014" });
+    return { cookie, post, a, b, hero };
+  }
+
+  it("ein Charakter, mehrere Kampagnen, gemeinsame Werte", async () => {
+    const { cookie, post, a, b, hero } = await setup();
+    expect((await app.inject({ method: "POST", url: `/api/campaigns/${a.id}/characters`, headers: { cookie }, payload: { characterId: hero.id } })).statusCode).toBe(201);
+    await post(`/api/campaigns/${b.id}/characters`, { characterId: hero.id });
+
+    // Stufenaufstieg „in Kampagne A“ …
+    await app.inject({
+      method: "PUT",
+      url: `/api/characters/${hero.id}`,
+      headers: { cookie },
+      payload: { name: "Thorin", data: { classes: [{ level: 4 }] }, revision: hero.revision },
+    });
+    // … gilt auch in Kampagne B
+    const inB = (await app.inject({ method: "GET", url: `/api/campaigns/${b.id}/characters`, headers: { cookie } })).json();
+    expect(inB[0].data.classes[0].level).toBe(4);
+
+    const list = (await app.inject({ method: "GET", url: "/api/characters", headers: { cookie } })).json();
+    expect(list[0].campaigns.map((c: { name: string }) => c.name).sort()).toEqual(["A", "B"]);
+  });
+
+  it("Zauber wandern mit dem Charakter", async () => {
+    const { cookie, post, a, b, hero } = await setup();
+    await post(`/api/campaigns/${a.id}/characters`, { characterId: hero.id });
+    await post(`/api/campaigns/${a.id}/spells`, { name: "Shield", level: 1, characterId: hero.id });
+    await post(`/api/campaigns/${a.id}/spells`, { name: "Kampagnennotiz", level: 0 });
+    const getSpells = async (id: string) =>
+      (await app.inject({ method: "GET", url: `/api/campaigns/${id}/spells`, headers: { cookie } })).json().map((s: { name: string }) => s.name);
+
+    expect(await getSpells(b.id)).toEqual([]);
+    await post(`/api/campaigns/${b.id}/characters`, { characterId: hero.id });
+    expect(await getSpells(b.id)).toEqual(["Shield"]);
+    expect((await getSpells(a.id)).sort()).toEqual(["Kampagnennotiz", "Shield"]);
+  });
+
+  it("Austausch eines gestorbenen Charakters", async () => {
+    const { cookie, post, a, hero } = await setup();
+    await post(`/api/campaigns/${a.id}/characters`, { characterId: hero.id });
+    const newbie = await post("/api/characters", { name: "Dwalin" });
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/campaigns/${a.id}/characters/${hero.id}/replace`,
+      headers: { cookie },
+      payload: { replacementId: newbie.id, reason: "Vom Drachen gefressen", markDead: true },
+    });
+    expect(res.statusCode).toBe(200);
+    const roster = (await app.inject({ method: "GET", url: `/api/campaigns/${a.id}/characters`, headers: { cookie } })).json();
+    expect(roster.map((r: { name: string; active: boolean }) => [r.name, r.active])).toEqual([
+      ["Dwalin", true],
+      ["Thorin", false],
+    ]);
+    expect(roster[1].leftReason).toBe("Vom Drachen gefressen");
+    expect(roster[1].status).toBe("dead");
+  });
+
+  it("Kopie (Fork) ist unabhängig vom Original", async () => {
+    const { cookie, post, a, hero } = await setup();
+    await post(`/api/campaigns/${a.id}/characters`, { characterId: hero.id });
+    await post(`/api/characters/${hero.id}/spells`, { name: "Light", level: 0 });
+    const fork = await post(`/api/characters/${hero.id}/fork`, { name: "Thorin (Spiegelwelt)" });
+    expect(fork.forkedFrom).toBe(hero.id);
+
+    await app.inject({
+      method: "PUT",
+      url: `/api/characters/${fork.id}`,
+      headers: { cookie },
+      payload: { name: fork.name, data: { classes: [{ level: 10 }] }, revision: fork.revision },
+    });
+    const original = (await app.inject({ method: "GET", url: `/api/characters/${hero.id}`, headers: { cookie } })).json();
+    expect(original.data.classes[0].level).toBe(3);
+
+    const forkSpells = (await app.inject({ method: "GET", url: `/api/characters/${fork.id}/spells`, headers: { cookie } })).json();
+    expect(forkSpells.map((s: { name: string }) => s.name)).toEqual(["Light"]);
+    // Kopie ist keiner Kampagne zugewiesen
+    const forkFull = (await app.inject({ method: "GET", url: `/api/characters/${fork.id}`, headers: { cookie } })).json();
+    expect(forkFull.campaigns).toEqual([]);
+    expect(forkFull.forkedFromName).toBe("Thorin");
+  });
+
+  it("fremde Charaktere sind weder sichtbar noch zuweisbar", async () => {
+    const { a, hero } = await setup();
+    const other = await cookieFor(1002);
+    expect((await app.inject({ method: "GET", url: `/api/characters/${hero.id}`, headers: { cookie: other.cookie } })).statusCode).toBe(404);
+    const theirs = (await app.inject({ method: "POST", url: "/api/campaigns", headers: { cookie: other.cookie }, payload: { name: "X" } })).json();
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/campaigns/${theirs.id}/characters`,
+      headers: { cookie: other.cookie },
+      payload: { characterId: hero.id },
+    });
+    expect(res.statusCode).toBe(404);
+    expect((await app.inject({ method: "GET", url: `/api/campaigns/${a.id}/characters`, headers: { cookie: other.cookie } })).statusCode).toBe(404);
   });
 });
 

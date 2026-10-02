@@ -8,7 +8,8 @@ export type SheetContext = {
   readonly ruleset: Ruleset;
   readonly editing: boolean;
   readonly data: CharacterData;
-  readonly campaignId: string;
+  /** null, wenn der Bogen ausserhalb einer Kampagne geöffnet ist */
+  readonly campaignId: string | null;
   readonly characterId: string;
   rollD20(title: string, modifier: number, kind: RollKind, opts?: { subtitle?: string; target?: number; damage?: DamageSpec }): void;
   rollDamage(title: string, dice: string, opts?: { damageType?: string; heal?: boolean; subtitle?: string }): void;

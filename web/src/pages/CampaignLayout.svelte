@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArrowLeft, CircleUser } from "@lucide/svelte";
+  import { ArrowLeft, CircleUser, Users } from "@lucide/svelte";
   import Logo from "../components/Logo.svelte";
   import { get, patch } from "../lib/api";
   import { current } from "../lib/campaign.svelte";
@@ -90,7 +90,10 @@
           </a>
         {/each}
       </nav>
-      <a href="/profil" class="profile small"><CircleUser size={17} /> {session.user?.displayName}</a>
+      <div class="sidebar-foot">
+        <a href="/charaktere" class="profile small"><Users size={17} /> Meine Charaktere</a>
+        <a href="/profil" class="profile small"><CircleUser size={17} /> {session.user?.displayName}</a>
+      </div>
     </aside>
 
     <header class="mobile-top">
@@ -172,7 +175,8 @@
   }
   nav a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
   nav a.active { background: var(--accent-soft); color: var(--accent-text); }
-  .profile { margin-top: auto; display: flex; align-items: center; gap: 0.5rem; color: var(--muted); padding: 0.5rem 0.7rem; }
+  .sidebar-foot { margin-top: auto; display: flex; flex-direction: column; }
+  .profile { display: flex; align-items: center; gap: 0.5rem; color: var(--muted); padding: 0.5rem 0.7rem; }
   .content {
     margin-left: var(--sidebar-width);
     padding: 1.5rem clamp(1rem, 3vw, 2.2rem) 3rem;

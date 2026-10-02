@@ -5,7 +5,10 @@
   import { uid } from "../../lib/format";
   import { sheet } from "./context";
 
-  let { name = $bindable() }: { name: string } = $props();
+  import { RULESETS } from "../../lib/themes";
+  import type { Ruleset } from "../../lib/types";
+
+  let { name = $bindable(), ruleset = $bindable() }: { name: string; ruleset: Ruleset } = $props();
 
   const ctx = sheet();
   const c = $derived(ctx.data);
@@ -29,6 +32,12 @@
     <label class="field"><span class="label">{terms.species}</span><input class="input" bind:value={c.species} /></label>
     <label class="field"><span class="label">Hintergrund</span><input class="input" bind:value={c.background} /></label>
     <label class="field"><span class="label">Gesinnung</span><input class="input" bind:value={c.alignment} /></label>
+    <label class="field">
+      <span class="label">Regelversion</span>
+      <select class="select" bind:value={ruleset}>
+        {#each RULESETS as r (r.key)}<option value={r.key}>{r.name}</option>{/each}
+      </select>
+    </label>
     <label class="field"><span class="label">Erfahrungspunkte</span><input class="input mono" type="number" min="0" bind:value={c.xp} /></label>
     <label class="field">
       <span class="label">Übungsbonus</span>

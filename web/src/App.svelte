@@ -16,6 +16,8 @@
   import Privacy from "./pages/Privacy.svelte";
   import CampaignLayout from "./pages/CampaignLayout.svelte";
   import NotFound from "./pages/NotFound.svelte";
+  import MyCharacters from "./pages/MyCharacters.svelte";
+  import CharacterPage from "./pages/CharacterPage.svelte";
 
   onMount(() => {
     applyColorMode(storedColorMode());
@@ -41,6 +43,9 @@
     if (session.user?.settings.colorMode) applyColorMode(session.user.settings.colorMode);
   });
 
+  const characterParams = $derived(
+    match("/charaktere/:id", route.path) ?? match("/charaktere/:id/zauber", route.path)
+  );
   const campaignParams = $derived(match("/k/:campaignId", route.path) ?? matchPrefix(route.path));
 
   function matchPrefix(path: string) {
@@ -68,6 +73,12 @@
   <Dashboard />
 {:else if route.path === "/profil"}
   <Profile />
+{:else if route.path === "/charaktere"}
+  <MyCharacters />
+{:else if characterParams}
+  {#key route.path}
+    <CharacterPage characterId={characterParams.id} section={route.path.endsWith("/zauber") ? "zauber" : "bogen"} />
+  {/key}
 {:else if campaignParams}
   {#key campaignParams.campaignId}
     <CampaignLayout campaignId={campaignParams.campaignId} />

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { CircleUser } from "@lucide/svelte";
+  import { CircleUser, Users } from "@lucide/svelte";
   import Logo from "./Logo.svelte";
   import { session } from "../lib/session.svelte";
 
@@ -10,10 +10,13 @@
 <div class="shell">
   <header class="topbar">
     <a href="/" class="home" aria-label="Zur Übersicht"><Logo /></a>
-    <a href="/profil" class="btn btn-ghost profile">
-      <CircleUser size={18} />
-      <span class="name">{session.user?.displayName}</span>
-    </a>
+    <nav class="row nav">
+      <a href="/charaktere" class="btn btn-ghost"><Users size={18} /><span class="label-text">Charaktere</span></a>
+      <a href="/profil" class="btn btn-ghost profile">
+        <CircleUser size={18} />
+        <span class="name">{session.user?.displayName}</span>
+      </a>
+    </nav>
   </header>
   <main>
     {@render children()}
@@ -41,7 +44,9 @@
     margin: 0 auto;
     padding: 1.5rem 1rem 3rem;
   }
+  .nav { gap: 0.2rem; }
   @media (max-width: 480px) {
+    .label-text { display: none; }
     .name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
   }
 </style>

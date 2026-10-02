@@ -2,7 +2,7 @@
   import { unitSystem } from "../../lib/session.svelte";
   import { untrack } from "svelte";
   import Modal from "../../components/Modal.svelte";
-  import { campaignApi, patch, post } from "../../lib/api";
+  import { patch, post } from "../../lib/api";
   import { ABILITY_NAMES, SPELL_LEVEL_NAMES } from "../../lib/dnd";
   import { parseDice } from "../../lib/dice";
   import { toastError } from "../../lib/toast.svelte";
@@ -10,14 +10,15 @@
   import { DAMAGE_TYPE_OPTIONS, SAVE_ABILITIES, SCHOOL_OPTIONS, fullData } from "./spells";
 
   let {
-    campaignId,
+    spellUrl,
     spell,
     characters,
     defaultCharacterId,
     onsaved,
     onclose,
   }: {
-    campaignId: string;
+    /** Basis-URL der Zauber (Kampagne oder Charakter) */
+    spellUrl: string;
     spell: Spell | null;
     characters: { id: string; name: string }[];
     defaultCharacterId: string | null;
@@ -115,7 +116,7 @@
       alwaysPrepared: form.alwaysPrepared,
     };
     try {
-      const url = campaignApi(campaignId, "spells");
+      const url = spellUrl;
       const saved = spell ? await patch<Spell>(`${url}/${spell.id}`, body) : await post<Spell>(url, body);
       onsaved(saved);
     } catch (err) {

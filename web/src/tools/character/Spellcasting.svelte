@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { BookOpen, Dices } from "@lucide/svelte";
-  import { campaignApi, get } from "../../lib/api";
+  import { get } from "../../lib/api";
   import { spellAttackBonus, spellMod, spellSaveDc } from "../../lib/character";
   import { ABILITIES, ABILITY_NAMES, SPELL_LEVEL_NAMES, formatMod } from "../../lib/dnd";
   import type { Spell } from "../../lib/types";
@@ -14,13 +14,15 @@
 
   onMount(async () => {
     try {
-      const all = await get<Spell[]>(campaignApi(ctx.campaignId, "spells"));
-      spells = all.filter(s => s.characterId === ctx.characterId);
+      spells = await get<Spell[]>(`/api/characters/${ctx.characterId}/spells`);
     } catch {
       spells = [];
     }
   });
 
+  const spellbookHref = $derived(
+    ctx.campaignId ? `/k/${ctx.campaignId}/zauberbuch?charakter=${ctx.characterId}` : `/charaktere/${ctx.characterId}/zauber`
+  );
   const ready = $derived(spells.filter(s => s.level === 0 || s.prepared || s.alwaysPrepared));
   const byLevel = $derived(
     Array.from({ length: 10 }, (_, lvl) => ({ lvl, list: ready.filter(s => s.level === lvl) })).filter(g => g.list.length)
@@ -119,7 +121,7 @@
   <section class="card wide">
     <div class="row-between head">
       <h3>Vorbereitete Zauber</h3>
-      <a class="btn btn-sm" href="/k/{ctx.campaignId}/zauberbuch?charakter={ctx.characterId}"><BookOpen size={14} /> Zauberbuch öffnen</a>
+      <a class="btn btn-sm" href={spellbookHref}><BookOpen size={14} /> Zauberbuch öffnen</a>
     </div>
     {#if byLevel.length === 0}
       <p class="muted small">Noch keine Zauber zugeordnet. Im Zauberbuch kannst du Zauber aus dem SRD übernehmen und diesem Charakter zuweisen.</p>
@@ -129,7 +131,7 @@
           <span class="label">{SPELL_LEVEL_NAMES[group.lvl]}</span>
           <div class="chip-row">
             {#each group.list as s (s.id)}
-              <a class="badge spell" href="/k/{ctx.campaignId}/zauberbuch?charakter={ctx.characterId}">{s.name}{#if s.data.concentration} ·K{/if}</a>
+              <a class="badge spell" href={spellbookHref}>{s.name}{#if s.data.concentration} ·K{/if}</a>
             {/each}
           </div>
         </div>

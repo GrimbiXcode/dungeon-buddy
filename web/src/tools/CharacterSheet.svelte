@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import { ArrowLeft, Check, CloudOff, Moon, Pencil, Play, RefreshCw, Sunrise } from "@lucide/svelte";
-  import { ApiError, campaignApi, get, put } from "../lib/api";
+  import { ArrowLeft, Check, CloudOff, GitFork, Moon, Pencil, Play, RefreshCw, Skull, Sunrise } from "@lucide/svelte";
+  import { ApiError, get, put } from "../lib/api";
   import {
     classSummary,
     longRest,
@@ -16,7 +16,8 @@
   import { d20Request, isPhysical, openRoll } from "../lib/roller.svelte";
   import { route } from "../lib/router.svelte";
   import { toast } from "../lib/toast.svelte";
-  import type { Campaign, CharacterRecord } from "../lib/types";
+  import type { Campaign, CharacterRecord, Ruleset } from "../lib/types";
+  import { rulesetLabel } from "../lib/themes";
   import { setSheet } from "./character/context";
   import Abilities from "./character/Abilities.svelte";
   import Skills from "./character/Skills.svelte";
@@ -34,7 +35,8 @@
   import { useFeature, type Feature } from "../lib/features";
   import type { Attack } from "../lib/character";
 
-  let { campaign, characterId }: { campaign: Campaign; characterId: string } = $props();
+  /** Ohne Kampagne: Bogen aus „Meine Charaktere“ geöffnet. */
+  let { characterId, campaign = null }: { characterId: string; campaign?: Campaign | null } = $props();
 
   type SaveState = "saved" | "dirty" | "saving" | "error" | "conflict";
   type Tab = "werte" | "kampf" | "faehigkeiten" | "zauber" | "inventar" | "merkmale" | "notizen";
@@ -42,14 +44,16 @@
   let record = $state<CharacterRecord | null>(null);
   let data = $state<CharacterData>(normalizeCharacter({}));
   let name = $state("");
+  let ruleset = $state<Ruleset>("2024");
   let loadError = $state<string | null>(null);
   let saveState = $state<SaveState>("saved");
   let editing = $state(new URLSearchParams(route.search).has("bearbeiten"));
   let tab = $state<Tab>(readTab());
   let attackWizard = $state<Attack | null>(null);
 
-  const url = $derived(`${campaignApi(campaign.id, "characters")}/${characterId}`);
-  const terms = $derived(rulesTerms(campaign.ruleset));
+  const url = $derived(`/api/characters/${characterId}`);
+  const terms = $derived(rulesTerms(ruleset));
+  const backHref = $derived(campaign ? `/k/${campaign.id}/charaktere` : "/charaktere");
 
   function readTab(): Tab {
     try {
@@ -69,7 +73,7 @@
 
   setSheet({
     get ruleset() {
-      return campaign.ruleset;
+      return ruleset;
     },
     get editing() {
       return editing;
@@ -78,7 +82,7 @@
       return data;
     },
     get campaignId() {
-      return campaign.id;
+      return campaign?.id ?? null;
     },
     get characterId() {
       return characterId;
@@ -90,7 +94,7 @@
           subtitle: opts.subtitle,
           modifier,
           kind,
-          ruleset: campaign.ruleset,
+          ruleset,
           exhaustion: data.exhaustion,
           rollMode: data.rollMode,
           target: opts.target,
@@ -150,6 +154,7 @@
       record = r;
       data = normalizeCharacter(r.data);
       name = r.name;
+      ruleset = r.ruleset;
       lastSaved = snapshot();
       saveState = "saved";
     } catch (e) {
@@ -158,7 +163,7 @@
   }
 
   function snapshot() {
-    return JSON.stringify({ name, data: $state.snapshot(data) });
+    return JSON.stringify({ name, ruleset, data: $state.snapshot(data) });
   }
 
   const save = debounce(async () => {
@@ -170,8 +175,13 @@
     }
     saveState = "saving";
     try {
-      const body = JSON.parse(current) as { name: string; data: CharacterData };
-      const updated = await put<CharacterRecord>(url, { name: body.name.trim() || "Unbenannt", data: body.data, revision: record.revision });
+      const body = JSON.parse(current) as { name: string; ruleset: Ruleset; data: CharacterData };
+      const updated = await put<CharacterRecord>(url, {
+        name: body.name.trim() || "Unbenannt",
+        ruleset: body.ruleset,
+        data: body.data,
+        revision: record.revision,
+      });
       record.revision = updated.revision;
       lastSaved = current;
       saveState = snapshot() === current ? "saved" : "dirty";
@@ -213,12 +223,12 @@
     const ok = await confirmDialog(
       kind === "short"
         ? "Kurze Rast: Paktplätze und Ressourcen „kurze Rast“ werden zurückgesetzt. Trefferwürfel kannst du im Tab Kampf ausgeben."
-        : `Lange Rast: TP voll, alle Zauberplätze und Ressourcen zurück, ${campaign.ruleset === "2024" ? "alle" : "die Hälfte der"} Trefferwürfel zurück, Erschöpfung −1.`,
+        : `Lange Rast: TP voll, alle Zauberplätze und Ressourcen zurück, ${ruleset === "2024" ? "alle" : "die Hälfte der"} Trefferwürfel zurück, Erschöpfung −1.`,
       { title: kind === "short" ? "Kurze Rast" : "Lange Rast", confirmLabel: "Rasten", danger: false }
     );
     if (!ok) return;
     if (kind === "short") shortRest(data);
-    else longRest(data, campaign.ruleset);
+    else longRest(data, ruleset);
     toast(kind === "short" ? "Kurze Rast beendet." : "Lange Rast beendet.", "success");
   }
 
@@ -237,19 +247,31 @@
   <div class="empty">
     <h3>Charakter nicht gefunden</h3>
     <p>{loadError}</p>
-    <a class="btn" href="/k/{campaign.id}/charaktere">Zurück zur Liste</a>
+    <a class="btn" href={backHref}>Zurück zur Liste</a>
   </div>
 {:else if !record}
   <div class="spinner"></div>
 {:else}
   <div class="sheet-header">
-    <a class="btn btn-ghost btn-icon back" href="/k/{campaign.id}/charaktere" aria-label="Zurück zur Liste"><ArrowLeft size={18} /></a>
+    <a class="btn btn-ghost btn-icon back" href={backHref} aria-label="Zurück zur Liste"><ArrowLeft size={18} /></a>
     <div class="grow title">
       <h1 class="truncate">{name || "Unbenannt"}</h1>
       <p class="muted small truncate">
         {[data.species, classSummary(data) || `Stufe ${totalLevel(data)}`, data.background].filter(Boolean).join(" · ")}
         · {isPhysical(data.rollMode) ? "Echte Würfel" : "Digitale Würfel"}
       </p>
+      <div class="chip-row meta">
+        <span class="badge">{rulesetLabel(ruleset)}</span>
+        {#if record.status === "dead"}<span class="badge badge-danger"><Skull size={12} /> Verstorben</span>{/if}
+        {#if record.status === "retired"}<span class="badge">Im Ruhestand</span>{/if}
+        {#if record.forkedFromName}<span class="badge"><GitFork size={12} /> Kopie von {record.forkedFromName}</span>{/if}
+        {#each (record.campaigns ?? []).filter(c => c.active) as c (c.campaignId)}
+          <a class="badge campaign-link" href="/k/{c.campaignId}/charaktere/{record.id}">{c.name}</a>
+        {/each}
+      </div>
+      {#if campaign && campaign.ruleset !== ruleset}
+        <p class="tiny warn-text">Dieser Charakter nutzt {rulesetLabel(ruleset)}, die Kampagne {rulesetLabel(campaign.ruleset)}.</p>
+      {/if}
     </div>
     <span class="save-state small" class:warn={saveState === "error" || saveState === "conflict"} aria-live="polite">
       {#if saveState === "saved"}<Check size={14} /> Gespeichert
@@ -293,7 +315,7 @@
 
   <div class="tab-content">
     {#if tab === "werte"}
-      {#if editing}<Details bind:name />{/if}
+      {#if editing}<Details bind:name bind:ruleset />{/if}
       <div class="werte">
         <Abilities />
         <Skills />
@@ -347,6 +369,10 @@
   .title { min-width: 12rem; }
   .title h1 { margin: 0; }
   .title p { margin: 0.15rem 0 0; }
+  .meta { margin-top: 0.35rem; gap: 0.3rem; }
+  .meta .badge { font-size: 0.7rem; }
+  .campaign-link { color: var(--accent-text); }
+  .warn-text { color: var(--warning); margin-top: 0.3rem !important; }
   .actions { gap: 0.4rem; }
   .segmented button { display: inline-flex; align-items: center; gap: 0.3rem; }
   .save-state { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--muted); }
