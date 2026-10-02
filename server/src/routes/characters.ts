@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.js";
+import { assertQuota, countRows } from "../lib/abuse.js";
 import { onlyGiven, requireCampaign } from "../lib/crud.js";
 import { HttpError, idParam, noContent, notFound, parse } from "../lib/http.js";
 
@@ -68,6 +69,9 @@ function prepareSpell(input: Record<string, unknown>) {
   return out;
 }
 
+const assertCharacterQuota = (req: FastifyRequest) =>
+  assertQuota(req, "charactersPerUser", () => countRows("characters", "user_id", req.user!.id));
+
 export async function characterRoutes(app: FastifyInstance) {
   // ── Eigene Charaktere ───────────────────────────────────────────────────
   app.get("/api/characters", async req => {
@@ -82,6 +86,7 @@ export async function characterRoutes(app: FastifyInstance) {
 
   app.post("/api/characters", async (req, reply) => {
     const input = parse(characterCreateSchema, req.body);
+    await assertCharacterQuota(req);
     const [row] = await sql`
       INSERT INTO characters (user_id, name, data, ruleset)
       VALUES (${req.user!.id}, ${input.name}, ${sql.json(input.data as never)}, ${input.ruleset})
@@ -158,6 +163,7 @@ export async function characterRoutes(app: FastifyInstance) {
   app.post("/api/characters/:characterId/fork", async (req, reply) => {
     const ch = await requireCharacter(req);
     const { name } = parse(z.object({ name: z.string().trim().min(1).max(200).optional() }), req.body ?? {});
+    await assertCharacterQuota(req);
     const copy = await sql.begin(async tx => {
       const [row] = await tx`
         INSERT INTO characters (user_id, name, data, ruleset, forked_from)
@@ -184,6 +190,7 @@ export async function characterRoutes(app: FastifyInstance) {
   app.post("/api/characters/:characterId/spells", async (req, reply) => {
     const ch = await requireCharacter(req);
     const input = parse(spellSchema, req.body);
+    await assertQuota(req, "spellsPerCharacter", () => countRows("spells", "character_id", ch.id));
     const values = { ...prepareSpell(input), characterId: ch.id, campaignId: null, userId: req.user!.id };
     const [row] = await sql`INSERT INTO spells ${sql(values)} RETURNING *`;
     return reply.code(201).send(row);
@@ -234,6 +241,7 @@ export async function characterRoutes(app: FastifyInstance) {
       if (!own) throw notFound("Charakter");
     } else {
       const input = parse(characterCreateSchema.extend({ ruleset: rulesetSchema.optional() }), body);
+      await assertCharacterQuota(req);
       const [row] = await sql`
         INSERT INTO characters (user_id, name, data, ruleset)
         VALUES (${req.user!.id}, ${input.name}, ${sql.json(input.data as never)}, ${input.ruleset ?? campaign.ruleset})
@@ -332,6 +340,12 @@ export async function characterRoutes(app: FastifyInstance) {
     const input = parse(spellSchema, req.body);
     if (input.characterId && !(await isActiveInCampaign(campaign.id, input.characterId))) {
       throw new HttpError(400, "Charakter ist dieser Kampagne nicht zugewiesen.");
+    }
+    if (input.characterId) {
+      const characterId = input.characterId;
+      await assertQuota(req, "spellsPerCharacter", () => countRows("spells", "character_id", characterId));
+    } else {
+      await assertQuota(req, "spellsPerCampaign", () => countRows("spells", "campaign_id", campaign.id));
     }
     const values = {
       ...prepareSpell(input),

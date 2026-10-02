@@ -4,7 +4,8 @@ import { issueLoginCode } from "./login-codes.js";
 type TelegramUser = { id: number; first_name?: string; last_name?: string; username?: string };
 type TelegramUpdate = { update_id: number; message?: { from?: TelegramUser; text?: string } };
 
-async function sendMessage(chatId: number, text: string) {
+export async function sendMessage(chatId: number | string, text: string) {
+  if (!env.telegramBotToken) return;
   try {
     const resp = await fetch(`https://api.telegram.org/bot${env.telegramBotToken}/sendMessage`, {
       method: "POST",

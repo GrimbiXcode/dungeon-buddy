@@ -9,13 +9,16 @@ import { env } from "./env.js";
 import { sql } from "./db.js";
 import { authRoutes } from "./auth/routes.js";
 import { SESSION_COOKIE, verifySession } from "./auth/session.js";
+import { limitUser } from "./lib/abuse.js";
 import { HttpError } from "./lib/http.js";
 import { findUserById, type User } from "./lib/users.js";
 import { campaignRoutes } from "./routes/campaigns.js";
 import { characterRoutes } from "./routes/characters.js";
+import { adminRoutes } from "./routes/admin.js";
 import { meRoutes } from "./routes/me.js";
 import { srdRoutes } from "./routes/srd.js";
 import { toolRoutes } from "./routes/tools.js";
+import { unblockRoutes } from "./routes/unblock.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -32,6 +35,22 @@ const PUBLIC_API = [
   "/api/auth/logout",
   "/api/health",
 ];
+
+/**
+ * Was ein gesperrtes Konto noch darf: sich selbst sehen, Einstellungen,
+ * abmelden, Daten exportieren, Konto löschen, Entsperrung beantragen.
+ */
+const BLOCKED_ALLOWED = new Set([
+  "GET /api/me",
+  "PATCH /api/me",
+  "DELETE /api/me",
+  "GET /api/me/export",
+  "POST /api/auth/logout",
+  "POST /api/auth/logout-all",
+  "GET /api/unblock",
+  "POST /api/unblock",
+]);
+export const BLOCKED_MESSAGE = "Konto gesperrt.";
 
 /** Seite, die das Telegram-Login-Widget einbettet (braucht 'unsafe-eval'). */
 const TELEGRAM_FRAME = "/telegram-login.html";
@@ -77,8 +96,21 @@ export async function buildApp() {
       const user = await findUserById(session.userId);
       if (user && user.tokenVersion === session.tokenVersion) req.user = user;
     }
-    if (!req.user && !PUBLIC_API.includes(url) && !url.startsWith("/api/srd/")) {
-      throw new HttpError(401, "Nicht angemeldet.");
+    if (!req.user) {
+      if (!PUBLIC_API.includes(url) && !url.startsWith("/api/srd/")) throw new HttpError(401, "Nicht angemeldet.");
+      return;
+    }
+    const user = req.user;
+    if (user.blockedAt && !BLOCKED_ALLOWED.has(`${req.method} ${url}`)) {
+      throw new HttpError(403, BLOCKED_MESSAGE);
+    }
+    if (url.startsWith("/api/admin/") && user.role !== "admin") {
+      throw new HttpError(403, "Nur für Admins.");
+    }
+    limitUser(req, "request");
+    if (req.method !== "GET" && req.method !== "HEAD" && !url.startsWith("/api/auth/")) {
+      limitUser(req, "write");
+      if (req.method === "POST") limitUser(req, "create");
     }
   });
 
@@ -109,6 +141,8 @@ export async function buildApp() {
   await app.register(toolRoutes);
   await app.register(characterRoutes);
   await app.register(srdRoutes);
+  await app.register(unblockRoutes);
+  await app.register(adminRoutes);
 
   // ── Frontend (gebautes SPA) ausliefern ─────────────────────────────────
   const staticDir = env.staticDir || path.resolve(process.cwd(), "../web/dist");

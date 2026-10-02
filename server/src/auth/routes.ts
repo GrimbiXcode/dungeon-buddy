@@ -3,8 +3,9 @@ import { z } from "zod";
 import { env } from "../env.js";
 import { sql } from "../db.js";
 import { HttpError, noContent, parse } from "../lib/http.js";
+import { recordAbuse, REGISTRATION_LIMITS } from "../lib/abuse.js";
 import { consumeRateLimit } from "../lib/rate-limit.js";
-import { findOrCreateUser, findUserById, publicUser, type User } from "../lib/users.js";
+import { findOrCreateUser, findUserById, findUserByTelegramId, publicUser, type User } from "../lib/users.js";
 import { redeemLoginCode } from "./login-codes.js";
 import { SESSION_COOKIE, SESSION_MAX_AGE_MS, signSession } from "./session.js";
 import { verifyTelegramWidgetData } from "./telegram-widget.js";
@@ -27,6 +28,39 @@ function assertAllowed(telegramId: number) {
   if (!env.telegramAllowedIds.includes(String(telegramId))) {
     throw new HttpError(403, "Dieses Telegram-Konto ist für diese Instanz nicht freigeschaltet.");
   }
+}
+
+/**
+ * Grenzen nur für neue Konten: pro IP (nur im Arbeitsspeicher, die IP wird
+ * nicht gespeichert) und – bei offener Registrierung – instanzweit pro Tag.
+ */
+async function assertRegistrationAllowed(req: FastifyRequest) {
+  const day = 24 * 60 * 60 * 1000;
+  if (env.telegramOpenRegistration && env.telegramAllowedIds.length === 0) {
+    const [row] = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM users WHERE created_at > now() - interval '24 hours'
+    `;
+    if (row!.n >= REGISTRATION_LIMITS.perDay) {
+      recordAbuse("registration.limited", null, { reason: "instance" });
+      throw new HttpError(429, "Heute sind bereits sehr viele neue Konten entstanden. Bitte morgen erneut versuchen.");
+    }
+  }
+  const perIp = consumeRateLimit(`register:${req.ip}`, REGISTRATION_LIMITS.perIpPerDay, day);
+  if (!perIp.allowed) {
+    if (perIp.firstDenied) recordAbuse("registration.limited", null, { reason: "ip" });
+    throw new HttpError(429, "Von diesem Anschluss wurden heute schon mehrere Konten angelegt. Bitte morgen erneut versuchen.");
+  }
+}
+
+/** Gemeinsamer Abschluss aller Login-Wege. */
+async function signIn(req: FastifyRequest, reply: FastifyReply, telegramId: number, displayName: string | null) {
+  assertAllowed(telegramId);
+  const existing = await findUserByTelegramId(telegramId);
+  if (!existing) await assertRegistrationAllowed(req);
+  const user = await findOrCreateUser(telegramId, displayName);
+  if (user.blockedAt) recordAbuse("login.blocked_user", user.id);
+  await setSessionCookie(reply, user);
+  return publicUser(user);
 }
 
 export async function setSessionCookie(reply: FastifyReply, user: User) {
@@ -76,10 +110,7 @@ export async function authRoutes(app: FastifyInstance) {
     const { code } = parse(z.object({ code: z.string().trim().regex(/^\d{6}$/, "Code muss 6 Ziffern haben") }), req.body);
     const redeemed = await redeemLoginCode(code);
     if (!redeemed) throw new HttpError(401, "Code ungültig oder abgelaufen. Fordere beim Bot mit /login einen neuen an.");
-    assertAllowed(redeemed.telegramId);
-    const user = await findOrCreateUser(redeemed.telegramId, redeemed.displayName);
-    await setSessionCookie(reply, user);
-    return publicUser(user);
+    return signIn(req, reply, redeemed.telegramId, redeemed.displayName);
   });
 
   app.post("/api/auth/widget", async (req, reply) => {
@@ -88,18 +119,17 @@ export async function authRoutes(app: FastifyInstance) {
     if (!verifyTelegramWidgetData(env.telegramBotToken, data)) {
       throw new HttpError(401, "Telegram-Anmeldung konnte nicht bestätigt werden.");
     }
-    assertAllowed(data.id);
     const name = [data.first_name, data.last_name].filter(Boolean).join(" ") || data.username || null;
-    const user = await findOrCreateUser(data.id, name);
-    await setSessionCookie(reply, user);
-    return publicUser(user);
+    return signIn(req, reply, data.id, name);
   });
 
   if (env.devLogin) {
     app.post("/api/auth/dev", async (_req, reply) => {
-      const user = await findOrCreateUser(1, "Dev-Abenteurer");
-      await setSessionCookie(reply, user);
-      return publicUser(user);
+      await findOrCreateUser(1, "Dev-Abenteurer");
+      // Lokal soll der Admin-Bereich ohne weitere Konfiguration erreichbar sein
+      const [user] = await sql<User[]>`UPDATE users SET role = 'admin' WHERE telegram_id = 1 RETURNING *`;
+      await setSessionCookie(reply, user!);
+      return publicUser(user!);
     });
   }
 

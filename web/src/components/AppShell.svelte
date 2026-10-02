@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { CircleUser, Users } from "@lucide/svelte";
+  import { CircleUser, ShieldCheck, Users } from "@lucide/svelte";
   import Logo from "./Logo.svelte";
   import { session } from "../lib/session.svelte";
 
@@ -12,6 +12,9 @@
     <a href="/" class="home" aria-label="Zur Übersicht"><Logo /></a>
     <nav class="row nav">
       <a href="/charaktere" class="btn btn-ghost"><Users size={18} /><span class="label-text">Charaktere</span></a>
+      {#if session.user?.role === "admin"}
+        <a href="/verwaltung" class="btn btn-ghost"><ShieldCheck size={18} /><span class="label-text">Verwaltung</span></a>
+      {/if}
       <a href="/profil" class="btn btn-ghost profile">
         <CircleUser size={18} />
         <span class="name">{session.user?.displayName}</span>

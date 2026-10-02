@@ -12,11 +12,34 @@ export type UserSettings = {
   lastCampaignId?: string | null;
 };
 
+export type BlockReason = "abuse" | "spam" | "terms" | "automated" | "other";
+
+export const BLOCK_REASON_LABELS: Record<BlockReason, string> = {
+  abuse: "Missbrauch",
+  spam: "Spam",
+  terms: "Verstoss gegen die Nutzungsregeln",
+  automated: "Automatisierte Nutzung",
+  other: "Anderer Grund",
+};
+
 export type User = {
   id: string;
   telegramId: string;
   displayName: string;
   settings: UserSettings;
+  role: "user" | "admin";
+  blockedAt: string | null;
+  blockedReason: BlockReason | null;
+  createdAt: string;
+};
+
+export type UnblockStatus = "pending" | "approved" | "rejected";
+
+export type UnblockRequest = {
+  id: string;
+  status: UnblockStatus;
+  reviewNote: string;
+  reviewedAt: string | null;
   createdAt: string;
 };
 

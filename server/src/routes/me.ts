@@ -63,6 +63,8 @@ export async function meRoutes(app: FastifyInstance) {
         ? await sql`SELECT * FROM campaign_characters WHERE campaign_id IN ${sql(ids)} ORDER BY joined_at`
         : [],
       spells: await sql`SELECT * FROM spells WHERE user_id = ${user.id} ORDER BY created_at`,
+      unblockRequests: await sql`SELECT * FROM unblock_requests WHERE user_id = ${user.id} ORDER BY created_at`,
+      abuseEvents: await sql`SELECT event, at, detail FROM abuse_events WHERE user_id = ${user.id} ORDER BY at`,
     };
     reply.header("Content-Disposition", `attachment; filename="dungeon-buddy-export.json"`);
     return data;

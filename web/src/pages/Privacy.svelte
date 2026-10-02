@@ -19,17 +19,31 @@
     <li>
       Kurzlebige <strong>Login-Codes</strong> des Telegram-Bots (max. 5 Minuten, danach oder beim Einlösen gelöscht).
     </li>
+    <li>
+      <strong>Missbrauchsschutz:</strong> Nur wenn ein Limit greift (zu viele Anfragen, Obergrenze erreicht, zu viele
+      neue Konten) oder ein Konto gesperrt wird, entsteht ein Eintrag mit Zeitpunkt, Art des Limits und deinem Konto –
+      ohne IP-Adresse. Diese Einträge werden nach 90 Tagen gelöscht. Bei normaler Nutzung entsteht nichts.
+    </li>
+    <li>Bei einer <strong>Sperre</strong>: Zeitpunkt und Grund, sowie deine Entsperr-Anträge samt Antwort.</li>
   </ul>
+  <h2>Wer was sieht</h2>
+  <p>
+    Admins dieser Instanz sehen eine Liste der Konten mit Anzeigename, Erstellungsdatum, Anzahl Kampagnen und
+    Charaktere sowie Sperrstatus – nicht deine Inhalte und nicht deine Telegram-ID.
+  </p>
   <h2>Was nicht gespeichert wird</h2>
   <ul>
-    <li>Keine IP-Adressen, keine Zugriffsprotokolle, kein Tracking, keine Analyse-Tools.</li>
+    <li>
+      Keine IP-Adressen, keine Zugriffsprotokolle, kein Tracking, keine Analyse-Tools. Für die Begrenzung neuer Konten
+      pro Anschluss zählt der Server kurzzeitig im Arbeitsspeicher mit; gespeichert wird die IP-Adresse nicht.
+    </li>
     <li>Kein Telegram-Benutzername, keine Telefonnummer, kein Profilbild.</li>
     <li>Keine Sitzungsdaten auf dem Server – die Anmeldung steckt in einem signierten Cookie in deinem Browser.</li>
   </ul>
   <h2>Löschen &amp; Auskunft</h2>
   <p>
-    Im Profil kannst du alle deine Daten als JSON exportieren und dein Konto löschen. Beim Löschen werden alle
-    zugehörigen Daten sofort aus der Datenbank entfernt.
+    Im Profil kannst du alle deine Daten als JSON exportieren und dein Konto löschen – auch wenn dein Konto gesperrt
+    ist. Beim Löschen werden alle zugehörigen Daten sofort aus der Datenbank entfernt.
   </p>
   <h2>Telegram</h2>
   <p>

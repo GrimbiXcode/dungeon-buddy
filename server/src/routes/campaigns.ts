@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.js";
 import { idParam, noContent, notFound, parse } from "../lib/http.js";
+import { assertQuota, countRows } from "../lib/abuse.js";
 import { onlyGiven } from "../lib/crud.js";
 
 export const CAMPAIGN_THEMES = [
@@ -46,6 +47,7 @@ export async function campaignRoutes(app: FastifyInstance) {
 
   app.post("/api/campaigns", async (req, reply) => {
     const input = parse(campaignSchema, req.body);
+    await assertQuota(req, "campaignsPerUser", () => countRows("campaigns", "user_id", req.user!.id));
     const [row] = await sql`
       INSERT INTO campaigns ${sql({ ...input, userId: req.user!.id })}
       RETURNING *

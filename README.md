@@ -43,6 +43,8 @@ Gespeichert werden ausschliesslich Anwendungsdaten:
 | Einstellungen (Farbschema, Würfelmodus, Einheiten) | Sitzungen auf dem Server (signiertes Cookie im Browser) |
 | Deine Inhalte (Kampagnen, Tagebuch, NPCs, Bögen, Zauber) | Würfelverlauf |
 | Login-Codes, maximal 5 Minuten lang | |
+| Missbrauchs-Ereignisse, nur wenn ein Limit greift (90 Tage) | IP-Adressen auch dort nicht |
+| Sperrstatus und Entsperr-Anträge | |
 
 Löschst du dein Konto im Profil, entfernt die Datenbank sofort alle zugehörigen Zeilen (`ON DELETE CASCADE`). Es bleibt nichts zurück. Im Profil kannst du ausserdem alle deine Daten als JSON exportieren.
 
@@ -90,6 +92,44 @@ Ohne Freigabeliste und ohne `TELEGRAM_OPEN_REGISTRATION=1` kann sich niemand anm
 
 > **Ein Bot pro Instanz.** Die App holt Nachrichten per Long-Polling ab; zwei Instanzen mit demselben Token nehmen sich die Updates gegenseitig weg (Telegram antwortet mit 409). Ausserdem kennt ein Bot nur eine Domain für den Login-Button. Für Test und Produktion legst du also zwei Bots an.
 
+## Verwaltung und Missbrauchsschutz
+
+### Wer Admin ist
+
+- `OWNER_TELEGRAM_ID` gesetzt: Dieses Konto wird bei jeder Anmeldung Admin.
+- Sonst, mit Freigabeliste (`TELEGRAM_ALLOWED_IDS`): der allererste Benutzer.
+- Bei offener Registrierung ohne `OWNER_TELEGRAM_ID` wird **niemand** automatisch Admin – sonst wäre es der erste Fremde. Der Server warnt beim Start.
+
+Rechte vergeben oder entziehen lässt sich nur in der Datenbank (`users.role`). Admins sehen in der Navigation **Verwaltung** (`/verwaltung`):
+
+- **Nutzer**: Konten mit Anzeigename, Erstellungsdatum, Anzahl Kampagnen/Charaktere und Status; sperren (mit Grund) und freischalten. Telegram-IDs und Inhalte sind dort nicht sichtbar. Sich selbst und andere Admins kann man nicht sperren.
+- **Entsperr-Anträge**: annehmen (entsperrt sofort) oder ablehnen (mit Begründung, geht per Telegram an die Person).
+- **Missbrauch**: Kennzahlen mit Alarmschwellen, Rate-Limit- und Obergrenzen-Treffer, neue Konten pro Tag, auffälligste Konten.
+- **System**: Versionen, Datenbankgrösse, Tabellen, Migrationen, Obergrenzen.
+
+### Sperren
+
+Eine Sperre meldet das Konto sofort überall ab. Danach kann sich die Person zwar anmelden, sieht aber nur eine Sperrseite: Daten exportieren, Konto löschen, Entsperrung beantragen (höchstens ein offener Antrag, drei pro Tag). Über Sperre, Freischaltung und abgelehnte Anträge informiert der Bot.
+
+### Limits
+
+| Was | Grenze |
+| --- | --- |
+| Anfragen pro Konto | 600 / Minute |
+| Änderungen (POST/PUT/PATCH/DELETE) | 120 / Minute |
+| Neue Einträge (POST) | 300 / Stunde |
+| Neue Konten pro IP | 3 / Tag (nur im Arbeitsspeicher gezählt) |
+| Neue Konten insgesamt bei offener Registrierung | 20 / Tag |
+| Kampagnen / Charaktere pro Konto | 100 / 300 |
+| Tagebucheinträge / NPCs / Beziehungen / Zauber pro Kampagne | 5000 / 2000 / 5000 / 2000 |
+| Zauber pro Charakter | 1000 |
+
+Die Grenzen stehen in `server/src/lib/abuse.ts` und sind so gewählt, dass normale Runden sie nie erreichen. Die Rate-Limits zählen im Arbeitsspeicher, also pro laufender Instanz.
+
+### Alarm
+
+Alle 15 Minuten (nur in Produktion) prüft der Server die Schwellen: 100 Rate-Limit-Treffer pro Stunde, 50 erreichte Obergrenzen pro Tag, 10 abgewiesene Registrierungen pro Tag, 5 offene Entsperr-Anträge. Wird eine erreicht, schickt der Bot allen Admins eine Nachricht – pro Schwelle höchstens alle 6 Stunden. Mit `APP_BASE_URL` enthält sie einen Link zur Verwaltung.
+
 ## Konfiguration
 
 Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
@@ -101,6 +141,8 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | Telegram-Bot |
 | `TELEGRAM_ALLOWED_IDS` | Freigegebene Telegram-IDs (hat Vorrang vor der offenen Registrierung) |
 | `TELEGRAM_OPEN_REGISTRATION` | Anmeldung für alle öffnen; wirkt nur bei leerer Freigabeliste |
+| `OWNER_TELEGRAM_ID` | Telegram-ID des Betreibers, wird Admin (bei offener Registrierung nötig) |
+| `APP_BASE_URL` | Öffentliche Adresse, z. B. `https://dnd.example.org`, für Links in Bot-Nachrichten |
 | `HOST` | Lauschadresse, Standard `::` (IPv4 + IPv6), ohne IPv6 automatisch `0.0.0.0` |
 | `PORT`, `SECURE_COOKIES`, `TRUST_PROXY`, `APP_NAME` | Betrieb |
 | `DEV_LOGIN` | Nur Entwicklung: Anmeldung ohne Telegram |

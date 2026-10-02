@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.js";
+import { assertQuota, countRows, type QuotaName } from "./abuse.js";
 import { idParam, noContent, notFound, parse } from "./http.js";
 
 /** Stellt sicher, dass die Kampagne existiert und dem Benutzer gehört. */
@@ -31,6 +32,8 @@ type CrudOptions<S extends z.ZodObject> = {
   /** Felder, die als jsonb gespeichert werden. */
   jsonFields?: string[];
   orderBy: string;
+  /** Obergrenze für die Anzahl Einträge pro Kampagne */
+  quota?: QuotaName;
   /** Zusätzliche Prüfungen (z. B. Fremdschlüssel innerhalb der Kampagne). */
   validate?: (campaignId: string, input: Partial<z.infer<S>>) => Promise<void>;
 };
@@ -69,6 +72,7 @@ export function campaignCrud<S extends z.ZodObject>(app: FastifyInstance, opts: 
     const campaign = await requireCampaign(req);
     const input = parse(opts.schema, req.body) as Record<string, unknown>;
     await opts.validate?.(campaign.id, input as never);
+    if (opts.quota) await assertQuota(req, opts.quota, () => countRows(opts.table, "campaign_id", campaign.id));
     const values = { ...prepare(input), campaignId: campaign.id };
     const [row] = await sql`INSERT INTO ${table} ${sql(values)} RETURNING *`;
     return reply.code(201).send(row);

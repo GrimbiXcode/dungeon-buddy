@@ -3,6 +3,8 @@ import { migrate, sql } from "./db.js";
 import { buildApp } from "./app.js";
 import { startTelegramBot } from "./auth/bot.js";
 import { purgeExpiredLoginCodes } from "./auth/login-codes.js";
+import { purgeOldAbuseEvents } from "./lib/abuse.js";
+import { runAbuseCheck } from "./lib/abuse-alert.js";
 
 type App = Awaited<ReturnType<typeof buildApp>>;
 
@@ -30,6 +32,19 @@ async function main() {
 
   startTelegramBot();
   setInterval(() => void purgeExpiredLoginCodes().catch(() => {}), 10 * 60 * 1000).unref();
+
+  // Missbrauchs-Ereignisse nach 90 Tagen löschen; Alarm an Admins prüfen
+  void purgeOldAbuseEvents().catch(() => {});
+  setInterval(() => void purgeOldAbuseEvents().catch(() => {}), 6 * 60 * 60 * 1000).unref();
+  if (env.isProduction) {
+    setInterval(
+      () => void runAbuseCheck().catch(e => console.warn("[abuse] Prüfung fehlgeschlagen:", (e as Error).message)),
+      15 * 60 * 1000
+    ).unref();
+  }
+  if (env.telegramOpenRegistration && env.telegramAllowedIds.length === 0 && !env.ownerTelegramId) {
+    console.warn("[auth] Offene Registrierung ohne OWNER_TELEGRAM_ID – es gibt keinen Admin.");
+  }
 
   const shutdown = async () => {
     await app.close();

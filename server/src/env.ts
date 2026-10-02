@@ -26,6 +26,10 @@ export const env = {
   telegramBotUsername: (process.env.TELEGRAM_BOT_USERNAME ?? "").replace(/^@/, ""),
   telegramAllowedIds: list(process.env.TELEGRAM_ALLOWED_IDS),
   telegramOpenRegistration: flag(process.env.TELEGRAM_OPEN_REGISTRATION),
+  /** Telegram-ID des Betreibers: wird bei jedem Login Admin. */
+  ownerTelegramId: (process.env.OWNER_TELEGRAM_ID ?? "").trim(),
+  /** Öffentliche Adresse, für Links in Bot-Nachrichten (optional). */
+  appBaseUrl: (process.env.APP_BASE_URL ?? "").replace(/\/+$/, ""),
   /** Name der Instanz, erscheint in Bot-Nachrichten. */
   appName: process.env.APP_NAME ?? "Dungeon Buddy",
   /** Nur ausserhalb der Produktion: Anmeldung ohne Telegram. */

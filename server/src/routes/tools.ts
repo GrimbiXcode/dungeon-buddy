@@ -19,6 +19,7 @@ export async function toolRoutes(app: FastifyInstance) {
   campaignCrud(app, {
     path: "journal",
     table: "journal_entries",
+    quota: "journalEntriesPerCampaign",
     orderBy: "session_number DESC NULLS LAST, ingame_day DESC NULLS LAST, created_at DESC",
     schema: z.object({
       sessionNumber: z.number().int().min(0).max(100000).nullable().default(null),
@@ -34,6 +35,7 @@ export async function toolRoutes(app: FastifyInstance) {
   campaignCrud(app, {
     path: "npcs",
     table: "npcs",
+    quota: "npcsPerCampaign",
     orderBy: "name ASC",
     schema: z.object({
       name: z.string().trim().min(1).max(200),
@@ -52,6 +54,7 @@ export async function toolRoutes(app: FastifyInstance) {
   campaignCrud(app, {
     path: "relations",
     table: "npc_relations",
+    quota: "relationsPerCampaign",
     orderBy: "created_at ASC",
     schema: z.object({
       fromNpcId: z.uuid(),

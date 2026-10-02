@@ -33,6 +33,10 @@ export async function api<T = unknown>(path: string, opts: Options = {}): Promis
   const data = await resp.json().catch(() => null);
   if (!resp.ok) {
     if (resp.status === 401 && !path.startsWith("/api/auth/")) session.user = null;
+    // Während der Nutzung gesperrt: App zeigt die Sperrseite
+    if (resp.status === 403 && (data as { error?: string })?.error === "Konto gesperrt." && session.user && !session.user.blockedAt) {
+      session.user = { ...session.user, blockedAt: new Date().toISOString() };
+    }
     throw new ApiError(resp.status, (data as { error?: string })?.error ?? `Fehler ${resp.status}`);
   }
   return data as T;

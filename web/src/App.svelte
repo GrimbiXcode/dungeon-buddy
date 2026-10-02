@@ -18,6 +18,8 @@
   import NotFound from "./pages/NotFound.svelte";
   import MyCharacters from "./pages/MyCharacters.svelte";
   import CharacterPage from "./pages/CharacterPage.svelte";
+  import Blocked from "./pages/Blocked.svelte";
+  import Admin from "./pages/Admin.svelte";
 
   onMount(() => {
     applyColorMode(storedColorMode());
@@ -69,6 +71,14 @@
   <Privacy />
 {:else if !session.user}
   <Landing />
+{:else if session.user.blockedAt}
+  <Blocked />
+{:else if route.path === "/verwaltung" || route.path.startsWith("/verwaltung/")}
+  {#if session.user.role === "admin"}
+    <Admin section={route.path.split("/")[2] ?? "nutzer"} />
+  {:else}
+    <NotFound />
+  {/if}
 {:else if route.path === "/"}
   <Dashboard />
 {:else if route.path === "/profil"}
@@ -87,7 +97,7 @@
   <NotFound />
 {/if}
 
-{#if session.user && session.user.settings.unitCalculator !== false}
+{#if session.user && !session.user.blockedAt && session.user.settings.unitCalculator !== false}
   <UnitCalculator />
 {/if}
 <DiceModal />
