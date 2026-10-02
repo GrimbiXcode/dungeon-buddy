@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.js";
 import { assertQuota, countRows } from "../lib/abuse.js";
+import { copyAttachmentToCharacter } from "../lib/attachment-copy.js";
 import { onlyGiven, requireCampaign } from "../lib/crud.js";
 import { HttpError, idParam, noContent, notFound, parse } from "../lib/http.js";
 
@@ -45,11 +46,18 @@ const campaignsJson = () => sql`
   ), '[]'::json)
 `;
 
-async function requireCharacter(req: FastifyRequest, param = "characterId") {
+export async function requireCharacter(req: FastifyRequest, param = "characterId") {
   const id = idParam(req, param);
   const [row] = await sql`SELECT * FROM characters WHERE id = ${id} AND user_id = ${req.user!.id}`;
   if (!row) throw notFound("Charakter");
-  return row as { id: string; name: string; data: Record<string, unknown>; revision: number; ruleset: string };
+  return row as {
+    id: string;
+    name: string;
+    data: Record<string, unknown>;
+    revision: number;
+    ruleset: string;
+    portraitId: string | null;
+  };
 }
 
 /** Charakter ist der Kampagne (aktiv) zugewiesen? */
@@ -176,8 +184,15 @@ export async function characterRoutes(app: FastifyInstance) {
         SELECT user_id, ${row!.id}, srd_key, name, level, data, prepared, always_prepared, favorite, notes
         FROM spells WHERE character_id = ${ch.id}
       `;
-      return row;
+      return row!;
     });
+    // Porträt mitkopieren: Die Kopie bekommt eigene Dateien, damit sie das
+    // Löschen des Originals übersteht.
+    if (ch.portraitId) {
+      const portraitId = await copyAttachmentToCharacter(req.user!.id, ch.portraitId, copy.id as string);
+      const [updated] = await sql`UPDATE characters SET portrait_id = ${portraitId} WHERE id = ${copy.id} RETURNING *`;
+      return reply.code(201).send(updated);
+    }
     return reply.code(201).send(copy);
   });
 

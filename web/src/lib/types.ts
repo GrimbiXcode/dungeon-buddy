@@ -48,6 +48,8 @@ export type AuthInfo = {
   botConfigured: boolean;
   botUsername: string | null;
   devLogin: boolean;
+  /** Anhänge verfügbar (S3-Speicher konfiguriert) */
+  attachments: boolean;
 };
 
 export type Campaign = {
@@ -63,6 +65,7 @@ export type Campaign = {
   npcCount?: number;
   characterCount?: number;
   spellCount?: number;
+  attachmentCount?: number;
 };
 
 export type JournalEntry = {
@@ -135,6 +138,8 @@ export type CharacterRecord = {
   status: CharacterStatus;
   forkedFrom: string | null;
   forkedFromName?: string | null;
+  /** Anhang mit dem Porträt */
+  portraitId: string | null;
   campaigns?: CharacterCampaignLink[];
   createdAt: string;
   updatedAt: string;
@@ -190,6 +195,26 @@ export type Spell = {
   alwaysPrepared: boolean;
   favorite: boolean;
   notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AttachmentCategory = "portrait" | "map" | "notes" | "table" | "scene" | "rules" | "adventure" | "other";
+
+export type Attachment = {
+  id: string;
+  campaignId: string | null;
+  characterId: string | null;
+  kind: "image" | "pdf";
+  category: AttachmentCategory;
+  title: string;
+  description: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  hasThumb: boolean;
   createdAt: string;
   updatedAt: string;
 };

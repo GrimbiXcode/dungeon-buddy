@@ -29,6 +29,7 @@ export async function campaignRoutes(app: FastifyInstance) {
       SELECT c.*,
         (SELECT count(*)::int FROM journal_entries j WHERE j.campaign_id = c.id) AS journal_count,
         (SELECT count(*)::int FROM npcs n WHERE n.campaign_id = c.id) AS npc_count,
+        (SELECT count(*)::int FROM attachments a WHERE a.campaign_id = c.id) AS attachment_count,
         (SELECT count(*)::int FROM campaign_characters cc WHERE cc.campaign_id = c.id AND cc.active) AS character_count,
         (SELECT count(*)::int FROM spells s WHERE s.campaign_id = c.id OR s.character_id IN (
           SELECT character_id FROM campaign_characters cc WHERE cc.campaign_id = c.id AND cc.active

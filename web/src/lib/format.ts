@@ -6,6 +6,16 @@ export function formatDate(value: string | null | undefined) {
   return Number.isNaN(d.getTime()) ? value : dateFmt.format(d);
 }
 
+const sizeFmt = new Intl.NumberFormat("de-CH", { maximumFractionDigits: 1 });
+
+/** Dateigrösse, z. B. "3.4 MB" */
+export function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${sizeFmt.format(bytes / 1024)} KB`;
+  if (bytes < 1024 ** 3) return `${sizeFmt.format(bytes / 1024 ** 2)} MB`;
+  return `${sizeFmt.format(bytes / 1024 ** 3)} GB`;
+}
+
 export function todayIso() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

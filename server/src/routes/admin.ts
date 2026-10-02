@@ -2,7 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.js";
 import { getAbuseOverview } from "../lib/abuse-alert.js";
-import { QUOTAS, recordAbuse } from "../lib/abuse.js";
+import { QUOTAS, recordAbuse, STORAGE_BYTES_PER_USER } from "../lib/abuse.js";
+import { getStorage } from "../lib/storage.js";
 import { blockUser, notifyBlocked, notifyUnblocked, notifyUnblockRejected, unblockUser } from "../lib/blocking.js";
 import { HttpError, idParam, notFound, parse } from "../lib/http.js";
 import { BLOCK_REASONS, findUserById } from "../lib/users.js";
@@ -111,11 +112,23 @@ export async function adminRoutes(app: FastifyInstance) {
     const tables = await sql`
       SELECT relname AS name, n_live_tup::int AS rows FROM pg_stat_user_tables ORDER BY relname
     `;
+    const [storage] = await sql`
+      SELECT count(*)::int AS attachments, COALESCE(sum(size_bytes), 0)::bigint AS total_bytes,
+        (SELECT count(*)::int FROM storage_deletions) AS pending_deletions
+      FROM attachments
+    `;
     return {
       database: { version: db!.version, sizeBytes: Number(db!.sizeBytes) },
       migrations,
       tables,
       quotas: QUOTAS,
+      storage: {
+        enabled: getStorage() !== null,
+        attachments: storage!.attachments,
+        totalBytes: Number(storage!.totalBytes),
+        pendingDeletions: storage!.pendingDeletions,
+        bytesPerUser: STORAGE_BYTES_PER_USER,
+      },
       node: process.version,
     };
   });

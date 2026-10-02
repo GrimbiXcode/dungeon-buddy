@@ -41,6 +41,18 @@ export const env = {
     ? flag(process.env.SECURE_COOKIES)
     : isProduction,
   staticDir: process.env.STATIC_DIR ?? "",
+  /** S3-kompatibler Object Storage für Anhänge. Ohne Bucket sind Anhänge aus. */
+  s3: {
+    endpoint: (process.env.S3_ENDPOINT ?? "").trim(),
+    region: (process.env.S3_REGION ?? "").trim() || "us-east-1",
+    bucket: (process.env.S3_BUCKET ?? "").trim(),
+    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "",
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? "",
+    /** Pfad-Adressierung (bucket im Pfad), nötig z. B. für SeaweedFS */
+    forcePathStyle: flag(process.env.S3_FORCE_PATH_STYLE),
+    /** Fehlenden Bucket beim Start anlegen (lokales SeaweedFS) */
+    createBucket: flag(process.env.S3_CREATE_BUCKET),
+  },
 };
 
 export function assertEnv() {
@@ -48,6 +60,11 @@ export function assertEnv() {
     throw new Error(
       "APP_SECRET fehlt oder ist zu kurz (mind. 32 Zeichen). Erzeugen z. B. mit: openssl rand -hex 32"
     );
+  }
+  const s3 = env.s3;
+  const s3Given = [s3.endpoint, s3.bucket, s3.accessKeyId, s3.secretAccessKey].filter(Boolean).length;
+  if (s3Given > 0 && s3Given < 4) {
+    throw new Error("S3-Konfiguration unvollständig: S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID und S3_SECRET_ACCESS_KEY setzen.");
   }
   if (!env.appSecret) {
     // Entwicklung: festes, unsicheres Secret, damit der Start ohne .env klappt.

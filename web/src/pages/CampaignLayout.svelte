@@ -7,7 +7,7 @@
   import { match, route } from "../lib/router.svelte";
   import { session } from "../lib/session.svelte";
   import { rulesetLabel } from "../lib/themes";
-  import { CAMPAIGN_NAV } from "../lib/tools";
+  import { campaignNav } from "../lib/tools";
   import type { Campaign, User } from "../lib/types";
   import CampaignHome from "./CampaignHome.svelte";
   import CampaignSettings from "./CampaignSettings.svelte";
@@ -83,7 +83,7 @@
         {#if campaign.archivedAt}<span class="badge">Archiviert</span>{/if}
       </div>
       <nav aria-label="Werkzeuge">
-        {#each CAMPAIGN_NAV as item (item.slug)}
+        {#each campaignNav() as item (item.slug)}
           <a href="{base}{item.slug ? `/${item.slug}` : ''}" class:active={isActive(item.slug)} aria-current={isActive(item.slug) ? "page" : undefined}>
             <item.icon size={18} />
             <span>{item.name}</span>
@@ -117,6 +117,15 @@
         <Characters {campaign} />
       {:else if section === "zauberbuch"}
         <Spellbook {campaign} />
+      {:else if section === "anhaenge" && session.info?.attachments}
+        <!-- Erst beim Öffnen laden: hält das Haupt-Bundle klein -->
+        {#await import("../tools/Attachments.svelte")}
+          <div class="spinner"></div>
+        {:then { default: Attachments }}
+          <Attachments {campaign} />
+        {:catch}
+          <NotFoundInline />
+        {/await}
       {:else if section === "einstellungen"}
         <CampaignSettings {campaign} />
       {:else}
@@ -125,7 +134,7 @@
     </main>
 
     <nav class="bottom-nav" aria-label="Werkzeuge">
-      {#each CAMPAIGN_NAV.filter(i => i.slug !== "einstellungen") as item (item.slug)}
+      {#each campaignNav().filter(i => i.slug !== "einstellungen") as item (item.slug)}
         <a href="{base}{item.slug ? `/${item.slug}` : ''}" class:active={isActive(item.slug)}>
           <item.icon size={20} />
           <span>{item.short}</span>
@@ -205,7 +214,8 @@
       z-index: 30;
       inset: auto 0 0 0;
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
       gap: 0;
       margin: 0;
       padding: 0.3rem 0.3rem calc(0.3rem + env(safe-area-inset-bottom));

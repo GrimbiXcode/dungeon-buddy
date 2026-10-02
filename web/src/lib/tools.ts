@@ -1,4 +1,5 @@
-import { BookOpen, LayoutDashboard, ScrollText, Settings, Users, Wand } from "@lucide/svelte";
+import { BookOpen, Images, LayoutDashboard, ScrollText, Settings, Users, Wand } from "@lucide/svelte";
+import { session } from "./session.svelte";
 
 export const TOOLS = [
   {
@@ -28,12 +29,25 @@ export const TOOLS = [
     icon: Wand,
     description: "Zauber aus dem SRD übernehmen, vorbereiten, würfeln.",
   },
+  {
+    slug: "anhaenge",
+    name: "Anhänge",
+    icon: Images,
+    description: "Karten, Szenenbilder, Fotos und PDFs zur Kampagne.",
+  },
 ] as const;
 
 export type ToolSlug = (typeof TOOLS)[number]["slug"];
 
-export const CAMPAIGN_NAV = [
-  { slug: "", name: "Übersicht", short: "Übersicht", icon: LayoutDashboard },
-  ...TOOLS.map(t => ({ slug: t.slug, name: t.name, short: "short" in t ? t.short : t.name, icon: t.icon })),
-  { slug: "einstellungen", name: "Kampagne bearbeiten", short: "Kampagne", icon: Settings },
-];
+/** Tools dieser Instanz: Anhänge gibt es nur mit S3-Speicher auf dem Server. */
+export function availableTools() {
+  return TOOLS.filter(t => t.slug !== "anhaenge" || session.info?.attachments);
+}
+
+export function campaignNav() {
+  return [
+    { slug: "", name: "Übersicht", short: "Übersicht", icon: LayoutDashboard },
+    ...availableTools().map(t => ({ slug: t.slug, name: t.name, short: "short" in t ? t.short : t.name, icon: t.icon })),
+    { slug: "einstellungen", name: "Kampagne bearbeiten", short: "Kampagne", icon: Settings },
+  ];
+}

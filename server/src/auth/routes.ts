@@ -5,6 +5,7 @@ import { sql } from "../db.js";
 import { HttpError, noContent, parse } from "../lib/http.js";
 import { recordAbuse, REGISTRATION_LIMITS } from "../lib/abuse.js";
 import { consumeRateLimit } from "../lib/rate-limit.js";
+import { getStorage } from "../lib/storage.js";
 import { findOrCreateUser, findUserById, findUserByTelegramId, publicUser, type User } from "../lib/users.js";
 import { redeemLoginCode } from "./login-codes.js";
 import { SESSION_COOKIE, SESSION_MAX_AGE_MS, signSession } from "./session.js";
@@ -103,6 +104,7 @@ export async function authRoutes(app: FastifyInstance) {
     botConfigured: Boolean(env.telegramBotToken && env.telegramBotUsername),
     botUsername: env.telegramBotUsername || null,
     devLogin: env.devLogin,
+    attachments: getStorage() !== null,
   }));
 
   app.post("/api/auth/code", async (req, reply) => {

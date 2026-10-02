@@ -5,7 +5,7 @@
   import { campaignApi, get } from "../lib/api";
   import { formatDate } from "../lib/format";
   import { rulesetLabel } from "../lib/themes";
-  import { TOOLS } from "../lib/tools";
+  import { availableTools } from "../lib/tools";
   import type { Campaign, CampaignCharacter, JournalEntry } from "../lib/types";
 
   let { campaign }: { campaign: Campaign } = $props();
@@ -28,6 +28,7 @@
       netzwerk: me?.npcCount ?? 0,
       charaktere: me?.characterCount ?? 0,
       zauberbuch: me?.spellCount ?? 0,
+      anhaenge: me?.attachmentCount ?? 0,
     };
   });
 
@@ -36,6 +37,7 @@
     netzwerk: "NPCs",
     charaktere: "Charaktere",
     zauberbuch: "Zauber",
+    anhaenge: "Anhänge",
   };
 </script>
 
@@ -51,7 +53,7 @@
 {/if}
 
 <div class="tools">
-  {#each TOOLS as tool (tool.slug)}
+  {#each availableTools() as tool (tool.slug)}
     <a class="card card-link tool" href="/k/{campaign.id}/{tool.slug}">
       <span class="icon"><tool.icon size={22} /></span>
       <span class="grow">

@@ -16,6 +16,8 @@ export const QUOTAS = {
   relationsPerCampaign: 5000,
   spellsPerCampaign: 2000,
   spellsPerCharacter: 1000,
+  attachmentsPerCampaign: 1000,
+  attachmentsPerCharacter: 200,
 } as const;
 export type QuotaName = keyof typeof QUOTAS;
 
@@ -29,6 +31,8 @@ export const RATE_LIMITS = {
   create: { limit: 300, windowMs: 60 * 60_000 },
   /** Entsperr-Anträge */
   unblockRequest: { limit: 3, windowMs: 24 * 60 * 60_000 },
+  /** ZIP-Export mit allen Anhängen (viel Datenverkehr) */
+  export: { limit: 5, windowMs: 60 * 60_000 },
 } as const;
 
 /** Registrierungen (nur neue Konten). */
@@ -102,7 +106,26 @@ const QUOTA_LABELS: Record<QuotaName, string> = {
   relationsPerCampaign: "Beziehungen pro Kampagne",
   spellsPerCampaign: "Zauber pro Kampagne",
   spellsPerCharacter: "Zauber pro Charakter",
+  attachmentsPerCampaign: "Anhänge pro Kampagne",
+  attachmentsPerCharacter: "Anhänge pro Charakter",
 };
+
+/** Speicherplatz für Anhänge pro Konto (gespeicherte Grösse nach Verarbeitung). */
+export const STORAGE_BYTES_PER_USER = 2 * 1024 ** 3;
+
+export async function storageUsedBy(userId: string): Promise<number> {
+  const [row] = await sql<{ n: string }[]>`SELECT COALESCE(sum(size_bytes), 0)::bigint AS n FROM attachments WHERE user_id = ${userId}`;
+  return Number(row!.n);
+}
+
+/** Prüft den Speicherplatz; `adding` ist die Grösse des neuen Anhangs. */
+export async function assertStorageQuota(req: FastifyRequest, adding: number) {
+  const used = await storageUsedBy(req.user!.id);
+  if (used + adding <= STORAGE_BYTES_PER_USER) return;
+  recordAbuse("limit.quota_exceeded", req.user!.id, { quota: "storageBytesPerUser", max: STORAGE_BYTES_PER_USER });
+  const gb = STORAGE_BYTES_PER_USER / 1024 ** 3;
+  throw new HttpError(413, `Speicherplatz erschöpft: höchstens ${gb} GB Anhänge pro Konto.`);
+}
 
 /** Zählt Zeilen einer Tabelle mit einer Bedingung auf eine Spalte. */
 export async function countRows(table: string, column: string, value: string): Promise<number> {

@@ -1,9 +1,41 @@
+import type { Readable } from "node:stream";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.js";
 import { clearSessionCookie } from "../auth/routes.js";
+import { limitUser } from "../lib/abuse.js";
+import { buildExportZip } from "../lib/export-zip.js";
 import { HttpError, noContent, parse } from "../lib/http.js";
-import { publicUser, userSettingsSchema } from "../lib/users.js";
+import { getStorage } from "../lib/storage.js";
+import { publicUser, userSettingsSchema, type User } from "../lib/users.js";
+
+/** Alle eigenen Daten (Datenauskunft). Anhänge nur als Metadaten. */
+async function exportData(user: User) {
+  const campaigns = await sql`SELECT * FROM campaigns WHERE user_id = ${user.id} ORDER BY created_at`;
+  const ids = campaigns.map(c => c.id as string);
+  const byCampaign = async (table: string) =>
+    ids.length ? sql`SELECT * FROM ${sql(table)} WHERE campaign_id IN ${sql(ids)} ORDER BY created_at` : [];
+  return {
+    exportedAt: new Date().toISOString(),
+    user: publicUser(user),
+    campaigns,
+    journalEntries: await byCampaign("journal_entries"),
+    npcs: await byCampaign("npcs"),
+    npcRelations: await byCampaign("npc_relations"),
+    characters: await sql`SELECT * FROM characters WHERE user_id = ${user.id} ORDER BY created_at`,
+    campaignCharacters: ids.length
+      ? await sql`SELECT * FROM campaign_characters WHERE campaign_id IN ${sql(ids)} ORDER BY joined_at`
+      : [],
+    spells: await sql`SELECT * FROM spells WHERE user_id = ${user.id} ORDER BY created_at`,
+    attachments: await sql`
+      SELECT id, campaign_id, character_id, kind, category, title, description, original_name,
+        mime_type, size_bytes::int AS size_bytes, width, height, created_at, updated_at
+      FROM attachments WHERE user_id = ${user.id} ORDER BY created_at
+    `,
+    unblockRequests: await sql`SELECT * FROM unblock_requests WHERE user_id = ${user.id} ORDER BY created_at`,
+    abuseEvents: await sql`SELECT event, at, detail FROM abuse_events WHERE user_id = ${user.id} ORDER BY at`,
+  };
+}
 
 export async function meRoutes(app: FastifyInstance) {
   app.get("/api/me", async req => publicUser(req.user!));
@@ -46,27 +78,23 @@ export async function meRoutes(app: FastifyInstance) {
 
   /** Datenauskunft / Export aller eigenen Daten als JSON. */
   app.get("/api/me/export", async (req, reply) => {
-    const user = req.user!;
-    const campaigns = await sql`SELECT * FROM campaigns WHERE user_id = ${user.id} ORDER BY created_at`;
-    const ids = campaigns.map(c => c.id as string);
-    const byCampaign = async (table: string) =>
-      ids.length ? sql`SELECT * FROM ${sql(table)} WHERE campaign_id IN ${sql(ids)} ORDER BY created_at` : [];
-    const data = {
-      exportedAt: new Date().toISOString(),
-      user: publicUser(user),
-      campaigns,
-      journalEntries: await byCampaign("journal_entries"),
-      npcs: await byCampaign("npcs"),
-      npcRelations: await byCampaign("npc_relations"),
-      characters: await sql`SELECT * FROM characters WHERE user_id = ${user.id} ORDER BY created_at`,
-      campaignCharacters: ids.length
-        ? await sql`SELECT * FROM campaign_characters WHERE campaign_id IN ${sql(ids)} ORDER BY joined_at`
-        : [],
-      spells: await sql`SELECT * FROM spells WHERE user_id = ${user.id} ORDER BY created_at`,
-      unblockRequests: await sql`SELECT * FROM unblock_requests WHERE user_id = ${user.id} ORDER BY created_at`,
-      abuseEvents: await sql`SELECT event, at, detail FROM abuse_events WHERE user_id = ${user.id} ORDER BY at`,
-    };
     reply.header("Content-Disposition", `attachment; filename="dungeon-buddy-export.json"`);
-    return data;
+    return exportData(req.user!);
+  });
+
+  /** Wie oben, zusätzlich mit allen Anhängen als ZIP (auch für gesperrte Konten). */
+  app.get("/api/me/export/files", { compress: false }, async (req, reply) => {
+    if (!getStorage()) throw new HttpError(503, "Anhänge sind auf dieser Instanz nicht eingerichtet.");
+    limitUser(req, "export");
+    const zip = await buildExportZip(req.user!.id, await exportData(req.user!));
+    zip.on("error", (e: Error) => {
+      // Mitten im Stream lässt sich kein Fehlerstatus mehr senden: abbrechen
+      console.warn("[export] ZIP abgebrochen:", e.message);
+      (zip.outputStream as Readable).destroy(e);
+    });
+    reply
+      .header("Content-Type", "application/zip")
+      .header("Content-Disposition", `attachment; filename="dungeon-buddy-export.zip"`);
+    return reply.send(zip.outputStream);
   });
 }

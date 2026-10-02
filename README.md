@@ -10,7 +10,7 @@ Als Web-App für Smartphone, Tablet und Desktop, installierbar als PWA.
   - Ein Charakter kann in mehreren Kampagnen spielen. Werte, Stufe und bekannte Zauber gelten überall: Steigt er in einer Kampagne auf, hat er die Stufe auch in den anderen.
   - In der Kampagne weist du Charaktere zu. Stirbt einer, lässt du ihn ausscheiden oder tauschst ihn aus; er bleibt im Verlauf der Kampagne unter „Ehemalige“.
   - Eine **Kopie (Fork)** übernimmt Bogen und Zauber, ist danach aber eigenständig. Änderungen an der Kopie wirken nicht auf das Original. Auf Wunsch ersetzt die Kopie das Original direkt in ausgewählten Kampagnen.
-- **Charakterbogen**: Attribute, Rettungswürfe, Fertigkeiten, Angriffe, TP, Zustände, Erschöpfung, Ressourcen, Zauberplätze, Inventar und Rasten.
+- **Charakterbogen**: Attribute, Rettungswürfe, Fertigkeiten, Angriffe, TP, Zustände, Erschöpfung, Ressourcen, Zauberplätze, Inventar und Rasten. Mit Anhängen auch ein Porträt; es erscheint auf der Charakterkarte und wird bei einer Kopie des Charakters mitkopiert.
   - **Digital würfeln** oder **mit echten Würfeln**: Du tippst auf ein Attribut, im Dialog auf die gewürfelte Zahl (1–20), und die App rechnet das Ergebnis aus. Das gilt für Attributs- und Rettungswürfe, Fertigkeiten, Initiative, Angriffe mit Schaden (auch kritisch), Zauber und Todesrettungswürfe.
   - Vorteil und Nachteil werden unterstützt, ebenso die Erschöpfung nach 2014- oder 2024-Regeln.
   - **Fähigkeiten selbst konfigurieren**: Klassenmerkmale, Herkunft, Talente, Ausrüstung usw. Pro Eintrag legst du fest:
@@ -26,6 +26,7 @@ Als Web-App für Smartphone, Tablet und Desktop, installierbar als PWA.
     - schlägt Fähigkeiten, Angriffe und Zauber vor, gruppiert nach *vor der Aktion / Aktion / Bonusaktion / Reaktion / frei* und filterbar nach Kategorie und Wirkung
     - Angriff mit einer Waffe: Der Assistent schlägt passende Fähigkeiten vor (z. B. Vorteil oder Bonus vor dem Wurf, Zusatzschaden bei Treffer) und rechnet sie in Treffer- und Schadenswurf ein.
 - **Zauberbuch**: Zauber aus dem SRD übernehmen oder eigene anlegen. Zauber eines Charakters wandern mit ihm in jede Kampagne; Zauber ohne Charakter bleiben Notizen der Kampagne. Zauber kannst du vorbereiten und Charakteren zuordnen. Zauberangriffe, Schaden und Heilung würfelst du direkt, inklusive Hochstufen und Zaubertrick-Skalierung. Zauberplätze lassen sich direkt verbrauchen.
+- **Anhänge**: Bilder und PDFs pro Kampagne, etwa Karten, Szenenbilder, Fotos von Notizen und vom Spieltisch, Regel- und Abenteuer-PDFs. Auf dem Smartphone direkt mit der Kamera. Fotos werden beim Hochladen gedreht, verkleinert und von Metadaten (GPS, Kamera) befreit. Braucht einen S3-Bucket, siehe [Anhänge](#anhänge-s3-speicher).
 
 - **Einheiten**: Im Profil wählst du imperial (ft, lb) oder metrisch (m, kg). Metrisch rechnet die App nach der Konvention der deutschen Regelwerke um (5 ft = 1.5 m). Das betrifft Bewegung, Reichweiten, Zaubertexte und Fähigkeiten.
 - **Einheitenrechner**: über eine Lasche am Bildschirmrand als Overlay. Er rechnet Länge, Strecke, Gewicht, Volumen, Felder, Runden/Minuten, Temperatur und Münzen um, wahlweise mit Spieltisch-Werten oder exakt. Im Profil lässt er sich komplett ausblenden.
@@ -42,11 +43,12 @@ Gespeichert werden ausschliesslich Anwendungsdaten:
 | Anzeigename (änderbar) | Telegram-Benutzername, Telefonnummer, Profilbild |
 | Einstellungen (Farbschema, Würfelmodus, Einheiten) | Sitzungen auf dem Server (signiertes Cookie im Browser) |
 | Deine Inhalte (Kampagnen, Tagebuch, NPCs, Bögen, Zauber) | Würfelverlauf |
+| Anhänge im S3-Bucket (Bilder ohne Metadaten, PDFs unverändert) | Dateinamen im Speicher (nur in der Datenbank) |
 | Login-Codes, maximal 5 Minuten lang | |
 | Missbrauchs-Ereignisse, nur wenn ein Limit greift (90 Tage) | IP-Adressen auch dort nicht |
 | Sperrstatus und Entsperr-Anträge | |
 
-Löschst du dein Konto im Profil, entfernt die Datenbank sofort alle zugehörigen Zeilen (`ON DELETE CASCADE`). Es bleibt nichts zurück. Im Profil kannst du ausserdem alle deine Daten als JSON exportieren.
+Löschst du dein Konto im Profil, entfernt die Datenbank sofort alle zugehörigen Zeilen (`ON DELETE CASCADE`). Es bleibt nichts zurück. Dateien im S3-Bucket merkt ein Trigger beim Löschen vor; ein Hintergrundjob entfernt sie innerhalb weniger Minuten. Im Profil kannst du ausserdem alle deine Daten als JSON exportieren, mit Anhängen auch als ZIP (`daten.json` und die Dateien, geordnet nach Kampagne und Charakter).
 
 ## Schnellstart mit Docker
 
@@ -79,6 +81,16 @@ dnd.example.org {
 
 Betreibst du mehrere Instanzen (z. B. Test und Produktion), braucht jede ihren eigenen Bot, siehe unten.
 
+### Anhänge (S3-Speicher)
+
+Anhänge liegen in einem S3-kompatiblen Object Storage. Ohne `S3_BUCKET` ist die Funktion aus und das Tool erscheint nicht.
+
+- **Hetzner Object Storage**: In der Hetzner-Konsole einen Bucket anlegen, am Standort des Servers (z. B. `fsn1`) und **privat**. CORS braucht es nicht, die App liefert die Dateien selbst aus. Unter *Security → S3 Credentials* Zugangsdaten erzeugen. Sie gelten für das ganze Hetzner-Projekt, Test und Produktion deshalb in getrennten Projekten anlegen. Dann `S3_ENDPOINT=https://fsn1.your-objectstorage.com`, `S3_REGION=fsn1`, `S3_BUCKET` und die beiden Schlüssel setzen.
+- **Empfohlen**: im Bucket eine Lifecycle-Regel, die abgebrochene Multipart-Uploads nach einem Tag löscht. Hetzner sichert den Bucket nicht. Für ein Backup ihn z. B. mit `rclone sync` an einen zweiten Standort spiegeln.
+- **Selbst betrieben**: `docker-compose.yml` bringt SeaweedFS mit (MinIO wird nicht mehr gepflegt).
+
+Beim Start prüft die App den Bucket und meldet im Log, wenn er nicht erreichbar ist. Verwaiste Objekte (z. B. nach einem Absturz beim Hochladen) räumt sie täglich auf.
+
 ## Telegram-Bot einrichten
 
 Die Anmeldung funktioniert wie bei [filahub](https://github.com/GrimbiXcode/filahub):
@@ -105,11 +117,11 @@ Rechte vergeben oder entziehen lässt sich nur in der Datenbank (`users.role`). 
 - **Nutzer**: Konten mit Anzeigename, Erstellungsdatum, Anzahl Kampagnen/Charaktere und Status; sperren (mit Grund) und freischalten. Telegram-IDs und Inhalte sind dort nicht sichtbar. Sich selbst und andere Admins kann man nicht sperren.
 - **Entsperr-Anträge**: annehmen (entsperrt sofort) oder ablehnen (mit Begründung, geht per Telegram an die Person).
 - **Missbrauch**: Kennzahlen mit Alarmschwellen, Rate-Limit- und Obergrenzen-Treffer, neue Konten pro Tag, auffälligste Konten.
-- **System**: Versionen, Datenbankgrösse, Tabellen, Migrationen, Obergrenzen.
+- **System**: Versionen, Datenbankgrösse, Tabellen, Migrationen, Obergrenzen, Anhänge (Anzahl, Speicher, offene Löschungen).
 
 ### Sperren
 
-Eine Sperre meldet das Konto sofort überall ab. Danach kann sich die Person zwar anmelden, sieht aber nur eine Sperrseite: Daten exportieren, Konto löschen, Entsperrung beantragen (höchstens ein offener Antrag, drei pro Tag). Über Sperre, Freischaltung und abgelehnte Anträge informiert der Bot.
+Eine Sperre meldet das Konto sofort überall ab. Danach kann sich die Person zwar anmelden, sieht aber nur eine Sperrseite: Daten exportieren (auch als ZIP mit Anhängen), Konto löschen, Entsperrung beantragen (höchstens ein offener Antrag, drei pro Tag). Über Sperre, Freischaltung und abgelehnte Anträge informiert der Bot.
 
 ### Limits
 
@@ -118,11 +130,15 @@ Eine Sperre meldet das Konto sofort überall ab. Danach kann sich die Person zwa
 | Anfragen pro Konto | 600 / Minute |
 | Änderungen (POST/PUT/PATCH/DELETE) | 120 / Minute |
 | Neue Einträge (POST) | 300 / Stunde |
+| ZIP-Export mit Anhängen | 5 / Stunde |
 | Neue Konten pro IP | 3 / Tag (nur im Arbeitsspeicher gezählt) |
 | Neue Konten insgesamt bei offener Registrierung | 20 / Tag |
 | Kampagnen / Charaktere pro Konto | 100 / 300 |
 | Tagebucheinträge / NPCs / Beziehungen / Zauber pro Kampagne | 5000 / 2000 / 5000 / 2000 |
 | Zauber pro Charakter | 1000 |
+| Anhänge pro Kampagne / pro Charakter | 1000 / 200 |
+| Speicher für Anhänge pro Konto | 2 GB |
+| Grösse pro Datei | Bilder 25 MB, PDFs 100 MB |
 
 Die Grenzen stehen in `server/src/lib/abuse.ts` und sind so gewählt, dass normale Runden sie nie erreichen. Die Rate-Limits zählen im Arbeitsspeicher, also pro laufender Instanz.
 
@@ -145,6 +161,8 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 | `APP_BASE_URL` | Öffentliche Adresse, z. B. `https://dnd.example.org`, für Links in Bot-Nachrichten |
 | `HOST` | Lauschadresse, Standard `::` (IPv4 + IPv6), ohne IPv6 automatisch `0.0.0.0` |
 | `PORT`, `SECURE_COOKIES`, `TRUST_PROXY`, `APP_NAME` | Betrieb |
+| `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | S3-Speicher für Anhänge (ohne Bucket: Anhänge aus) |
+| `S3_FORCE_PATH_STYLE`, `S3_CREATE_BUCKET` | Für SeaweedFS: Pfad-Adressierung, Bucket beim Start anlegen |
 | `DEV_LOGIN` | Nur Entwicklung: Anmeldung ohne Telegram |
 
 ## Entwicklung
@@ -155,6 +173,8 @@ Voraussetzungen: Node.js ≥ 22 und PostgreSQL.
 npm install
 # Datenbank, z. B.: createdb dungeonbuddy (Standard-URL: postgres://dnd:dnd@localhost:5432/dungeonbuddy)
 echo "DEV_LOGIN=1" >> .env
+# Optional, für Anhänge: SeaweedFS starten und die S3_*-Werte aus .env.example übernehmen
+docker compose up -d s3
 PORT=3100 npm run dev:server   # API auf :3100, Migrationen laufen automatisch
 npm run dev:web                # Vite auf :5173 mit Proxy auf /api
 ```
@@ -173,11 +193,11 @@ server/   Node.js (Fastify, postgres.js, zod, jose)
   migrations/     SQL-Migrationen (beim Start automatisch)
   data/srd/       Zauberlisten SRD 5.1 (2014) und SRD 5.2 (2024)
   src/auth/       Telegram-Bot (Long-Polling), Login-Widget, Sitzungen
-  src/routes/     Konto, Kampagnen, Tools, SRD
+  src/routes/     Konto, Kampagnen, Tools, Anhänge, SRD
 web/      Svelte 5 + Vite, PWA (vite-plugin-pwa)
   src/lib/        API, Router, D&D-Regeln, Würfel, Charaktermodell
   src/pages/      Landing, Dashboard, Profil, Kampagnen-Layout
-  src/tools/      Tagebuch, Netzwerk, Charakterbogen, Zauberbuch
+  src/tools/      Tagebuch, Netzwerk, Charakterbogen, Zauberbuch, Anhänge
 ```
 
 Das Backend liefert das gebaute Frontend aus. Image und Container sind deshalb jeweils nur einer. Die Content-Security-Policy erlaubt keine Inline-Skripte und kein `eval`. Die einzige Ausnahme ist das Rahmendokument für den Telegram-Login-Button (`web/public/telegram-login.html`).

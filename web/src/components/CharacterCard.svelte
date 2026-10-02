@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import { GitFork, Heart, Shield, Skull } from "@lucide/svelte";
   import { classSummary, normalizeCharacter, totalLevel } from "../lib/character";
+  import { session } from "../lib/session.svelte";
   import { rulesetLabel } from "../lib/themes";
   import type { CharacterRecord } from "../lib/types";
 
@@ -20,13 +21,21 @@
   } = $props();
 
   const d = $derived(normalizeCharacter(character.data));
+  const portrait = $derived(character.portraitId && session.info?.attachments ? character.portraitId : null);
 </script>
 
 <div class="card char" class:dimmed class:dead={character.status === "dead"}>
   <a {href} class="main">
-    <span class="level" title="Stufe">
-      {#if character.status === "dead"}<Skull size={20} />{:else}{totalLevel(d)}{/if}
-    </span>
+    {#if portrait}
+      <span class="level portrait">
+        <img src="/api/attachments/{portrait}/content?variant=thumb" alt="" loading="lazy" decoding="async" />
+        <span class="level-badge" title="Stufe">{#if character.status === "dead"}<Skull size={11} />{:else}{totalLevel(d)}{/if}</span>
+      </span>
+    {:else}
+      <span class="level" title="Stufe">
+        {#if character.status === "dead"}<Skull size={20} />{:else}{totalLevel(d)}{/if}
+      </span>
+    {/if}
     <span class="grow info">
       <strong class="block truncate">{character.name}</strong>
       <span class="small muted block truncate">{[d.species, classSummary(d) || `Stufe ${totalLevel(d)}`].filter(Boolean).join(" · ")}</span>
@@ -68,6 +77,24 @@
     border: 2px solid var(--accent);
   }
   .dead .level { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+  .portrait { position: relative; width: 52px; height: 52px; }
+  .portrait img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  .dead .portrait img { filter: grayscale(1); }
+  .level-badge {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-size: 0.7rem;
+    background: var(--surface);
+    border: 2px solid var(--accent);
+  }
+  .dead .level-badge { border-color: var(--danger); }
   .block { display: block; }
   .badges { gap: 0.3rem; }
   .badges .badge { font-size: 0.7rem; }

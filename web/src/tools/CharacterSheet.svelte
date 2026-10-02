@@ -15,6 +15,7 @@
   import { debounce } from "../lib/format";
   import { d20Request, isPhysical, openRoll } from "../lib/roller.svelte";
   import { route } from "../lib/router.svelte";
+  import { session } from "../lib/session.svelte";
   import { toast } from "../lib/toast.svelte";
   import type { Campaign, CharacterRecord, Ruleset } from "../lib/types";
   import { rulesetLabel } from "../lib/themes";
@@ -32,6 +33,7 @@
   import Features from "./character/Features.svelte";
   import CombatAssistant from "./character/CombatAssistant.svelte";
   import AttackWizard from "./character/AttackWizard.svelte";
+  import Portrait from "./character/Portrait.svelte";
   import { useFeature, type Feature } from "../lib/features";
   import type { Attack } from "../lib/character";
 
@@ -254,6 +256,15 @@
 {:else}
   <div class="sheet-header">
     <a class="btn btn-ghost btn-icon back" href={backHref} aria-label="Zurück zur Liste"><ArrowLeft size={18} /></a>
+    {#if session.info?.attachments}
+      <Portrait
+        {characterId}
+        name={name || "Unbenannt"}
+        portraitId={record.portraitId}
+        {editing}
+        onchange={id => record && (record.portraitId = id)}
+      />
+    {/if}
     <div class="grow title">
       <h1 class="truncate">{name || "Unbenannt"}</h1>
       <p class="muted small truncate">

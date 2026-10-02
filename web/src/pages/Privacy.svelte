@@ -16,6 +16,13 @@
     <li>Dein <strong>Anzeigename</strong> (bei der ersten Anmeldung aus Telegram übernommen, jederzeit änderbar).</li>
     <li>Deine <strong>Einstellungen</strong> (Farbschema, Würfelmodus, Einheiten, zuletzt geöffnete Kampagne).</li>
     <li>Die <strong>Inhalte</strong>, die du selbst anlegst: Kampagnen, Tagebucheinträge, NPCs, Charakterbögen, Zauber.</li>
+    {#if session.info?.attachments}
+      <li>
+        <strong>Anhänge</strong> (Bilder, PDFs) in einem Object Storage, den der Betreiber dieser Instanz wählt. Fotos
+        werden beim Hochladen von Metadaten befreit – Standort (GPS), Kamera und Aufnahmezeit werden nicht gespeichert.
+        PDFs bleiben unverändert. Der ursprüngliche Dateiname steht nur in der Datenbank.
+      </li>
+    {/if}
     <li>
       Kurzlebige <strong>Login-Codes</strong> des Telegram-Bots (max. 5 Minuten, danach oder beim Einlösen gelöscht).
     </li>
@@ -43,7 +50,8 @@
   <h2>Löschen &amp; Auskunft</h2>
   <p>
     Im Profil kannst du alle deine Daten als JSON exportieren und dein Konto löschen – auch wenn dein Konto gesperrt
-    ist. Beim Löschen werden alle zugehörigen Daten sofort aus der Datenbank entfernt.
+    ist. Beim Löschen werden alle zugehörigen Daten sofort aus der Datenbank entfernt, Anhänge innerhalb weniger
+    Minuten auch aus dem Speicher. Den Export gibt es als JSON oder, zusammen mit allen Anhängen, als ZIP.
   </p>
   <h2>Telegram</h2>
   <p>

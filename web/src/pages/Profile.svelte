@@ -167,6 +167,9 @@
       </p>
       <div class="row">
         <a class="btn" href="/api/me/export" download><Download size={16} /> Alle Daten exportieren (JSON)</a>
+        {#if session.info?.attachments}
+          <a class="btn" href="/api/me/export/files" download><Download size={16} /> Mit Anhängen (ZIP)</a>
+        {/if}
         <button class="btn btn-danger" onclick={() => (showDelete = true)}><Trash2 size={16} /> Konto löschen</button>
       </div>
     </section>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { get } from "../../lib/api";
-  import { formatDate } from "../../lib/format";
+  import { formatBytes, formatDate } from "../../lib/format";
   import { toastError } from "../../lib/toast.svelte";
 
   type System = {
@@ -9,6 +9,7 @@
     migrations: { name: string; appliedAt: string }[];
     tables: { name: string; rows: number }[];
     quotas: Record<string, number>;
+    storage: { enabled: boolean; attachments: number; totalBytes: number; pendingDeletions: number; bytesPerUser: number };
     node: string;
   };
 
@@ -36,6 +37,22 @@
           <tr><td>Datenbankgrösse</td><td class="num">{mb(data.database.sizeBytes)}</td></tr>
         </tbody>
       </table>
+    </section>
+
+    <section class="card">
+      <h2>Anhänge</h2>
+      {#if data.storage.enabled}
+        <table class="table">
+          <tbody>
+            <tr><td>Anzahl</td><td class="num">{data.storage.attachments}</td></tr>
+            <tr><td>Belegt im Speicher</td><td class="num">{formatBytes(data.storage.totalBytes)}</td></tr>
+            <tr><td>Speicher pro Konto</td><td class="num">{formatBytes(data.storage.bytesPerUser)}</td></tr>
+            <tr><td>Noch zu löschende Objekte</td><td class="num">{data.storage.pendingDeletions}</td></tr>
+          </tbody>
+        </table>
+      {:else}
+        <p class="small muted">Kein S3-Bucket konfiguriert – Anhänge sind aus.</p>
+      {/if}
     </section>
 
     <section class="card">

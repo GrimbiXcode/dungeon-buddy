@@ -10,7 +10,7 @@
   import { session } from "../lib/session.svelte";
   import { CAMPAIGN_THEMES, rulesetLabel } from "../lib/themes";
   import { toast, toastError } from "../lib/toast.svelte";
-  import { TOOLS, type ToolSlug } from "../lib/tools";
+  import { availableTools, TOOLS, type ToolSlug } from "../lib/tools";
   import type { Campaign } from "../lib/types";
 
   let campaigns = $state<Campaign[]>([]);
@@ -89,7 +89,7 @@
   <section>
     <h2 class="section-title">Werkzeuge</h2>
     <div class="tools">
-      {#each TOOLS as tool (tool.slug)}
+      {#each availableTools() as tool (tool.slug)}
         <button class="card card-link tool" onclick={() => openTool(tool.slug)}>
           <span class="tool-icon"><tool.icon size={22} /></span>
           <span>

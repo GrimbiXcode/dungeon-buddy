@@ -15,6 +15,7 @@ import { findUserById, type User } from "./lib/users.js";
 import { campaignRoutes } from "./routes/campaigns.js";
 import { characterRoutes } from "./routes/characters.js";
 import { adminRoutes } from "./routes/admin.js";
+import { attachmentRoutes } from "./routes/attachments.js";
 import { meRoutes } from "./routes/me.js";
 import { srdRoutes } from "./routes/srd.js";
 import { toolRoutes } from "./routes/tools.js";
@@ -45,6 +46,7 @@ const BLOCKED_ALLOWED = new Set([
   "PATCH /api/me",
   "DELETE /api/me",
   "GET /api/me/export",
+  "GET /api/me/export/files",
   "POST /api/auth/logout",
   "POST /api/auth/logout-all",
   "GET /api/unblock",
@@ -140,6 +142,7 @@ export async function buildApp() {
   await app.register(campaignRoutes);
   await app.register(toolRoutes);
   await app.register(characterRoutes);
+  await app.register(attachmentRoutes);
   await app.register(srdRoutes);
   await app.register(unblockRoutes);
   await app.register(adminRoutes);
