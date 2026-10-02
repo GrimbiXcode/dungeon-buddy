@@ -67,6 +67,16 @@ dnd.example.org {
 
 > In Produktion wird das Sitzungs-Cookie nur über HTTPS gesendet. Für einen reinen HTTP-Test im LAN setzt du `SECURE_COOKIES=0`.
 
+### Deployment auf Coolify (oder einer ähnlichen PaaS)
+
+1. PostgreSQL als eigene Ressource anlegen (nicht öffentlich).
+2. Die App aus dem Repo anlegen: Build-Pack **Dockerfile**, Port **3000**, Domain mit `https://`.
+3. Umgebungsvariablen setzen: `APP_SECRET` (`openssl rand -hex 32`), `DATABASE_URL` (die *interne* URL der Datenbank) und die Telegram-Variablen.
+4. Health-Check: Pfad `/api/health`. Das Dockerfile bringt einen eigenen Check mit; ein Plattform-Check auf `localhost` funktioniert ebenfalls, weil der Server standardmäßig auf IPv4 und IPv6 lauscht.
+5. Deployen. Migrationen laufen beim Start automatisch.
+
+Betreibst du mehrere Instanzen (z. B. Test und Produktion), braucht jede ihren eigenen Bot, siehe unten.
+
 ## Telegram-Bot einrichten
 
 Die Anmeldung funktioniert wie bei [filahub](https://github.com/GrimbiXcode/filahub):
@@ -76,7 +86,9 @@ Die Anmeldung funktioniert wie bei [filahub](https://github.com/GrimbiXcode/fila
 3. **Anmelden mit Login-Code (Standard):** Schreibe dem Bot `/login`. Er schickt einen 6-stelligen Code, der 5 Minuten gilt. Diesen Code gibst du auf der Startseite ein. Die App fragt den Bot per Long-Polling ab und braucht dafür keinen Webhook und keine öffentliche Adresse.
 4. **Optional: Telegram-Login-Button.** Der offizielle Button lädt erst nach Zustimmung, weil dabei Daten an telegram.org fliessen. Dafür braucht der Bot bei BotFather die Domain: `/setdomain` → `dnd.example.org`.
 
-Ohne Freigabeliste und ohne `TELEGRAM_OPEN_REGISTRATION=1` kann sich niemand anmelden. So entsteht keine offene Instanz, nur weil eine Variable fehlt.
+Ohne Freigabeliste und ohne `TELEGRAM_OPEN_REGISTRATION=1` kann sich niemand anmelden. So entsteht keine offene Instanz, nur weil eine Variable fehlt. Ist `TELEGRAM_ALLOWED_IDS` gesetzt, gilt nur die Liste – `TELEGRAM_OPEN_REGISTRATION` wird dann ignoriert.
+
+> **Ein Bot pro Instanz.** Die App holt Nachrichten per Long-Polling ab; zwei Instanzen mit demselben Token nehmen sich die Updates gegenseitig weg (Telegram antwortet mit 409). Ausserdem kennt ein Bot nur eine Domain für den Login-Button. Für Test und Produktion legst du also zwei Bots an.
 
 ## Konfiguration
 
@@ -87,8 +99,9 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 | `APP_SECRET` | Secret für die Sitzungs-Cookies (Pflicht in Produktion, mind. 32 Zeichen) |
 | `DATABASE_URL` | PostgreSQL-Verbindung |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | Telegram-Bot |
-| `TELEGRAM_ALLOWED_IDS` | Freigegebene Telegram-IDs |
-| `TELEGRAM_OPEN_REGISTRATION` | Anmeldung für alle öffnen |
+| `TELEGRAM_ALLOWED_IDS` | Freigegebene Telegram-IDs (hat Vorrang vor der offenen Registrierung) |
+| `TELEGRAM_OPEN_REGISTRATION` | Anmeldung für alle öffnen; wirkt nur bei leerer Freigabeliste |
+| `HOST` | Lauschadresse, Standard `::` (IPv4 + IPv6), ohne IPv6 automatisch `0.0.0.0` |
 | `PORT`, `SECURE_COOKIES`, `TRUST_PROXY`, `APP_NAME` | Betrieb |
 | `DEV_LOGIN` | Nur Entwicklung: Anmeldung ohne Telegram |
 

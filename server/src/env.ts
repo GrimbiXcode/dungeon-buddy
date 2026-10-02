@@ -17,7 +17,8 @@ const isProduction = process.env.NODE_ENV === "production";
 export const env = {
   isProduction,
   port: Number(process.env.PORT ?? 3000),
-  host: process.env.HOST ?? "0.0.0.0",
+  /** Leer: "::" (IPv4 + IPv6), damit auch Health-Checks auf "localhost" (::1) greifen. */
+  host: process.env.HOST ?? "",
   databaseUrl:
     process.env.DATABASE_URL ?? "postgres://dnd:dnd@localhost:5432/dungeonbuddy",
   appSecret: process.env.APP_SECRET ?? "",
