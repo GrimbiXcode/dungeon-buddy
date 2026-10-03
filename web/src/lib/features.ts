@@ -641,6 +641,26 @@ export function attackOptions(c: CharacterData, a: Attack) {
 
 // ── Wurfmodifikatoren ───────────────────────────────────────────────────
 
+/**
+ * „Vorteil auf den Schadenswurf“: Waffenschadenswürfel zweimal würfeln und
+ * ein Ergebnis wählen (Wilder Angreifer).
+ */
+export function isDamageTwice(m: RollMod) {
+  return m.target === "damage" && m.mode === "advantage";
+}
+
+/**
+ * Art der Fähigkeit aus ihren Bausteinen ableiten (für Filter und das
+ * Würfeln von Schaden/Heilung), solange sie nicht ausdrücklich gesetzt ist.
+ */
+export function deriveEffectType(f: Pick<Feature, "damage" | "acMod" | "rollMods">, healing = false): EffectType {
+  if (f.damage.trim()) return healing ? "healing" : "damage";
+  if (f.acMod.mode !== "none") return "defense";
+  if (f.rollMods.some(m => m.bonus.trim() || m.mode !== "none")) return "buff";
+  return "utility";
+}
+
+
 export type RollContext = { kind: RollKind; ability?: Ability | null; skill?: SkillKey | null };
 
 /**
@@ -735,6 +755,7 @@ export function describeRollMods(mods: RollMod[]) {
     .map(m => {
       const target = ROLL_TARGETS.find(t => t.key === m.target)?.label ?? m.target;
       const filter = m.skill ? SKILLS.find(s => s.key === m.skill)?.name : m.ability ? ABILITY_SHORT[m.ability] : "";
+      if (isDamageTwice(m)) return "Schadenswürfel zweimal würfeln, Ergebnis wählen";
       const b = parseBonus(m.bonus);
       const parts = [b ? formatBonus(b) : "", m.mode === "advantage" ? "Vorteil" : m.mode === "disadvantage" ? "Nachteil" : ""].filter(Boolean);
       return parts.length ? `${target}${filter ? ` (${filter})` : ""} ${parts.join(", ")}` : "";

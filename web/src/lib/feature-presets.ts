@@ -318,6 +318,23 @@ export const FEATURE_PRESETS: Preset[] = [
     }),
   },
   {
+    key: "savageAttacker",
+    group: "Talent",
+    build: r => ({
+      name: "Wilder Angreifer",
+      category: "Talent",
+      tags: r === "2024" ? ["Herkunft"] : [],
+      activation: "free",
+      effectType: "buff",
+      target: "self",
+      benefit: "Einmal pro Zug bei einem Treffer: Waffenschadenswürfel zweimal würfeln, ein Ergebnis wählen",
+      uses: { max: 1, used: 0, reset: "turn" },
+      triggers: ["hit"],
+      appliesTo: { scope: "weapon", attackIds: [] },
+      rollMods: [newRollMod({ target: "damage", mode: "advantage" })],
+    }),
+  },
+  {
     key: "lucky",
     group: "Talent",
     build: () => ({
