@@ -65,7 +65,7 @@
 <div class="vitals">
   {#if ctx.editing && c.acMode === "manual"}
     <div class="stat">
-      <span class="label"><Icon name="armor" size={13} /> RK (Grundwert)</span>
+      <span class="label"><Icon name="armor" size={13} /> Grund-RK</span>
       <NumberField class="input input-sm mono" aria-label="Rüstungsklasse" bind:value={c.ac} />
     </div>
   {:else}
@@ -178,7 +178,8 @@
     font: inherit;
     color: inherit;
   }
-  .stat .label { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.68rem; max-width: 100%; text-align: center; overflow-wrap: anywhere; }
+  /* Umbruch an Wortgrenzen bzw. mit Silbentrennung, nicht mitten im Wort */
+  .stat .label { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.68rem; max-width: 100%; text-align: center; overflow-wrap: break-word; hyphens: auto; }
   .stat :global(input) { width: 4.5rem; max-width: 100%; text-align: center; }
   .clickable { cursor: pointer; }
   .clickable:not(:disabled):hover { border-color: var(--accent); background: var(--accent-soft); }
@@ -196,7 +197,7 @@
   .reduced { color: var(--warning); }
   /* Knöpfe behalten ihre Höhe; der Krit-Hinweis bei 0 TP steht in einer eigenen Zeile */
   .hp-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; flex: 1; justify-content: flex-end; align-items: center; }
-  .hp-actions .checkbox { flex-basis: 100%; justify-content: flex-end; }
+  .hp-main .hp-actions .checkbox { flex-basis: 100%; flex-direction: row; width: auto; justify-content: flex-end; }
   .hp-actions input { width: 5rem; }
   .bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
   .bar span { display: block; height: 100%; background: var(--success); transition: width 0.25s; }
