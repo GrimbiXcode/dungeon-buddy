@@ -173,8 +173,8 @@ export type FeatureLink = { featureId: string; cost: number; when: LinkWhen };
 export type Feature = {
   id: string;
   name: string;
-  /** Herkunft im Bogen: Klasse, Spezies, Talent, Ausrüstung … oder eigene */
-  category: string;
+  /** Herkunft im Bogen: Klasse, Spezies, Talent, Ausrüstung … oder eigene (mehrere möglich; die erste gruppiert die Liste) */
+  categories: string[];
   /** Eigene Kategorien / Schlagworte zum Filtern */
   tags: string[];
   description: string;
@@ -246,7 +246,7 @@ export function newFeature(partial: Partial<Feature> = {}): Feature {
   return {
     id: uid(),
     name: "",
-    category: "Klasse",
+    categories: [],
     tags: [],
     description: "",
     activation: "action",
@@ -304,6 +304,18 @@ function legacyAttackMods(raw: unknown): RollMod[] {
   return out;
 }
 
+/** Kategorien; ältere Daten haben genau eine Kategorie als Text. */
+function normalizeCategories(f: Record<string, unknown>): string[] {
+  const list = Array.isArray(f.categories) ? f.categories : typeof f.category === "string" ? [f.category] : [];
+  const clean = list.filter((x): x is string => typeof x === "string").map(x => x.trim()).filter(Boolean);
+  return [...new Set(clean)];
+}
+
+/** Hauptkategorie (gruppiert die Liste) */
+export function mainCategory(f: Pick<Feature, "categories">) {
+  return f.categories[0] ?? "";
+}
+
 export function normalizeFeature(raw: unknown): Feature {
   const f = obj(raw);
   const duration = obj(f.duration);
@@ -312,7 +324,7 @@ export function normalizeFeature(raw: unknown): Feature {
   return newFeature({
     id: str(f.id) || uid(),
     name: str(f.name),
-    category: str(f.category, "Sonstiges"),
+    categories: normalizeCategories(f),
     tags: Array.isArray(f.tags) ? f.tags.filter((t): t is string => typeof t === "string") : [],
     description: str(f.description),
     activation: oneOf(ACTIVATIONS, f.activation, "action"),
@@ -779,8 +791,8 @@ export type FeatureFilter = { search: string; categories: string[]; tags: string
 
 export function matchesFilter(f: Feature, filter: FeatureFilter) {
   const q = filter.search.trim().toLowerCase();
-  if (q && ![f.name, f.benefit, f.description, f.condition, f.category, ...f.tags].some(x => x.toLowerCase().includes(q))) return false;
-  if (filter.categories.length && !filter.categories.includes(f.category)) return false;
+  if (q && ![f.name, f.benefit, f.description, f.condition, ...f.categories, ...f.tags].some(x => x.toLowerCase().includes(q))) return false;
+  if (filter.categories.length && !filter.categories.some(cat => f.categories.includes(cat))) return false;
   if (filter.tags.length && !filter.tags.some(t => f.tags.includes(t))) return false;
   if (filter.effectTypes.length && !filter.effectTypes.includes(f.effectType)) return false;
   return true;

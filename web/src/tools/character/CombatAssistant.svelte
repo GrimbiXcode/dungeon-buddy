@@ -76,7 +76,7 @@
 
   const STANDARD_ACTIONS = ["Spurt", "Ausweichen", "Rückzug", "Helfen", "Verstecken", "Suchen", "Gegenstand benutzen", "Vorbereiten"];
 
-  const categories = $derived([...new Set([...c.features.map(f => f.category), ...(spells.length ? ["Zauber"] : [])])]);
+  const categories = $derived([...new Set([...c.features.flatMap(f => f.categories), ...(spells.length ? ["Zauber"] : [])])]);
   const effectTypes = $derived(EFFECT_TYPES.filter(e => c.features.some(f => f.effectType === e.key)));
 
   const filteredFeatures = $derived(
@@ -194,7 +194,7 @@
     <div class="grow">
       <div class="sugg-name">
         <strong>{f.name}</strong>
-        <span class="badge">{f.category}</span>
+        {#each f.categories as cat (cat)}<span class="badge">{cat}</span>{/each}
         {#if left != null}<span class="badge" class:badge-danger={left === 0}>{left}×</span>{/if}
       </div>
       <span class="tiny muted">
