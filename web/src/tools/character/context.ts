@@ -31,7 +31,7 @@ export type SheetContext = {
    * Fähigkeit einsetzen (Nutzung, Aktionsart, Effekt, ggf. Würfelwurf).
    * Ohne picks fragt der Bogen nach, wenn mehrere Attribute zur Wahl stehen.
    */
-  useFeature(f: Feature, picks?: AbilityPicks): void;
+  useFeature(f: Feature, picks?: AbilityPicks, opts?: { onSelf?: boolean }): void;
   /** Angriffs-Assistent für eine Waffe öffnen (offhand: Zusatzangriff mit leichter Waffe) */
   openAttack(a: Attack, opts?: { offhand?: boolean; feature?: string }): void;
   /** Eintrag in die eigene Bibliothek kopieren */

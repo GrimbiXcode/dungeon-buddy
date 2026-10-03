@@ -584,7 +584,17 @@ export function durationRounds(f: Feature): number | null {
  * Aktionsart markieren und bei andauernder Wirkung einen Effekt anlegen.
  * Gibt Hinweise zurück (z. B. beendete Konzentration).
  */
-export function useFeature(c: CharacterData, f: Feature, opts: { markEconomy?: boolean } = {}): string[] {
+/**
+ * Wirkt die Fähigkeit nach dem Einsetzen auf den eigenen Bogen (RK, Würfe)?
+ * Bei Zielen wie Verbündete muss man das erst klären.
+ */
+export function needsTargetChoice(f: Feature) {
+  const lasting = f.duration.kind !== "instant" && f.activation !== "passive";
+  const affectsSheet = f.acMod.mode !== "none" || f.rollMods.length > 0;
+  return lasting && affectsSheet && (f.target === "ally" || f.target === "any");
+}
+
+export function useFeature(c: CharacterData, f: Feature, opts: { markEconomy?: boolean; onSelf?: boolean } = {}): string[] {
   const notes: string[] = [];
   consumeUses(c, f, 1);
   for (const { link, feature } of linkedFeatures(c, f)) {
@@ -597,13 +607,15 @@ export function useFeature(c: CharacterData, f: Feature, opts: { markEconomy?: b
   }
 
   if (f.duration.kind !== "instant" && f.activation !== "passive") {
+    // Auf andere gewirkt: Dauer und Konzentration verfolgen, aber ohne Wirkung auf den eigenen Bogen
+    const self = opts.onSelf !== false;
     notes.push(...addEffect(c, {
-      name: f.name,
-      featureId: f.id,
+      name: self ? f.name : `${f.name} (auf andere)`,
+      featureId: self ? f.id : null,
       remaining: durationRounds(f),
       concentration: f.duration.kind === "concentration",
       note: f.benefit || f.duration.text,
-      ac: f.acMod.mode !== "none" ? { ...f.acMod } : null,
+      ac: self && f.acMod.mode !== "none" ? { ...f.acMod } : null,
     }));
   }
   return notes;

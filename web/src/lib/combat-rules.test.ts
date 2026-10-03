@@ -27,6 +27,7 @@ import {
   sumMods,
   useFeature,
   usesLeft,
+  needsTargetChoice,
   WEAPON_PROPERTIES,
 } from "./features";
 import { featureFromLibrary, featureToLibrary } from "./library";
@@ -305,5 +306,21 @@ describe("Review-Korrekturen Angriffe", () => {
     expect(normalizeCharacter({}).critRange).toBe(20);
     expect(normalizeCharacter({ critRange: 19 }).critRange).toBe(19);
     expect(normalizeCharacter({ critRange: 3 }).critRange).toBe(15);
+  });
+});
+
+describe("Ziel Verbündete", () => {
+  it("fragt nach dem Ziel und wirkt auf andere nicht auf den eigenen Bogen", () => {
+    const c = normalizeCharacter({ abilities: { dex: 10 } });
+    const sof = buildPreset("shieldOfFaith", "2024", "Spezies");
+    c.features = [sof];
+    expect(needsTargetChoice(sof)).toBe(true);
+    useFeature(c, sof, { onSelf: false });
+    expect(armorClass(c).total).toBe(10);
+    expect(c.combat.effects[0]!.name).toContain("auf andere");
+    const d = normalizeCharacter({ abilities: { dex: 10 } });
+    d.features = [sof];
+    useFeature(d, sof, { onSelf: true });
+    expect(armorClass(d).total).toBe(12);
   });
 });

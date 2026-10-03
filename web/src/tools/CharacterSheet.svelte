@@ -56,6 +56,7 @@
     abilityChoices,
     appliesToAttack,
     isAttackBound,
+    needsTargetChoice,
     confirmLinkSuccess,
     describeDamageAdds,
     featureDamageExpr,
@@ -90,6 +91,8 @@
   let editing = $state(new URLSearchParams(route.search).has("bearbeiten"));
   let tab = $state<Tab>(readTab());
   let attackWizard = $state<{ attack: Attack; offhand: boolean; feature?: string } | null>(null);
+  /** Fähigkeit mit Ziel Verbündete/Beliebig: erst fragen, ob sie auf dich wirkt */
+  let targetChoice = $state<{ feature: Feature; picks?: AbilityPicks } | null>(null);
   /** Fähigkeit, die im Angriff eingesetzt wird: erst die Waffe wählen */
   let attackFor = $state<Feature | null>(null);
   /** Fähigkeit, für deren Wurf vor dem Einsetzen ein Attribut gewählt wird */
@@ -163,7 +166,7 @@
         physical: isPhysical(data.rollMode),
       });
     },
-    useFeature(f: Feature, picks?: AbilityPicks) {
+    useFeature(f: Feature, picks?: AbilityPicks, opts: { onSelf?: boolean } = {}) {
       // Fähigkeiten, die an Treffer/Angriffe gebunden sind, setzt man im Angriff ein: Waffe wählen
       if (isAttackBound(f) && f.appliesTo.scope !== "none") {
         attackFor = f;
@@ -175,7 +178,11 @@
         featureChoice = { feature: f, picks: {} };
         return;
       }
-      for (const note of useFeature(data, f)) toast(note);
+      if (opts.onSelf == null && needsTargetChoice(f)) {
+        targetChoice = { feature: f, picks };
+        return;
+      }
+      for (const note of useFeature(data, f, { onSelf: opts.onSelf })) toast(note);
       const expr = kind ? featureDamageExpr(data, f, picks) : null;
       if (kind && expr) {
         const adds = f.damageAdds.length ? `Inklusive ${describeDamageAdds(data, f.damageAdds, picks)}` : "";
@@ -537,6 +544,33 @@
           featureChoice = null;
           sheetCtx.useFeature(feature, { ...picks });
         }}>Einsetzen und würfeln</button
+      >
+    {/snippet}
+  </Modal>
+{/if}
+
+{#if targetChoice}
+  {@const choice = targetChoice}
+  <Modal title="{choice.feature.name || 'Fähigkeit'}: Ziel" size="sm" onclose={() => (targetChoice = null)}>
+    <p class="small">Auf wen wirkst du „{choice.feature.name}“?</p>
+    <p class="tiny muted">Nur auf dich wirkt es auf deinen Bogen (RK, Würfe). Auf andere wird nur Dauer und Konzentration verfolgt.</p>
+    {#snippet footer()}
+      <button class="btn" onclick={() => (targetChoice = null)}>Abbrechen</button>
+      <button
+        class="btn"
+        onclick={() => {
+          const { feature, picks } = choice;
+          targetChoice = null;
+          sheetCtx.useFeature(feature, picks, { onSelf: false });
+        }}>Auf andere</button
+      >
+      <button
+        class="btn btn-primary"
+        onclick={() => {
+          const { feature, picks } = choice;
+          targetChoice = null;
+          sheetCtx.useFeature(feature, picks, { onSelf: true });
+        }}>Auf mich</button
       >
     {/snippet}
   </Modal>
