@@ -90,7 +90,7 @@ dnd.example.org {
 4. Health-Check: Pfad `/api/health`. Das Dockerfile bringt einen eigenen Check mit; ein Plattform-Check auf `localhost` funktioniert ebenfalls, weil der Server standardmäßig auf IPv4 und IPv6 lauscht.
 5. Deployen. Migrationen laufen beim Start automatisch.
 
-Betreibst du mehrere Instanzen (z. B. Test und Produktion), braucht jede ihren eigenen Bot, siehe unten.
+Betreibst du mehrere Instanzen (z. B. Test und Produktion), braucht jede ihren eigenen Bot, siehe unten. Die Test-Instanz deployt den Branch `test`, die Produktion den Branch `main` (siehe [Branches und Releases](#branches-und-releases)).
 
 ### Anhänge (S3-Speicher)
 
@@ -196,6 +196,20 @@ npm run dev:web                # Vite auf :5173 mit Proxy auf /api
 | `npm run check` | TypeScript- und Svelte-Prüfung |
 | `npm test` | Tests (Backend-Integrationstests brauchen eine Test-DB, siehe `server/vitest.config.ts`) |
 | `npm run srd -- /pfad/zu/5e-database` | SRD-Zauberlisten neu erzeugen |
+
+### Branches und Releases
+
+| Branch | Zweck | Deployt auf |
+| --- | --- | --- |
+| `main` | Freigegebener Stand | Produktion |
+| `test` | Staging, sammelt fertige Features | Test-System |
+| Feature-Branches | Einzelne Änderungen | – |
+
+1. Feature-Branches werden **ab `test`** erstellt und per Pull Request **wieder in `test`** gemergt.
+2. Der Merge löst das Deployment auf dem Test-System aus. Dort wird die Änderung geprüft.
+3. Erst nach der Freigabe wird `test` per Pull Request in `main` gemergt und damit in Produktion deployt.
+
+Auf `main` und `test` wird nie direkt gepusht, Feature-Branches gehen nie direkt nach `main`.
 
 ### Aufbau
 
