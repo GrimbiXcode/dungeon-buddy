@@ -57,9 +57,9 @@
       <span class="value mono" class:boosted={acBoosted}>{ac.total}</span>
     </button>
   {/if}
-  <button class="stat clickable" disabled={ctx.editing} onclick={() => ctx.rollD20("Initiative", initiative(c), "initiative", { ability: "dex" })}>
+  <button class="stat clickable" disabled={ctx.editing} onclick={() => ctx.rollD20("Initiative", initiative(c, ctx.ruleset), "initiative", { ability: "dex" })}>
     <span class="label"><Icon name="initiative" size={13} /> Initiative</span>
-    <span class="value mono">{formatMod(initiative(c))}</span>
+    <span class="value mono">{formatMod(initiative(c, ctx.ruleset))}</span>
   </button>
   <div class="stat">
     <span class="label"><Icon name="speed" size={13} /> Bewegung</span>

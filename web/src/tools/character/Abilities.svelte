@@ -1,7 +1,7 @@
 <script lang="ts">
   import NumberField from "../../components/NumberField.svelte";
   import { ABILITIES, ABILITY_NAMES, ABILITY_SHORT, formatMod } from "../../lib/dnd";
-  import { mod, saveBonus } from "../../lib/character";
+  import { mod, saveBonus, checkBonus } from "../../lib/character";
   import { sheet } from "./context";
 
   const ctx = sheet();
@@ -19,7 +19,7 @@
           <span class="mod mono">{formatMod(mod(c, a))}</span>
         </label>
       {:else}
-        <button class="ability" title="{ABILITY_NAMES[a]}swurf" onclick={() => ctx.rollD20(`${ABILITY_NAMES[a]}swurf`, mod(c, a), "check", { ability: a })}>
+        <button class="ability" title="{ABILITY_NAMES[a]}swurf" onclick={() => ctx.rollD20(`${ABILITY_NAMES[a]}swurf`, checkBonus(c, a, ctx.ruleset), "check", { ability: a })}>
           <span class="short">{ABILITY_SHORT[a]}</span>
           <span class="mod mono">{formatMod(mod(c, a))}</span>
           <span class="score mono">{c.abilities[a]}</span>

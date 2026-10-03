@@ -87,7 +87,8 @@ export type CharacterData = {
   initiativeBonus: number;
   speed: number;
   hp: { max: number; current: number; temp: number };
-  hitDiceUsed: number;
+  /** Verbrauchte Trefferwürfel je Würfelgrösse, z. B. { "10": 2, "6": 1 } */
+  hitDiceUsed: Record<string, number>;
   deathSaves: { successes: number; failures: number };
   inspiration: boolean;
   exhaustion: number;
@@ -231,21 +232,23 @@ export function normalizeCharacter(raw: unknown): CharacterData {
   // Ältere Bögen hatten nur eine feste RK: dort bleibt sie manuell
   const acMode = d.acMode === "auto" || d.acMode === "manual" ? d.acMode : typeof d.ac === "number" && !Array.isArray(d.armor) ? "manual" : "auto";
 
+  const classes = arr(d.classes).map(c => {
+    const o = obj(c);
+    return {
+      id: str(o.id) || uid(),
+      name: str(o.name),
+      subclass: str(o.subclass),
+      level: Math.min(20, Math.max(1, num(o.level, 1))),
+      hitDie: num(o.hitDie, 8),
+    };
+  });
+
   return {
     rollMode: (["inherit", "digital", "physical"].includes(rollMode) ? rollMode : "inherit") as RollModeSetting,
     species: str(d.species),
     background: str(d.background),
     alignment: str(d.alignment),
-    classes: arr(d.classes).map(c => {
-      const o = obj(c);
-      return {
-        id: str(o.id) || uid(),
-        name: str(o.name),
-        subclass: str(o.subclass),
-        level: Math.min(20, Math.max(1, num(o.level, 1))),
-        hitDie: num(o.hitDie, 8),
-      };
-    }),
+    classes,
     xp: num(d.xp, 0),
     abilities: Object.fromEntries(ABILITIES.map(a => [a, num(abilities[a], 10)])) as Record<Ability, number>,
     saveProficiencies: Object.fromEntries(ABILITIES.map(a => [a, bool(saves[a])])) as Record<Ability, boolean>,
@@ -265,7 +268,7 @@ export function normalizeCharacter(raw: unknown): CharacterData {
     initiativeBonus: num(d.initiativeBonus, 0),
     speed: num(d.speed, 30),
     hp: { max: num(hp.max, 10), current: Math.max(0, num(hp.current, num(hp.max, 10))), temp: Math.max(0, num(hp.temp, 0)) },
-    hitDiceUsed: num(d.hitDiceUsed, 0),
+    hitDiceUsed: normalizeHitDiceUsed(d.hitDiceUsed, classes),
     deathSaves: { successes: num(death.successes, 0), failures: num(death.failures, 0) },
     inspiration: bool(d.inspiration),
     exhaustion: Math.min(6, Math.max(0, num(d.exhaustion, 0))),
@@ -351,8 +354,21 @@ export function skillBonus(c: CharacterData, key: SkillKey) {
   return mod(c, skill.ability) + prof;
 }
 
-export function initiative(c: CharacterData) {
-  return mod(c, "dex") + c.initiativeBonus + (c.jackOfAllTrades ? Math.floor(profBonus(c) / 2) : 0);
+/**
+ * Alleskönner: 2014 halber Übungsbonus auf jeden Attributswurf ohne Übung
+ * (auch Initiative), 2024 nur auf Fertigkeitswürfe ohne Übung.
+ */
+function jackBonus(c: CharacterData, ruleset: Ruleset) {
+  return c.jackOfAllTrades && ruleset === "2014" ? Math.floor(profBonus(c) / 2) : 0;
+}
+
+/** Bonus auf einen reinen Attributswurf */
+export function checkBonus(c: CharacterData, ability: Ability, ruleset: Ruleset) {
+  return mod(c, ability) + jackBonus(c, ruleset);
+}
+
+export function initiative(c: CharacterData, ruleset: Ruleset) {
+  return mod(c, "dex") + c.initiativeBonus + jackBonus(c, ruleset);
 }
 
 export function passive(c: CharacterData, key: SkillKey) {
@@ -431,10 +447,57 @@ export function offhandIsNick(attack: Attack, ruleset: Ruleset) {
   return ruleset === "2024" && /nick|einkerben/i.test(attack.mastery);
 }
 
-export function hitDiceSummary(c: CharacterData) {
+export type HitDicePool = { die: number; total: number; used: number };
+
+/** Trefferwürfel je Würfelgrösse, grösste zuerst */
+export function hitDicePools(c: Pick<CharacterData, "classes" | "hitDiceUsed">): HitDicePool[] {
   const byDie = new Map<number, number>();
   for (const k of c.classes) byDie.set(k.hitDie, (byDie.get(k.hitDie) ?? 0) + k.level);
-  return [...byDie.entries()].map(([die, count]) => `${count}W${die}`).join(" + ");
+  return [...byDie.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([die, total]) => ({ die, total, used: Math.min(total, Math.max(0, c.hitDiceUsed[die] ?? 0)) }));
+}
+
+export function hitDiceLeft(c: Pick<CharacterData, "classes" | "hitDiceUsed">) {
+  return hitDicePools(c).reduce((sum, p) => sum + p.total - p.used, 0);
+}
+
+/**
+ * Verbrauchte Trefferwürfel; ältere Bögen hatten nur eine Gesamtzahl, die
+ * auf die Würfelgrössen verteilt wird (grösste zuerst).
+ */
+function normalizeHitDiceUsed(raw: unknown, classes: { level: number; hitDie: number }[]): Record<string, number> {
+  const pools = hitDicePools({ classes: classes as CharacterData["classes"], hitDiceUsed: {} });
+  const out: Record<string, number> = {};
+  if (typeof raw === "number") {
+    let rest = Math.max(0, raw);
+    for (const p of pools) {
+      const take = Math.min(rest, p.total);
+      if (take) out[p.die] = take;
+      rest -= take;
+    }
+    return out;
+  }
+  const o = obj(raw);
+  for (const p of pools) {
+    const used = Math.min(p.total, Math.max(0, num(o[p.die], 0)));
+    if (used) out[p.die] = used;
+  }
+  return out;
+}
+
+/** Einen Trefferwürfel dieser Grösse als verbraucht markieren; false, wenn keiner übrig ist */
+export function spendHitDie(c: CharacterData, die: number) {
+  const pool = hitDicePools(c).find(p => p.die === die);
+  if (!pool || pool.used >= pool.total) return false;
+  c.hitDiceUsed = { ...c.hitDiceUsed, [die]: pool.used + 1 };
+  return true;
+}
+
+export function hitDiceSummary(c: CharacterData) {
+  return hitDicePools(c)
+    .map(p => `${p.total}W${p.die}`)
+    .join(" + ");
 }
 
 export function classSummary(c: CharacterData) {
@@ -460,9 +523,16 @@ export function longRest(c: CharacterData, ruleset: "2014" | "2024") {
   c.spellcasting.pact.used = 0;
   for (const r of c.resources) if (r.reset !== "none") r.used = 0;
   // Trefferwürfel: 2014 die Hälfte zurück, 2024 alle
+  // Zurück kommen zuerst die grossen Würfel
   const total = totalLevel(c);
-  const regain = ruleset === "2024" ? total : Math.max(1, Math.floor(total / 2));
-  c.hitDiceUsed = Math.max(0, c.hitDiceUsed - regain);
+  let regain = ruleset === "2024" ? total : Math.max(1, Math.floor(total / 2));
+  const used: Record<string, number> = {};
+  for (const p of hitDicePools(c)) {
+    const back = Math.min(regain, p.used);
+    regain -= back;
+    if (p.used - back) used[p.die] = p.used - back;
+  }
+  c.hitDiceUsed = used;
   c.exhaustion = Math.max(0, c.exhaustion - 1);
   restFeatures(c, "long");
 }

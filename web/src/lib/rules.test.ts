@@ -6,7 +6,10 @@ import {
   applyHealing,
   attackDamageBonus,
   attackToHit,
+  hitDiceLeft,
+  hitDicePools,
   initiative,
+  checkBonus,
   longRest,
   newAttack,
   normalizeCharacter,
@@ -118,7 +121,7 @@ describe("Charakter", () => {
     expect(skillBonus(c, "athletics")).toBe(6);
     expect(skillBonus(c, "intimidation")).toBe(6); // CHA 10 (+0) + Expertise (2 × 3)
     expect(passive(c, "perception")).toBe(11);
-    expect(initiative(c)).toBe(1);
+    expect(initiative(c, "2014")).toBe(1);
     expect(spellAttackBonus(c)).toBe(4);
     expect(spellSaveDc(c)).toBe(12);
   });
@@ -153,11 +156,32 @@ describe("Charakter", () => {
     longRest(c, "2014");
     expect(c.hp.current).toBe(49);
     expect(c.spellcasting.slots[0]!.used).toBe(0);
-    expect(c.hitDiceUsed).toBe(2); // 2014: Hälfte (2) zurück
+    expect(hitDiceLeft(c)).toBe(5 - 2); // 2014: Hälfte (2) zurück
     expect(c.exhaustion).toBe(1);
 
     const d = thorin();
     longRest(d, "2024");
-    expect(d.hitDiceUsed).toBe(0); // 2024: alle zurück
+    expect(d.hitDiceUsed).toEqual({}); // 2024: alle zurück
+  });
+});
+
+describe("Trefferwürfel und Alleskönner", () => {
+  it("führt Trefferwürfel je Würfelgrösse, alte Gesamtzahl wird verteilt", () => {
+    const c = normalizeCharacter({ classes: [{ name: "Kämpfer", level: 5, hitDie: 10 }, { name: "Magier", level: 3, hitDie: 6 }], hitDiceUsed: 6 });
+    expect(hitDicePools(c)).toEqual([
+      { die: 10, total: 5, used: 5 },
+      { die: 6, total: 3, used: 1 },
+    ]);
+    expect(hitDiceLeft(c)).toBe(2);
+    longRest(c, "2014"); // 4 zurück, grosse zuerst
+    expect(hitDicePools(c).map(p => p.used)).toEqual([1, 1]);
+  });
+
+  it("Alleskönner: 2014 auch Attributswürfe und Initiative, 2024 nur Fertigkeiten", () => {
+    const c = normalizeCharacter({ classes: [{ name: "Barde", level: 5, hitDie: 8 }], abilities: { dex: 14 }, jackOfAllTrades: true });
+    expect(initiative(c, "2014")).toBe(3);
+    expect(initiative(c, "2024")).toBe(2);
+    expect(checkBonus(c, "str", "2014")).toBe(1);
+    expect(checkBonus(c, "str", "2024")).toBe(0);
   });
 });

@@ -107,7 +107,7 @@
 
   function begin(rollInitiative: boolean) {
     startCombat(c);
-    if (rollInitiative) ctx.rollD20("Initiative", initiative(c), "initiative", { ability: "dex" });
+    if (rollInitiative) ctx.rollD20("Initiative", initiative(c, ctx.ruleset), "initiative", { ability: "dex" });
   }
 
   function turn() {

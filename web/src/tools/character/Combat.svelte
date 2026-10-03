@@ -3,7 +3,7 @@
   import { Plus, Trash2 } from "@lucide/svelte";
   import Icon from "../../components/Icon.svelte";
   import Modal from "../../components/Modal.svelte";
-  import { hitDiceSummary, leftOf, mod, newResource, totalLevel } from "../../lib/character";
+  import { hitDiceLeft, hitDicePools, hitDiceSummary, leftOf, mod, newResource, spendHitDie as markHitDie } from "../../lib/character";
   import { CONDITIONS } from "../../lib/dnd";
   import { sheet } from "./context";
 
@@ -21,8 +21,7 @@
 
   /** Trefferwürfel ausgeben: würfeln (Heilung) und als verbraucht markieren. */
   function spendHitDie(die: number) {
-    if (c.hitDiceUsed >= totalLevel(c)) return;
-    c.hitDiceUsed++;
+    if (!markHitDie(c, die)) return;
     const con = mod(c, "con");
     ctx.rollDamage(`Trefferwürfel W${die}`, `1d${die}${con ? (con > 0 ? `+${con}` : `${con}`) : ""}`, {
       heal: true,
@@ -30,7 +29,11 @@
     });
   }
 
-  const hitDieTypes = $derived([...new Set(c.classes.map(k => k.hitDie))]);
+  const pools = $derived(hitDicePools(c));
+
+  function setUsed(die: number, used: number) {
+    c.hitDiceUsed = { ...c.hitDiceUsed, [die]: used };
+  }
 </script>
 
 <div class="combat">
@@ -73,13 +76,17 @@
 
   <section class="card">
     <h3><Icon name="hp" size={16} /> Trefferwürfel</h3>
-    <p class="small"><strong>{Math.max(0, totalLevel(c) - c.hitDiceUsed)}</strong> von {hitDiceSummary(c) || totalLevel(c)} übrig</p>
+    <p class="small"><strong>{hitDiceLeft(c)}</strong> von {hitDiceSummary(c)} übrig</p>
     {#if ctx.editing}
-      <label class="tiny muted">Verbraucht <NumberField class="input input-sm mono used" min={0} max={totalLevel(c)} bind:value={c.hitDiceUsed} /></label>
+      <div class="row">
+        {#each pools as p (p.die)}
+          <label class="tiny muted">W{p.die} verbraucht <NumberField class="input input-sm mono used" min={0} max={p.total} bind:value={() => p.used, v => setUsed(p.die, v ?? 0)} /></label>
+        {/each}
+      </div>
     {:else}
       <div class="row">
-        {#each hitDieTypes as die (die)}
-          <button class="btn btn-sm" disabled={c.hitDiceUsed >= totalLevel(c)} onclick={() => spendHitDie(die)}>W{die} ausgeben</button>
+        {#each pools as p (p.die)}
+          <button class="btn btn-sm" disabled={p.used >= p.total} onclick={() => spendHitDie(p.die)}>W{p.die} ausgeben ({p.total - p.used} übrig)</button>
         {/each}
       </div>
     {/if}
