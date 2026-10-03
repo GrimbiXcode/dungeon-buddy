@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Download, LogOut, MonitorSmartphone, Moon, Sun, Trash2 } from "@lucide/svelte";
+  import { Download, LogOut, MonitorSmartphone, Moon, Sun, Swords, Trash2 } from "@lucide/svelte";
   import AppShell from "../components/AppShell.svelte";
   import Modal from "../components/Modal.svelte";
   import { del, patch, post } from "../lib/api";
@@ -68,6 +68,7 @@
     { key: "system", label: "System", icon: MonitorSmartphone },
     { key: "light", label: "Hell", icon: Sun },
     { key: "dark", label: "Dunkel", icon: Moon },
+    { key: "adventurer", label: "Adventurer", icon: Swords },
   ];
   const diceModes: { key: DiceMode; label: string; text: string }[] = [
     { key: "digital", label: "Digital würfeln", text: "Die App würfelt für dich." },
@@ -107,6 +108,11 @@
         {/each}
       </div>
       <p class="tiny muted">Die Akzentfarbe legst du pro Kampagne fest.</p>
+      <p class="tiny muted">
+        Icons im Adventurer-Modus von Lorc, Delapouite und weiteren auf
+        <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, lizenziert unter
+        <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>.
+      </p>
     </section>
 
     <section class="card">

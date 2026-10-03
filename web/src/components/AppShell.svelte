@@ -1,6 +1,6 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
   import type { Snippet } from "svelte";
-  import { CircleUser, LibraryBig, ShieldCheck, Users } from "@lucide/svelte";
   import Logo from "./Logo.svelte";
   import { session } from "../lib/session.svelte";
 
@@ -11,13 +11,11 @@
   <header class="topbar">
     <a href="/" class="home" aria-label="Zur Übersicht"><Logo /></a>
     <nav class="row nav">
-      <a href="/charaktere" class="btn btn-ghost"><Users size={18} /><span class="label-text">Charaktere</span></a>
-      <a href="/bibliothek" class="btn btn-ghost"><LibraryBig size={18} /><span class="label-text">Bibliothek</span></a>
       {#if session.user?.role === "admin"}
-        <a href="/verwaltung" class="btn btn-ghost"><ShieldCheck size={18} /><span class="label-text">Verwaltung</span></a>
+        <a href="/verwaltung" class="btn btn-ghost"><Icon name="admin" size={18} /><span class="label-text">Verwaltung</span></a>
       {/if}
       <a href="/profil" class="btn btn-ghost profile">
-        <CircleUser size={18} />
+        <Icon name="profile" size={18} />
         <span class="name">{session.user?.displayName}</span>
       </a>
     </nav>

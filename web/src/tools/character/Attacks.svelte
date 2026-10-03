@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { LibraryBig, Plus, Swords } from "@lucide/svelte";
+  import { Plus } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import { isLight, newAttack, type Attack } from "../../lib/character";
   import { confirmDialog } from "../../lib/confirm.svelte";
   import { sheet } from "./context";
@@ -28,9 +29,9 @@
 
 <section class="card">
   <div class="row-between head">
-    <h3><Swords size={17} /> Angriffe</h3>
+    <h3><Icon name="attack" size={17} /> Angriffe</h3>
     <div class="row">
-      <button class="btn btn-sm" onclick={() => ctx.openLibrary("attack")}><LibraryBig size={14} /> Aus Bibliothek</button>
+      <button class="btn btn-sm" onclick={() => ctx.openLibrary("attack")}><Icon name="library" size={14} /> Aus Bibliothek</button>
       <button class="btn btn-sm btn-primary" onclick={() => (editing = newAttack({ name: "" }))}><Plus size={14} /> Angriff</button>
     </div>
   </div>

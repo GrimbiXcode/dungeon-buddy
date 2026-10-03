@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Archive, ArchiveRestore, Pencil, Trash2 } from "@lucide/svelte";
+  import { Archive, ArchiveRestore, Trash2 } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import CampaignForm from "../components/CampaignForm.svelte";
   import Markdown from "../components/Markdown.svelte";
   import { del, patch } from "../lib/api";
@@ -45,7 +46,7 @@
     <h1>Kampagne bearbeiten</h1>
     <p class="muted">Name, Beschreibung, Regelversion und Farbschema.</p>
   </div>
-  <button class="btn btn-primary" onclick={() => (editing = true)}><Pencil size={16} /> Bearbeiten</button>
+  <button class="btn btn-primary" onclick={() => (editing = true)}><Icon name="edit" size={16} /> Bearbeiten</button>
 </div>
 
 <div class="stack narrow">

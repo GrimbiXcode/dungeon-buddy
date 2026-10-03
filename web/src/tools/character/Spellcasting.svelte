@@ -1,6 +1,6 @@
 <script lang="ts">
+  import Icon from "../../components/Icon.svelte";
   import { onMount } from "svelte";
-  import { BookOpen, Dices } from "@lucide/svelte";
   import { get } from "../../lib/api";
   import { spellAttackBonus, spellMod, spellSaveDc } from "../../lib/character";
   import { ABILITIES, ABILITY_NAMES, SPELL_LEVEL_NAMES, formatMod } from "../../lib/dnd";
@@ -65,7 +65,7 @@
       <div class="stats">
         <div><span class="label">Attribut</span><strong>{ABILITY_NAMES[c.spellcasting.ability]} ({formatMod(spellMod(c))})</strong></div>
         <button class="stat-btn" disabled={ctx.editing} onclick={() => ctx.rollD20("Zauberangriff", spellAttackBonus(c), "attack")}>
-          <span class="label">Zauberangriff</span><strong class="mono"><Dices size={14} /> {formatMod(spellAttackBonus(c))}</strong>
+          <span class="label">Zauberangriff</span><strong class="mono"><Icon name="roll" size={14} /> {formatMod(spellAttackBonus(c))}</strong>
         </button>
         <div><span class="label">Zauber-SG</span><strong class="mono">{spellSaveDc(c)}</strong></div>
       </div>
@@ -121,7 +121,7 @@
   <section class="card wide">
     <div class="row-between head">
       <h3>Vorbereitete Zauber</h3>
-      <a class="btn btn-sm" href={spellbookHref}><BookOpen size={14} /> Zauberbuch öffnen</a>
+      <a class="btn btn-sm" href={spellbookHref}><Icon name="spellbook" size={14} /> Zauberbuch öffnen</a>
     </div>
     {#if byLevel.length === 0}
       <p class="muted small">Noch keine Zauber zugeordnet. Im Zauberbuch kannst du Zauber aus dem SRD übernehmen und diesem Charakter zuweisen.</p>

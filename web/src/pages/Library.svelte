@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArrowLeft, Check, Copy, LibraryBig, Pencil, RefreshCw, Share2, Trash2, UserMinus, UserPlus, Users, X } from "@lucide/svelte";
+  import { ArrowLeft, Check, Copy, RefreshCw, Share2, Trash2, UserMinus, UserPlus, Users, X } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import AppShell from "../components/AppShell.svelte";
   import LibraryList from "../components/LibraryList.svelte";
   import Modal from "../components/Modal.svelte";
@@ -187,7 +188,7 @@
           {#if copied.includes(item.id)}
             <span class="small done"><Check size={14} /> Aufgenommen</span>
           {:else}
-            <button class="btn btn-sm btn-primary" onclick={() => copyFromFriend(item)}><LibraryBig size={14} /> In eigene Bibliothek aufnehmen</button>
+            <button class="btn btn-sm btn-primary" onclick={() => copyFromFriend(item)}><Icon name="library" size={14} /> In eigene Bibliothek aufnehmen</button>
           {/if}
         {/snippet}
         {#snippet empty()}
@@ -204,7 +205,7 @@
     </div>
 
     <div class="tabs" role="tablist">
-      <a role="tab" href="/bibliothek" aria-selected={section === "eigene"} class:active={section === "eigene"}><LibraryBig size={15} /> Meine Bibliothek</a>
+      <a role="tab" href="/bibliothek" aria-selected={section === "eigene"} class:active={section === "eigene"}><Icon name="library" size={15} /> Meine Bibliothek</a>
       <a role="tab" href="/bibliothek/freunde" aria-selected={section === "freunde"} class:active={section === "freunde"}>
         <Users size={15} /> Freunde
         {#if info?.incoming.length}<span class="badge badge-accent">{info.incoming.length}</span>{/if}
@@ -226,7 +227,7 @@
       {:else}
         <LibraryList {items}>
           {#snippet actions(item)}
-            <button class="btn btn-sm btn-icon btn-ghost" aria-label="{item.name} umbenennen" onclick={() => startRename(item)}><Pencil size={14} /></button>
+            <button class="btn btn-sm btn-icon btn-ghost" aria-label="{item.name} umbenennen" onclick={() => startRename(item)}><Icon name="edit" size={14} /></button>
             <button class="btn btn-sm btn-icon btn-ghost" aria-label="{item.name} löschen" onclick={() => remove(item)}><Trash2 size={14} /></button>
           {/snippet}
           {#snippet empty()}
@@ -290,7 +291,7 @@
                 <span class="tiny muted block">Befreundet seit {formatDate(p.since)}{p.libraryShared ? "" : " · teilt die Bibliothek nicht"}</span>
               </span>
               {#if p.libraryShared}
-                <a class="btn btn-sm" href="/bibliothek/freunde/{p.userId}"><LibraryBig size={14} /> Bibliothek ansehen</a>
+                <a class="btn btn-sm" href="/bibliothek/freunde/{p.userId}"><Icon name="library" size={14} /> Bibliothek ansehen</a>
               {/if}
               <button class="btn btn-sm btn-icon btn-ghost" aria-label="{p.displayName} entfernen" onclick={() => removeFriend(p, "remove")}><UserMinus size={14} /></button>
             </div>

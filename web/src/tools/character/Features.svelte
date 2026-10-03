@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { LibraryBig, Plus, Search, X } from "@lucide/svelte";
+  import { Plus, X } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import Modal from "../../components/Modal.svelte";
   import { confirmDialog } from "../../lib/confirm.svelte";
   import { rulesTerms } from "../../lib/dnd";
@@ -91,8 +92,8 @@
       </p>
     </div>
     <div class="row">
-      <button class="btn btn-sm" onclick={() => (showPresets = true)}><LibraryBig size={14} /> Aus Vorlage</button>
-      <button class="btn btn-sm" onclick={() => ctx.openLibrary("feature")}><LibraryBig size={14} /> Aus Bibliothek</button>
+      <button class="btn btn-sm" onclick={() => (showPresets = true)}><Icon name="library" size={14} /> Aus Vorlage</button>
+      <button class="btn btn-sm" onclick={() => ctx.openLibrary("feature")}><Icon name="library" size={14} /> Aus Bibliothek</button>
       <button class="btn btn-sm btn-primary" onclick={() => (editing = newFeature({ category: categories[0] ?? "Klasse" }))}>
         <Plus size={14} /> Neue Fähigkeit
       </button>
@@ -102,7 +103,7 @@
   {#if c.features.length}
     <div class="filters">
       <div class="search">
-        <Search size={15} />
+        <Icon name="search" size={15} />
         <input class="input input-sm" placeholder="Suchen …" bind:value={search} aria-label="Fähigkeiten durchsuchen" />
       </div>
       <select class="select input-sm act" bind:value={activation} aria-label="Aktionsart">
@@ -128,7 +129,7 @@
     <div class="empty">
       <p>Noch keine Fähigkeiten erfasst.</p>
       <div class="row center-row">
-        <button class="btn" onclick={() => (showPresets = true)}><LibraryBig size={15} /> Vorlage wählen</button>
+        <button class="btn" onclick={() => (showPresets = true)}><Icon name="library" size={15} /> Vorlage wählen</button>
         <button class="btn btn-primary" onclick={() => (editing = newFeature())}><Plus size={15} /> Selbst anlegen</button>
       </div>
     </div>

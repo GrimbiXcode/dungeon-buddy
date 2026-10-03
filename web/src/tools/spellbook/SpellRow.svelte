@@ -1,7 +1,8 @@
 <script lang="ts">
   import { unitSystem } from "../../lib/session.svelte";
   import { convertText } from "../../lib/units";
-  import { Check, ChevronDown, Crosshair, Heart, Lock, Pencil, Sparkles, Star, Swords, Trash2, LibraryBig } from "@lucide/svelte";
+  import { Check, ChevronDown, Lock, Star, Trash2 } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import Markdown from "../../components/Markdown.svelte";
   import { spellAttackBonus, spellSaveDc } from "../../lib/character";
   import { formatMod } from "../../lib/dnd";
@@ -204,23 +205,23 @@
             title={slotFree <= 0 ? "Kein freier Zauberplatz dieses Grades" : "Einen Zauberplatz verbrauchen"}
             onclick={() => oncast(slotChoice === "pact" ? "pact" : slotLevel)}
           >
-            <Sparkles size={14} /> Wirken
+            <Icon name="cast" size={14} /> Wirken
           </button>
           {#if slotFree <= 0}<span class="tiny faint">keine Plätze frei</span>{/if}
         {/if}
         {#if d.attack}
           <button class="btn btn-sm btn-primary" onclick={rollAttack}>
-            <Crosshair size={14} /> Angriff {formatMod(spellAttackBonus(char.data))}
+            <Icon name="hit" size={14} /> Angriff {formatMod(spellAttackBonus(char.data))}
           </button>
         {/if}
         {#if damageDice}
           <button class="btn btn-sm" onclick={rollDamage} title="{damageDice}{dmgType ? ` ${dmgType}` : ''}">
-            <Swords size={14} /> Schaden <span class="dice mono">{wLabel(damageDice)}</span>
+            <Icon name="attack" size={14} /> Schaden <span class="dice mono">{wLabel(damageDice)}</span>
           </button>
         {/if}
         {#if healDice}
           <button class="btn btn-sm" onclick={rollHeal}>
-            <Heart size={14} /> Heilung <span class="dice mono">{wLabel(healDice)}</span>
+            <Icon name="hp" size={14} /> Heilung <span class="dice mono">{wLabel(healDice)}</span>
           </button>
         {/if}
       {/if}
@@ -250,8 +251,8 @@
       <div class="row foot">
         {#if spell.srdKey}<span class="tiny faint">SRD</span>{/if}
         <span class="grow"></span>
-        <button class="btn btn-sm" onclick={onedit}><Pencil size={14} /> Bearbeiten</button>
-        {#if onlibrary}<button class="btn btn-sm" onclick={onlibrary}><LibraryBig size={14} /> In Bibliothek</button>{/if}
+        <button class="btn btn-sm" onclick={onedit}><Icon name="edit" size={14} /> Bearbeiten</button>
+        {#if onlibrary}<button class="btn btn-sm" onclick={onlibrary}><Icon name="library" size={14} /> In Bibliothek</button>{/if}
         <button class="btn btn-sm btn-danger" onclick={ondelete}><Trash2 size={14} /> Löschen</button>
       </div>
     </div>

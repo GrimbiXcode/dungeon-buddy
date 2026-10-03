@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Flag, GitFork, Plus, Search, Trash2 } from "@lucide/svelte";
+  import { Flag, GitFork, Plus, Trash2 } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import AppShell from "../components/AppShell.svelte";
   import CharacterCard from "../components/CharacterCard.svelte";
   import Modal from "../components/Modal.svelte";
@@ -162,7 +163,7 @@
   {:else}
     <div class="toolbar">
       <div class="search">
-        <Search size={15} />
+        <Icon name="search" size={15} />
         <input class="input" placeholder="Name oder Kampagne …" bind:value={search} aria-label="Charaktere durchsuchen" />
       </div>
       <div class="segmented" role="group" aria-label="Filter">

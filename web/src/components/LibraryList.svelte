@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { ChevronDown, Search } from "@lucide/svelte";
+  import { ChevronDown } from "@lucide/svelte";
+  import Icon from "./Icon.svelte";
   import Markdown from "./Markdown.svelte";
   import { LIBRARY_KINDS, kindLabel, librarySummary, type LibraryItem, type LibraryKind } from "../lib/library";
   import { rulesetLabel } from "../lib/themes";
@@ -39,7 +40,7 @@
 {:else}
   <div class="filters">
     <div class="search">
-      <Search size={15} />
+      <Icon name="search" size={15} />
       <input class="input input-sm" placeholder="Suchen …" bind:value={search} aria-label="Bibliothek durchsuchen" />
     </div>
     <div class="chip-row">

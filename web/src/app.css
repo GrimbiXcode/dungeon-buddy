@@ -49,6 +49,21 @@
   color-scheme: light;
 }
 
+/* Adventurer: neutrales Anthrazit, goldgelbe Titel, weisser Text */
+:root[data-mode="adventurer"] {
+  --bg-base: #1e1f22;
+  --surface-base: #27292d;
+  --surface-2-base: #303237;
+  --border-base: #3e4147;
+  --text: #ffffff;
+  --muted: #a9acb3;
+  --faint: #74777f;
+  --heading: #e8b923;
+  --accent: #e8b923;
+  --accent-strong: #c99a12;
+  --accent-contrast: #1e1f22;
+}
+
 /* ── Kampagnen-Themes ────────────────────────────────────────────────── */
 [data-theme="dragon"] { --accent: #f87171; --accent-strong: #ef4444; --accent-contrast: #1c0d0d; }
 [data-theme="feywild"] { --accent: #f0abfc; --accent-strong: #d946ef; --accent-contrast: #1d0b20; }
@@ -75,6 +90,15 @@
   --border: color-mix(in oklab, var(--accent) 10%, var(--border-base));
   --accent-soft: color-mix(in oklab, var(--accent) 16%, transparent);
   --accent-text: color-mix(in oklab, var(--accent) 80%, var(--text));
+}
+
+/* Adventurer bleibt neutral anthrazit – Flächen nicht in Richtung Akzent tönen */
+:root[data-mode="adventurer"],
+:root[data-mode="adventurer"] [data-theme] {
+  --bg: var(--bg-base);
+  --surface: var(--surface-base);
+  --surface-2: var(--surface-2-base);
+  --border: var(--border-base);
 }
 
 /* ── Basis ───────────────────────────────────────────────────────────── */
@@ -109,6 +133,8 @@ h3 {
   line-height: 1.2;
   margin: 0 0 0.5em;
 }
+/* Titelfarbe nur im Adventurer-Modus; :where hält die Spezifität niedrig, damit Komponenten-Stile gewinnen */
+:where(:root[data-mode="adventurer"]) :is(h1, h2, h3) { color: var(--heading); }
 h1 { font-size: 1.7rem; }
 h2 { font-size: 1.3rem; }
 h3 { font-size: 1.05rem; }
@@ -282,6 +308,7 @@ textarea {
 
 .segmented {
   display: inline-flex;
+  flex-wrap: wrap;
   padding: 3px;
   gap: 3px;
   border-radius: var(--radius-sm);

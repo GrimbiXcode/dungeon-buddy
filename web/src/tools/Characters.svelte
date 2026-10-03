@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArrowLeftRight, LogOut, Plus, RotateCcw, Star, Trash2, UserPlus, Users } from "@lucide/svelte";
+  import { ArrowLeftRight, LogOut, Plus, RotateCcw, Star, Trash2, UserPlus } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import CharacterCard from "../components/CharacterCard.svelte";
   import Modal from "../components/Modal.svelte";
   import NewCharacterModal from "../components/NewCharacterModal.svelte";
@@ -159,7 +160,7 @@
     </p>
   </div>
   <div class="row">
-    <a class="btn" href="/charaktere"><Users size={16} /> Alle Charaktere</a>
+    <a class="btn" href="/charaktere"><Icon name="characters" size={16} /> Alle Charaktere</a>
     <button class="btn btn-primary" onclick={() => (assigning = true)}><UserPlus size={16} /> Charakter zuweisen</button>
   </div>
 </div>

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { unitSystem } from "../../lib/session.svelte";
   import { convertText } from "../../lib/units";
-  import { Check, ChevronDown, Plus, Search } from "@lucide/svelte";
+  import { Check, ChevronDown, Plus } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import Markdown from "../../components/Markdown.svelte";
   import Modal from "../../components/Modal.svelte";
   import { SPELL_LEVEL_NAMES } from "../../lib/dnd";
@@ -85,7 +86,7 @@
   <div class="filters">
     <label class="search">
       <span class="sr-only">Zaubername suchen</span>
-      <Search size={16} />
+      <Icon name="search" size={16} />
       <input class="input" type="search" placeholder="Name suchen …" bind:value={query} />
     </label>
     <label>

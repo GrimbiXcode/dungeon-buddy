@@ -2,7 +2,8 @@
   import { unitSystem } from "../../lib/session.svelte";
   import { convertText, distanceUnit, feetToInput, formatDistance, inputToFeet } from "../../lib/units";
   import { onMount } from "svelte";
-  import { Flag, Hourglass, Plus, Swords, Timer, Trash2, Zap } from "@lucide/svelte";
+  import { Plus, Trash2 } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import Modal from "../../components/Modal.svelte";
   import { get } from "../../lib/api";
   import { attackToHit, initiative, offhandIsNick, offhandWeapons, spellAttackBonus, type Attack } from "../../lib/character";
@@ -208,7 +209,7 @@
 {#snippet attackRow(a: Attack)}
   <div class="sugg">
     <div class="grow">
-      <div class="sugg-name"><Swords size={14} /> <strong>{a.name || "Angriff"}</strong> <span class="badge mono">{formatMod(attackToHit(c, a))}</span></div>
+      <div class="sugg-name"><Icon name="attack" size={14} /> <strong>{a.name || "Angriff"}</strong> <span class="badge mono">{formatMod(attackToHit(c, a))}</span></div>
       <span class="tiny muted">{a.kind === "ranged" ? "Fernkampf" : "Nahkampf"}{a.range ? ` ${convertText(a.range, unitSystem())}` : ""} · {a.damage} {a.damageType}</span>
     </div>
     <button class="btn btn-sm btn-primary" onclick={() => ctx.openAttack(a)}>Angreifen</button>
@@ -232,7 +233,7 @@
 {#snippet offhandRow(a: Attack)}
   <div class="sugg">
     <div class="grow">
-      <div class="sugg-name"><Swords size={14} /> <strong>Zusatzangriff: {a.name || "Waffe"}</strong> <span class="badge mono">{formatMod(attackToHit(c, a))}</span></div>
+      <div class="sugg-name"><Icon name="attack" size={14} /> <strong>Zusatzangriff: {a.name || "Waffe"}</strong> <span class="badge mono">{formatMod(attackToHit(c, a))}</span></div>
       <span class="tiny muted">Zweite leichte Waffe, ohne positiven Attributsmodifikator beim Schaden{offhandIsNick(a, ctx.ruleset) ? " · Einkerben: Teil der Angriffsaktion" : ""}</span>
     </div>
     <button class="btn btn-sm btn-primary" onclick={() => ctx.openAttack(a, { offhand: true })}>Angreifen</button>
@@ -257,7 +258,7 @@
   {#if !c.combat.active}
     <div class="row-between">
       <div>
-        <h3><Swords size={17} /> Kampf-Assistent</h3>
+        <h3><Icon name="attack" size={17} /> Kampf-Assistent</h3>
         <p class="small muted intro">
           Behält Runden, Aktion/Bonusaktion/Reaktion und laufende Effekte im Blick und schlägt dir passende Fähigkeiten,
           Angriffe und Zauber vor.
@@ -265,7 +266,7 @@
       </div>
       <div class="row">
         <button class="btn" onclick={() => begin(false)}>Kampf beginnen</button>
-        <button class="btn btn-primary" onclick={() => begin(true)}><Zap size={15} /> Initiative würfeln</button>
+        <button class="btn btn-primary" onclick={() => begin(true)}><Icon name="initiative" size={15} /> Initiative würfeln</button>
       </div>
     </div>
     {#if c.combat.effects.length}
@@ -276,10 +277,10 @@
     {/if}
   {:else}
     <div class="row-between bar">
-      <h3><Timer size={17} /> Runde {c.combat.round}</h3>
+      <h3><Icon name="round" size={17} /> Runde {c.combat.round}</h3>
       <div class="row">
-        <button class="btn btn-primary btn-sm" onclick={turn}><Hourglass size={14} /> Nächster Zug</button>
-        <button class="btn btn-sm" onclick={() => endCombat(c)}><Flag size={14} /> Kampf beenden</button>
+        <button class="btn btn-primary btn-sm" onclick={turn}><Icon name="nextTurn" size={14} /> Nächster Zug</button>
+        <button class="btn btn-sm" onclick={() => endCombat(c)}><Icon name="endCombat" size={14} /> Kampf beenden</button>
       </div>
     </div>
 

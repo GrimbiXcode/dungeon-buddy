@@ -1,6 +1,6 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
   import { onMount } from "svelte";
-  import { Search } from "@lucide/svelte";
   import Modal from "./Modal.svelte";
   import { get } from "../lib/api";
   import { LIBRARY_KINDS, librarySummary, type LibraryItem, type LibraryKind } from "../lib/library";
@@ -44,7 +44,7 @@
     </p>
   {:else}
     <div class="search">
-      <Search size={15} />
+      <Icon name="search" size={15} />
       <input class="input input-sm" placeholder="Suchen …" bind:value={search} aria-label="Bibliothek durchsuchen" />
     </div>
     <div class="list">

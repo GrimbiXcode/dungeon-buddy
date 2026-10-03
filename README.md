@@ -217,4 +217,6 @@ Das Backend liefert das gebaute Frontend aus. Image und Container sind deshalb j
 
 Dieses Projekt enthält Material aus dem System Reference Document 5.1 und 5.2 von Wizards of the Coast LLC, verfügbar unter https://www.dndbeyond.com/srd und lizenziert unter der [Creative Commons Attribution 4.0 International License](https://creativecommons.org/licenses/by/4.0/legalcode). Die Zauberdaten stammen aufbereitet aus [5e-bits/5e-database](https://github.com/5e-bits/5e-database) (MIT). Die Zaubertexte sind daher englisch.
 
+Die Icons im Adventurer-Modus stammen von [game-icons.net](https://game-icons.net) (Lorc, Delapouite und weitere) und stehen unter der [Creative Commons Attribution 3.0 License](https://creativecommons.org/licenses/by/3.0/). Sie liegen als Pfaddaten in `web/src/lib/icons/gameIcons.ts`.
+
 Dungeon Buddy ist ein inoffizielles Fanprojekt und steht in keiner Verbindung zu Wizards of the Coast.
