@@ -367,3 +367,15 @@ describe("Review-Korrekturen Fähigkeiten", () => {
     expect(usesLeft(c, sneak)).toBe(1);
   });
 });
+
+describe("trackUsage mit Gegenständen", () => {
+  it("gibt verbrauchte Gegenstände zurück", () => {
+    const c = normalizeCharacter({ inventory: [{ id: "pfeil", name: "Pfeile", quantity: 3 }] });
+    const f = newFeature({ name: "Schuss", itemId: "pfeil", itemCost: 1 });
+    c.features = [f];
+    const t = trackUsage(c, () => useFeature(c, f));
+    expect(c.inventory[0]!.quantity).toBe(2);
+    t.undo();
+    expect(c.inventory[0]!.quantity).toBe(3);
+  });
+});

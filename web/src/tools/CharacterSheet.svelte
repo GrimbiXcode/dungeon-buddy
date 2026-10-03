@@ -44,6 +44,7 @@
   import Details from "./character/Details.svelte";
   import TextBlocks from "./character/TextBlocks.svelte";
   import Currency from "./character/Currency.svelte";
+  import Inventory from "./character/Inventory.svelte";
   import RollLog from "./character/RollLog.svelte";
   import Features from "./character/Features.svelte";
   import CombatAssistant from "./character/CombatAssistant.svelte";
@@ -203,7 +204,7 @@
     },
     addToLibrary(kind: "feature" | "attack" | "armor", item: Feature | Attack | ArmorItem) {
       const payload =
-        kind === "feature" ? featureToLibrary(data, item as Feature) : kind === "attack" ? attackToLibrary(item as Attack) : armorToLibrary(item as ArmorItem);
+        kind === "feature" ? featureToLibrary(data, item as Feature) : kind === "attack" ? attackToLibrary(data, item as Attack) : armorToLibrary(item as ArmorItem);
       post("/api/library", { kind, name: item.name || "Ohne Namen", ruleset, data: payload })
         .then(() => toast(`„${item.name}“ in die Bibliothek aufgenommen.`, "success"))
         .catch(toastError);
@@ -237,7 +238,7 @@
       if (missing.length) toast(`Verknüpfung zu ${missing.join(", ")} fehlt im Bogen – bei Bedarf im Editor setzen.`);
       tab = "faehigkeiten";
     } else if (kind === "attack") {
-      data.attacks.push(attackFromLibrary(item.data, item.name));
+      data.attacks.push(attackFromLibrary(data, item.data, item.name));
     } else if (kind === "armor") {
       data.armor.push(armorFromLibrary(item.data, item.name));
     }
@@ -529,9 +530,9 @@
       <Spellcasting />
     {:else if tab === "inventar"}
       <Currency />
+      <Inventory />
       <TextBlocks
         fields={[
-          { key: "equipment", label: "Ausrüstung", placeholder: "- Langschwert\n- Kettenhemd\n- Rucksack mit …" },
           { key: "proficiencies", label: "Übung mit Rüstungen, Waffen & Werkzeugen" },
           { key: "languages", label: "Sprachen" },
         ]}

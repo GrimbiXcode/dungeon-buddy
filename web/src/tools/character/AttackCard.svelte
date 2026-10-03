@@ -6,6 +6,7 @@
   import { addExpr, diceString, formatDice, parseDice } from "../../lib/dice";
   import { ABILITY_SHORT, formatMod, type Ability } from "../../lib/dnd";
   import { appliesToAttack } from "../../lib/features";
+  import { LOW_STOCK, attackConsumption, hasStock } from "../../lib/inventory";
   import { sheet } from "./context";
 
   let {
@@ -21,6 +22,8 @@
 
   const matching = $derived(c.features.filter(f => appliesToAttack(f, attack)));
   const offhand = $derived(offhandWeapons(c, attack, ctx.ruleset));
+  const use = $derived(attackConsumption(c, attack));
+  const stocked = $derived(hasStock(c, attack));
 
   function damageText(a: Attack) {
     const expr = parseDice(a.damage);
@@ -67,6 +70,11 @@
     {#if attack.extraDamage}<span class="badge mono">+{attack.extraDamage} {attack.extraDamageType}</span>{/if}
     {#each attack.properties.filter(p => p !== "Finesse") as p (p)}<span class="badge tag">{p}</span>{/each}
     {#if attack.mastery}<span class="badge">{attack.mastery}</span>{/if}
+    {#if use}
+      <span class="badge" class:badge-danger={!stocked || use.item.quantity <= LOW_STOCK} title="Verbraucht {use.amount} pro Angriff">
+        {use.item.ammo ? "➶ " : ""}{use.item.quantity} {use.item.name}
+      </span>
+    {/if}
   </div>
 
   {#if matching.length}<p class="tiny accent">{matching.length} passende Fähigkeit{matching.length === 1 ? "" : "en"}</p>{/if}

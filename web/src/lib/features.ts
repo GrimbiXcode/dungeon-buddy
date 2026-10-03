@@ -9,6 +9,7 @@ import type { Attack, CharacterData, Resource } from "./character";
 import { ABILITIES, ABILITY_SHORT, SKILLS, abilityMod, proficiencyBonus, type Ability, type RollKind, type SkillKey } from "./dnd";
 import { addExpr, formatBonus, parseBonus, parseDice, type DiceExpr, type DiceGroup } from "./dice";
 import { uid } from "./format";
+import { consumeItem, itemById, recoveryRows, refundItem, type RecoveryRow } from "./inventory";
 
 // ── Auswahllisten ───────────────────────────────────────────────────────
 
@@ -229,6 +230,9 @@ export type Feature = {
   /** Alternativ/zusätzlich: verbraucht eine Ressource (Ki, Kanalisieren …) */
   resourceId: string | null;
   resourceCost: number;
+  /** Verbraucht einen Gegenstand aus dem Inventar (Heiltrank, Weihwasser …) */
+  itemId: string | null;
+  itemCost: number;
   triggers: Trigger[];
   appliesTo: { scope: Scope; attackIds: string[] };
   /** Veränderte Würfe (Angriff, Schaden, Attribut, Rettung …) */
@@ -263,6 +267,8 @@ export type CombatState = {
   lightAttack: string | null;
   /** Zusatzangriff mit der zweiten leichten Waffe in diesem Zug schon gemacht */
   offhandUsed: boolean;
+  /** In diesem Kampf verbrauchte Menge je Gegenstand (für das Bergen am Ende) */
+  spent: Record<string, number>;
 };
 
 // ── Normalisierung ──────────────────────────────────────────────────────
@@ -300,6 +306,8 @@ export function newFeature(partial: Partial<Feature> = {}): Feature {
     uses: { max: null, used: 0, reset: "long" },
     resourceId: null,
     resourceCost: 1,
+    itemId: null,
+    itemCost: 1,
     triggers: [],
     appliesTo: { scope: "none", attackIds: [] },
     rollMods: [],
@@ -405,6 +413,8 @@ export function normalizeFeature(raw: unknown): Feature {
     },
     resourceId: typeof f.resourceId === "string" ? f.resourceId : null,
     resourceCost: Math.max(0, num(f.resourceCost, 1)),
+    itemId: typeof f.itemId === "string" && f.itemId ? f.itemId : null,
+    itemCost: Math.max(1, Math.floor(num(f.itemCost, 1))),
     triggers: Array.isArray(f.triggers) ? f.triggers.filter((t): t is Trigger => TRIGGERS.some(x => x.key === t)) : [],
     appliesTo: {
       scope: oneOf(SCOPES, applies.scope, "none"),
@@ -443,6 +453,9 @@ export function normalizeCombat(raw: unknown): CombatState {
     }),
     lightAttack: typeof c.lightAttack === "string" ? c.lightAttack : null,
     offhandUsed: c.offhandUsed === true,
+    spent: Object.fromEntries(
+      Object.entries(obj(c.spent)).filter((e): e is [string, number] => typeof e[1] === "number" && e[1] > 0).map(([k, v]) => [k, Math.floor(v)])
+    ),
   };
 }
 
@@ -475,7 +488,9 @@ export function usesLeft(c: CharacterData, f: Feature, depth = 0): number | null
   const own = f.uses.max == null ? null : Math.max(0, f.uses.max - f.uses.used);
   const res = resourceOf(c, f);
   const fromResource = res && f.resourceCost > 0 ? Math.floor((res.max - res.used) / f.resourceCost) : null;
-  let left = minLeft(own, fromResource);
+  const item = itemById(c, f.itemId);
+  const fromItem = item ? Math.floor(item.quantity / Math.max(1, f.itemCost)) : null;
+  let left = minLeft(minLeft(own, fromResource), fromItem);
   if (depth < 1) {
     for (const { link, feature } of linkedFeatures(c, f)) {
       const other = usesLeft(c, feature, depth + 1);
@@ -485,12 +500,14 @@ export function usesLeft(c: CharacterData, f: Feature, depth = 0): number | null
   return left;
 }
 
-/** Nutzungen bzw. Ressource einer Fähigkeit verbrauchen, ohne sie einzusetzen. */
+/** Nutzungen, Ressource bzw. Gegenstand einer Fähigkeit verbrauchen, ohne sie einzusetzen. */
 export function consumeUses(c: CharacterData, f: Feature, count = 1) {
   if (count <= 0) return;
   if (f.uses.max != null) f.uses.used = Math.min(f.uses.max, f.uses.used + count);
   const res = resourceOf(c, f);
   if (res && f.resourceCost > 0) res.used = Math.min(res.max, res.used + f.resourceCost * count);
+  const item = itemById(c, f.itemId);
+  if (item) consumeItem(c, item, f.itemCost * count);
 }
 
 /** Verbrauch rückgängig machen (z. B. Option im Würfeldialog wieder abgewählt). */
@@ -499,6 +516,8 @@ export function refundUses(c: CharacterData, f: Feature, count = 1) {
   if (f.uses.max != null) f.uses.used = Math.max(0, f.uses.used - count);
   const res = resourceOf(c, f);
   if (res && f.resourceCost > 0) res.used = Math.max(0, res.used - f.resourceCost * count);
+  const item = itemById(c, f.itemId);
+  if (item) refundItem(c, item, f.itemCost * count);
 }
 
 /** Einsatz rückgängig machen: eigene und mitverbrauchte Nutzungen zurück. */
@@ -517,18 +536,20 @@ export function confirmLinkSuccess(c: CharacterData, f: Feature, featureId: stri
 }
 
 /**
- * Änderungen an Nutzungen, Ressourcen und Aktionsarten durch `run` erfassen
+ * Änderungen an Nutzungen, Ressourcen, Gegenständen und Aktionsarten durch `run` erfassen
  * und rückgängig machbar machen. Zurückgegeben wird nur, was `run` wirklich
  * verbraucht hat (z. B. nichts, wenn die Ressource schon leer war).
  */
 export function trackUsage<T>(c: CharacterData, run: () => T): { result: T; undo: () => void } {
   const uses = new Map(c.features.map(f => [f.id, f.uses.used]));
   const res = new Map(c.resources.map(r => [r.id, r.used]));
+  const items = new Map(c.inventory.map(i => [i.id, i.quantity]));
   const economy = { ...c.combat.used };
   const effects = new Set(c.combat.effects.map(e => e.id));
   const result = run();
   const usedDelta = c.features.map(f => ({ id: f.id, d: f.uses.used - (uses.get(f.id) ?? f.uses.used) })).filter(x => x.d);
   const resDelta = c.resources.map(r => ({ id: r.id, d: r.used - (res.get(r.id) ?? r.used) })).filter(x => x.d);
+  const itemDelta = c.inventory.map(i => ({ id: i.id, d: (items.get(i.id) ?? i.quantity) - i.quantity })).filter(x => x.d > 0);
   const slots = (Object.keys(economy) as (keyof CombatState["used"])[]).filter(k => !economy[k] && c.combat.used[k]);
   const added = c.combat.effects.filter(e => !effects.has(e.id)).map(e => e.id);
   return {
@@ -541,6 +562,10 @@ export function trackUsage<T>(c: CharacterData, run: () => T): { result: T; undo
       for (const { id, d } of resDelta) {
         const r = c.resources.find(x => x.id === id);
         if (r) r.used = Math.max(0, r.used - d);
+      }
+      for (const { id, d } of itemDelta) {
+        const item = itemById(c, id);
+        if (item) refundItem(c, item, d);
       }
       for (const k of slots) c.combat.used[k] = false;
       if (added.length) c.combat.effects = c.combat.effects.filter(e => !added.includes(e.id));
@@ -646,17 +671,25 @@ function resetTurn(c: CharacterData) {
 export function startCombat(c: CharacterData) {
   c.combat.active = true;
   c.combat.round = 1;
+  c.combat.spent = {};
   resetTurn(c);
   for (const f of c.features) if (f.uses.reset === "turn") f.uses.used = 0;
 }
 
-export function endCombat(c: CharacterData) {
+/**
+ * Kampf beenden. Gibt zurück, was von verbrauchten Geschossen und Wurfwaffen
+ * geborgen werden kann (Vorschlag für den Dialog nach dem Kampf).
+ */
+export function endCombat(c: CharacterData): RecoveryRow[] {
+  const recovery = recoveryRows(c);
   c.combat.active = false;
   c.combat.round = 1;
+  c.combat.spent = {};
   resetTurn(c);
   for (const f of c.features) if (f.uses.reset === "turn") f.uses.used = 0;
   // Effekte mit Rundendauer enden mit dem Kampf, längere bleiben
   c.combat.effects = c.combat.effects.filter(e => e.remaining == null || e.remaining > 10);
+  return recovery;
 }
 
 /**
