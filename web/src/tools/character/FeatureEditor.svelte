@@ -350,6 +350,12 @@
       error = `Ungültiger Bonus „${badMod.bonus}“ (Beispiele: 2, -1, 1d4, -1d4).`;
       return;
     }
+    // Abzugswürfel auf den Schaden kann der Schadenswurf nicht abbilden (nur feste Abzüge)
+    const negDamage = bonusMods.find(m => m.target === "damage" && parseBonus(m.bonus)?.sign === -1 && parseBonus(m.bonus)?.dice.length);
+    if (negDamage) {
+      error = `Würfel abziehen geht beim Schadenswurf nicht („${negDamage.bonus}“). Feste Abzüge wie -2 gehen.`;
+      return;
+    }
     f.rollMods = composedMods();
     // Ohne Angriffsbezug wirken Angriffs-/Schadenswürfe und Angriffs-Auslöser nirgends
     if (f.appliesTo.scope === "none" && (f.rollMods.some(m => m.target === "attack" || m.target === "damage") || f.triggers.some(t => ATTACK_TRIGGERS.includes(t)))) {

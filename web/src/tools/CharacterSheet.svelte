@@ -139,6 +139,7 @@
           exhaustion: data.exhaustion,
           rollMode: data.rollMode,
           target: opts.target,
+          critRange: data.critRange,
           followUp: opts.damage ? { ...opts.damage, canCrit: true } : undefined,
           options: rollOptions({ kind, ability: opts.ability ?? null, skill: opts.skill ?? null }),
         })
@@ -215,13 +216,13 @@
     libraryKind = null;
     if (kind === "feature") {
       const missing = unresolvedLinks(data, item.data);
-      data.features.push(featureFromLibrary(data, item.data));
+      data.features.push(featureFromLibrary(data, item.data, item.name));
       if (missing.length) toast(`Verknüpfung zu ${missing.join(", ")} fehlt im Bogen – bei Bedarf im Editor setzen.`);
       tab = "faehigkeiten";
     } else if (kind === "attack") {
-      data.attacks.push(attackFromLibrary(item.data));
+      data.attacks.push(attackFromLibrary(item.data, item.name));
     } else if (kind === "armor") {
-      data.armor.push(armorFromLibrary(item.data));
+      data.armor.push(armorFromLibrary(item.data, item.name));
     }
     toast(`„${item.name}“ übernommen.`, "success");
   }

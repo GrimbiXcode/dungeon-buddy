@@ -8,7 +8,7 @@
  */
 import { normalizeArmor, type ArmorItem } from "./armor";
 import { newResource, normalizeAttack, type Attack, type CharacterData } from "./character";
-import { linkedFeatures, normalizeFeature, type Feature, type LinkWhen } from "./features";
+import { LINK_WHEN, linkedFeatures, normalizeFeature, type Feature, type LinkWhen } from "./features";
 import { uid } from "./format";
 import type { Ruleset, Spell, SpellData } from "./types";
 
@@ -82,10 +82,22 @@ export function spellToLibrary(s: Spell): LibraryInput["data"] {
 
 // ── Bibliothek → Bogen ───────────────────────────────────────────────────
 
-/** Fähigkeit in einen Bogen übernehmen; fehlende Ressourcen werden angelegt. */
-export function featureFromLibrary(c: CharacterData, data: Record<string, unknown>): Feature {
+/** Verweise aus geteilten Daten nur in gültiger Form übernehmen */
+function linkRefsOf(refs: FeatureRefs) {
+  return (Array.isArray(refs.linkRefs) ? refs.linkRefs : []).flatMap(l =>
+    l && typeof l.name === "string"
+      ? [{ name: l.name, cost: Number.isFinite(Number(l.cost)) ? Math.max(0, Number(l.cost)) : 1, when: LINK_WHEN.some(w => w.key === l.when) ? l.when : ("use" as const) }]
+      : []
+  );
+}
+
+/**
+ * Fähigkeit in einen Bogen übernehmen; fehlende Ressourcen werden angelegt.
+ * `name`: Name des Bibliothekseintrags (kann umbenannt worden sein).
+ */
+export function featureFromLibrary(c: CharacterData, data: Record<string, unknown>, name?: string): Feature {
   const refs = data as FeatureRefs;
-  const f = normalizeFeature({ ...data, id: uid() });
+  const f = normalizeFeature({ ...data, id: uid(), ...(name?.trim() ? { name: name.trim() } : {}) });
   f.uses.used = 0;
   f.resourceId = null;
   if (refs.resourceRef?.name) {
@@ -101,26 +113,27 @@ export function featureFromLibrary(c: CharacterData, data: Record<string, unknow
     }
     f.resourceId = r.id;
   }
-  f.links = (refs.linkRefs ?? []).flatMap(l => {
+  f.links = linkRefsOf(refs).flatMap(l => {
     const target = c.features.find(x => norm(x.name) === norm(l.name));
     return target ? [{ featureId: target.id, cost: l.cost, when: l.when }] : [];
   });
-  f.appliesTo.attackIds = c.attacks.filter(a => (refs.attackRefs ?? []).some(n => norm(n) === norm(a.name))).map(a => a.id);
+  const attackRefs = Array.isArray(refs.attackRefs) ? refs.attackRefs.filter((n): n is string => typeof n === "string") : [];
+  f.appliesTo.attackIds = c.attacks.filter(a => attackRefs.some(n => norm(n) === norm(a.name))).map(a => a.id);
   return f;
 }
 
 /** Verknüpfungen, die sich im Ziel-Bogen nicht auflösen liessen (für Hinweise). */
 export function unresolvedLinks(c: CharacterData, data: Record<string, unknown>) {
   const refs = data as FeatureRefs;
-  return (refs.linkRefs ?? []).filter(l => !c.features.some(x => norm(x.name) === norm(l.name))).map(l => l.name);
+  return linkRefsOf(refs).filter(l => !c.features.some(x => norm(x.name) === norm(l.name))).map(l => l.name);
 }
 
-export function attackFromLibrary(data: Record<string, unknown>): Attack {
-  return normalizeAttack({ ...data, id: uid() });
+export function attackFromLibrary(data: Record<string, unknown>, name?: string): Attack {
+  return normalizeAttack({ ...data, id: uid(), ...(name?.trim() ? { name: name.trim() } : {}) });
 }
 
-export function armorFromLibrary(data: Record<string, unknown>): ArmorItem {
-  return normalizeArmor({ ...data, id: uid(), equipped: false });
+export function armorFromLibrary(data: Record<string, unknown>, name?: string): ArmorItem {
+  return normalizeArmor({ ...data, id: uid(), equipped: false, ...(name?.trim() ? { name: name.trim() } : {}) });
 }
 
 export function spellFromLibrary(item: LibraryItem) {

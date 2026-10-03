@@ -727,22 +727,25 @@ export type AttackOption = {
  * Vorschläge für einen Angriff mit Waffe X:
  *  - before: vor dem Wurf (Vorteil, Trefferbonus, Schadensbonus, passive Boni)
  *  - onHit:  nach einem Treffer (Zusatzschaden wie Hinterhältiger Angriff)
+ *  - onCrit: nur bei kritischem Treffer (Brutaler kritischer Treffer), auch passive
  */
 export function attackOptions(c: CharacterData, a: Attack) {
   const active = new Set(c.combat.effects.map(e => e.featureId));
   const before: AttackOption[] = [];
   const onHit: AttackOption[] = [];
+  const onCrit: AttackOption[] = [];
   for (const f of c.features) {
     if (!appliesToAttack(f, a)) continue;
     const automatic = f.activation === "passive" || active.has(f.id);
     const option = { feature: f, automatic, available: automatic || isAvailable(c, f), spent: !automatic && economySpent(c, f.activation) };
-    const hitTrigger = f.triggers.includes("hit") || f.triggers.includes("crit");
-    if (hitTrigger && !automatic) onHit.push(option);
+    const critOnly = f.triggers.includes("crit") && !f.triggers.includes("hit");
+    if (critOnly) onCrit.push(option);
+    else if (f.triggers.includes("hit") && !automatic) onHit.push(option);
     else before.push(option);
   }
   const order = (x: AttackOption, y: AttackOption) =>
     Number(y.automatic) - Number(x.automatic) || Number(y.available) - Number(x.available) || x.feature.name.localeCompare(y.feature.name);
-  return { before: before.sort(order), onHit: onHit.sort(order) };
+  return { before: before.sort(order), onHit: onHit.sort(order), onCrit: onCrit.sort(order) };
 }
 
 // ── Schaden und Heilung ─────────────────────────────────────────────────

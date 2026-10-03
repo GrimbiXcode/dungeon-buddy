@@ -25,6 +25,8 @@ export type DamageRequest = {
    * würfeln und ein Ergebnis wählen (Wilder Angreifer).
    */
   twice?: { label: string; dice: string };
+  /** Nur bei kritischem Treffer dazu, ohne Verdopplung (Brutaler kritischer Treffer) */
+  critExtra?: string;
   physical: boolean;
 };
 
@@ -68,6 +70,8 @@ export type D20Request = {
   notes?: string[];
   /** Ziel, gegen das gewürfelt wird (z. B. SG 10 bei Todesrettungswürfen) */
   target?: number;
+  /** Kritischer Treffer ab diesem W20-Wert (Angriffe; Standard 20) */
+  critRange?: number;
   /** Anschliessender Schadenswurf (Angriffe) */
   followUp?: Omit<DamageRequest, "physical" | "type">;
   /** Rückmeldung des Ergebnisses (behaltener W20 und Gesamtwert) */
@@ -132,6 +136,7 @@ export function d20Request(opts: {
   exhaustion: number;
   rollMode: RollModeSetting;
   target?: number;
+  critRange?: number;
   followUp?: D20Request["followUp"];
   onResult?: D20Request["onResult"];
   options?: RollOption[];
@@ -151,6 +156,7 @@ export function d20Request(opts: {
     penalty: ex.penalty,
     notes: [...(ex.note ? [ex.note] : []), ...(opts.notes ?? [])],
     target: opts.target,
+    critRange: opts.kind === "attack" ? opts.critRange : undefined,
     followUp: opts.followUp,
     onResult: opts.onResult,
     options: opts.options,

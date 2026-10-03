@@ -96,6 +96,8 @@ export type CharacterData = {
   attacks: Attack[];
   /** Kampfstil Zwei-Waffen-Kampf: Attributsmodifikator auch beim Zusatzangriff */
   twoWeaponFighting: boolean;
+  /** Kritischer Treffer ab diesem W20-Wert (Champion: 19) */
+  critRange: number;
   /** Konfigurierbare Fähigkeiten: Klasse, Herkunft, Talente, Ausrüstung … */
   features: Feature[];
   /** Zustand des Kampf-Assistenten */
@@ -275,6 +277,7 @@ export function normalizeCharacter(raw: unknown): CharacterData {
     conditions: arr(d.conditions).filter((x): x is string => typeof x === "string"),
     attacks: arr(d.attacks).map(normalizeAttack),
     twoWeaponFighting: bool(d.twoWeaponFighting),
+    critRange: Math.min(20, Math.max(15, num(d.critRange, 20))),
     features: Array.isArray(d.features) ? d.features.map(normalizeFeature) : [],
     combat: normalizeCombat(d.combat),
     spellcasting: {
@@ -417,7 +420,9 @@ function attackAbilityMod(c: CharacterData, attack: Attack, choice?: Ability | n
 export type AttackRollOpts = { ability?: Ability | null; offhand?: boolean };
 
 export function attackToHit(c: CharacterData, attack: Attack, opts: AttackRollOpts = {}) {
-  return attackAbilityMod(c, attack, opts.ability) + (attack.proficient ? profBonus(c) : 0) + attack.toHitBonus;
+  // Angriffe mit dem Zauberattribut sind Zauberangriffe: Bonus wie beim Zauberangriff
+  const spellExtra = attackAbility(c, attack, opts.ability) === "spell" ? c.spellcasting.attackBonusExtra : 0;
+  return attackAbilityMod(c, attack, opts.ability) + (attack.proficient ? profBonus(c) : 0) + attack.toHitBonus + spellExtra;
 }
 
 /**

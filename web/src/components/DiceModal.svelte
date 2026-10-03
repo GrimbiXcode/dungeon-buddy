@@ -15,7 +15,7 @@
     type RollOption,
     type RollRequest,
   } from "../lib/roller.svelte";
-  import { critExpr, formatDice, groupRange, parseDice, rollDie, rollGroup, type DiceExpr, type DiceGroup } from "../lib/dice";
+  import { addExpr, critExpr, formatDice, groupRange, parseDice, rollDie, rollGroup, type DiceExpr, type DiceGroup } from "../lib/dice";
   import { formatMod } from "../lib/dnd";
 
   const req = $derived(roller.request);
@@ -239,12 +239,15 @@
 
   function toDamage(r: D20Request) {
     if (!r.followUp) return;
-    openRoll({ ...r.followUp, type: "damage", physical: r.physical, crit: kept === 20 });
+    openRoll({ ...r.followUp, type: "damage", physical: r.physical, crit: kept != null && kept >= (r.critRange ?? 20) });
   }
 
   // ── Schaden ───────────────────────────────────────────────────────────
   const baseExpr = $derived(req?.type === "damage" ? parseDice(req.dice) : null);
-  const expr = $derived<DiceExpr | null>(baseExpr ? (crit ? critExpr(baseExpr) : baseExpr) : null);
+  const critExtraExpr = $derived(req?.type === "damage" && req.critExtra ? parseDice(req.critExtra) : null);
+  const expr = $derived<DiceExpr | null>(
+    baseExpr ? (crit ? (critExtraExpr ? addExpr(critExpr(baseExpr), critExtraExpr) : critExpr(baseExpr)) : baseExpr) : null
+  );
 
   /** Wie viele Würfel je Gruppe zum „zweimal würfeln“ gehören (die ersten der Gruppe) */
   const twiceExpr = $derived.by(() => {
@@ -422,14 +425,14 @@
         <p class="muted small">Trage noch das Ergebnis der Bonuswürfel ein.</p>
       {:else if rolled && kept != null}
         {@const total = d20Total(req, kept)}
-        <div class="result" class:crit={kept === 20} class:fumble={kept === 1}>
+        <div class="result" class:crit={kept >= (req.critRange ?? 20)} class:fumble={kept === 1}>
           <div class="total mono">{total}</div>
           <div class="breakdown mono">
             W20 {#if picks.length > 1}({picks.join(" / ")}) → {/if}{kept}
             {formatMod(req.modifier + optionFlat)}{#if req.penalty}&nbsp;{formatMod(req.penalty)}{/if}
             {#each diceOptions as o (o.id)}&nbsp;{o.sign < 0 ? "−" : "+"}{bonusRolls[o.id]} ({diceLabel(o.dice)}){/each}
           </div>
-          {#if kept === 20}<div class="flag">Natürliche 20!</div>{/if}
+          {#if kept === 20}<div class="flag">Natürliche 20!</div>{:else if req.critRange && kept >= req.critRange}<div class="flag">Kritischer Treffer ({req.critRange}–20)</div>{/if}
           {#if kept === 1}<div class="flag">Natürliche 1 – Patzer</div>{/if}
           {#if req.target != null}
             <div class="flag">{total >= req.target ? "Erfolg" : "Misserfolg"} (Ziel {req.target})</div>
@@ -450,7 +453,7 @@
           </button>
           {#if req.followUp}
             <button class="btn btn-primary" onclick={() => toDamage(req)}>
-              <Icon name="attack" size={16} /> {kept === 20 ? "Kritischen Schaden würfeln" : "Schaden würfeln"}
+              <Icon name="attack" size={16} /> {kept >= (req.critRange ?? 20) ? "Kritischen Schaden würfeln" : "Schaden würfeln"}
             </button>
           {/if}
         </div>

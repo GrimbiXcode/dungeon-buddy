@@ -3,6 +3,7 @@
   import Icon from "../../components/Icon.svelte";
   import { isLight, newAttack, type Attack } from "../../lib/character";
   import { confirmDialog } from "../../lib/confirm.svelte";
+  import NumberField from "../../components/NumberField.svelte";
   import { sheet } from "./context";
   import AttackCard from "./AttackCard.svelte";
   import AttackEditor from "./AttackEditor.svelte";
@@ -46,6 +47,16 @@
     </div>
   {/if}
 
+  {#if ctx.editing}
+    <label class="small row crit">
+      Kritischer Treffer ab W20
+      <NumberField class="input input-sm mono" min={15} max={20} bind:value={c.critRange} aria-label="Kritischer Treffer ab" />
+      <span class="tiny muted">(20 = normal, Champion 19)</span>
+    </label>
+  {:else if c.critRange < 20}
+    <p class="tiny muted crit">Kritischer Treffer ab {c.critRange}.</p>
+  {/if}
+
   {#if lightCount >= 2 || c.twoWeaponFighting}
     <label class="checkbox small twf">
       <input type="checkbox" bind:checked={c.twoWeaponFighting} /> Kampfstil Zwei-Waffen-Kampf (Attributsmodifikator auch beim Zusatzangriff)
@@ -61,5 +72,7 @@
   .head { margin-bottom: 0.6rem; gap: 0.5rem; flex-wrap: wrap; }
   h3 { margin: 0; display: inline-flex; align-items: center; gap: 0.4rem; }
   .list { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
-  .twf { margin-top: 0.7rem; }
+  .twf, .crit { margin-top: 0.7rem; }
+  .crit { gap: 0.5rem; }
+  .crit :global(.input) { width: 4.5rem; }
 </style>

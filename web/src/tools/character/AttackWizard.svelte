@@ -58,6 +58,8 @@
   const exprOf = (f: Feature) => featureDamageExpr(c, f, picks[f.id]);
   let rolled = $state<{ kept: number; total: number } | null>(null);
   let outcome = $state<Outcome | null>(null);
+  /** Ergebnis kam aus dem Wurf (nat. 20/1 bzw. Krit-Bereich), nicht von Hand: beim nächsten Wurf neu bestimmen */
+  let autoOutcome = false;
   let twoHanded = $state(false);
   let damageRolled = $state(false);
   // svelte-ignore state_referenced_locally
@@ -73,7 +75,11 @@
 
   /** Fähigkeiten, die in diesen Angriff einfliessen */
   const activeBefore = $derived(options.before.filter(o => o.automatic || selectedBefore.includes(o.feature.id)));
-  const activeHit = $derived(options.onHit.filter(o => selectedHit.includes(o.feature.id)));
+  /** Bei Treffer gewählt, bei kritischem Treffer auch die nur dafür geltenden (passive automatisch) */
+  const activeCrit = $derived(outcome === "crit" ? options.onCrit.filter(o => o.automatic || selectedHit.includes(o.feature.id)) : []);
+  const activeHit = $derived([...options.onHit.filter(o => selectedHit.includes(o.feature.id)), ...activeCrit]);
+  /** Vielseitig: nur mit der Eigenschaft und nicht beim Zusatzangriff (die andere Hand hält die zweite Waffe) */
+  const versatile = $derived(!offhand && attack.properties.includes("Vielseitig") && attack.versatileDamage ? attack.versatileDamage : "");
 
   const attackMods = $derived(sumMods(activeBefore.map(o => ({ label: o.feature.name, mods: o.feature.rollMods.filter(m => m.target === "attack") }))));
   const damageMods = $derived(
@@ -86,7 +92,7 @@
   const disadvantage = $derived(attackMods.disadvantage && !attackMods.advantage);
 
   /** Waffenwürfel ohne Boni (für „zweimal würfeln“) */
-  const weaponDice = $derived(parseDice(twoHanded && attack.versatileDamage ? attack.versatileDamage : attack.damage));
+  const weaponDice = $derived(parseDice(twoHanded && versatile ? versatile : attack.damage));
   /** Fähigkeiten, mit denen die Waffenwürfel zweimal gewürfelt werden (Wilder Angreifer) */
   const twiceFrom = $derived([...activeBefore, ...activeHit].filter(o => o.feature.rollMods.some(isDamageTwice)).map(o => o.feature.name));
 
@@ -100,15 +106,17 @@
       expr = addExpr(expr, extra);
       types.push(attack.extraDamageType);
     }
+    // Schaden nur bei kritischem Treffer (Brutaler kritischer Treffer) wird nicht verdoppelt
+    let critExtra: DiceExpr | null = null;
     for (const o of [...activeBefore, ...activeHit]) {
       if (o.feature.damageOtherTarget) continue;
       const d = featureRollKind(o.feature) === "damage" ? exprOf(o.feature) : null;
-      if (d) {
-        expr = addExpr(expr, d);
-        types.push(featureDamageType(o.feature, attack));
-      }
+      if (!d) continue;
+      if (activeCrit.includes(o)) critExtra = critExtra ? addExpr(critExtra, d) : d;
+      else expr = addExpr(expr, d);
+      types.push(featureDamageType(o.feature, attack));
     }
-    return { expr, types: [...new Set(types.filter(Boolean))] };
+    return { expr, critExtra, types: [...new Set(types.filter(Boolean))] };
   });
 
   /**
@@ -118,10 +126,10 @@
   const otherTargets = $derived(
     [...activeBefore, ...activeHit].flatMap(o => {
       const kind = featureRollKind(o.feature);
-      const separate = kind === "other" || (kind === "damage" && o.feature.damageOtherTarget);
+      const separate = kind === "other" || kind === "healing" || (kind === "damage" && o.feature.damageOtherTarget);
       const d = separate ? exprOf(o.feature) : null;
       if (!d) return [];
-      const text = kind === "other" ? o.feature.effectText.trim() : featureDamageType(o.feature, attack);
+      const text = kind === "other" ? o.feature.effectText.trim() : kind === "healing" ? "" : featureDamageType(o.feature, attack);
       return [{ feature: o.feature, expr: d, kind, text }];
     })
   );
@@ -129,10 +137,14 @@
 
   const economySpentNow = $derived(c.combat.active && !(offhand && nick) && c.combat.used[economy]);
 
-  /** Zusatzangriff mit einer zweiten leichten Waffe anbieten */
+  /** Zusatzangriff mit einer zweiten leichten Waffe anbieten (als Bonusaktion nur, wenn sie noch frei ist) */
   const offhandChoices = $derived(
-    offhand || c.combat.offhandUsed || (c.combat.active && economy !== "action") ? [] : offhandWeapons(c, attack, ctx.ruleset)
+    offhand || c.combat.offhandUsed || (c.combat.active && economy !== "action")
+      ? []
+      : offhandWeapons(c, attack, ctx.ruleset).filter(w => !c.combat.active || offhandIsNick(w, ctx.ruleset) || !c.combat.used.bonus)
   );
+  /** Zusatzangriff erst, wenn dieser Angriff fertig ist (sonst gingen Schaden und Würfe verloren) */
+  const offhandReady = $derived(outcome === "miss" || (damageRolled && otherTargets.every(o => otherRolled.includes(o.feature.id))));
 
   function toggle(list: string[], id: string) {
     return list.includes(id) ? list.filter(x => x !== id) : [...list, id];
@@ -161,6 +173,7 @@
       subtitle: activeBefore.length ? `Mit: ${activeBefore.map(o => o.feature.name).join(", ")}` : undefined,
       modifier: toHit,
       kind: "attack",
+      critRange: c.critRange,
       ruleset: ctx.ruleset,
       exhaustion: c.exhaustion,
       rollMode: c.rollMode,
@@ -181,7 +194,13 @@
       })),
       onResult: (kept, total) => {
         rolled = { kept, total };
-        outcome = kept === 20 ? "crit" : kept === 1 ? "miss" : outcome;
+        if (kept >= c.critRange || kept === 1) {
+          outcome = kept === 1 ? "miss" : "crit";
+          autoOutcome = true;
+        } else if (autoOutcome) {
+          outcome = null;
+          autoOutcome = false;
+        }
       },
     });
     openRoll(request);
@@ -199,6 +218,7 @@
       dice: diceString(damage.expr),
       damageType: damage.types.join(" / "),
       crit: outcome === "crit",
+      critExtra: damage.critExtra ? diceString(damage.critExtra) : undefined,
       canCrit: true,
       twice:
         twiceFrom.length && weaponDice?.groups.length
@@ -210,16 +230,22 @@
     if (!offhandChoices.length && !otherTargets.length) onclose();
   }
 
+  function setOutcome(o: Outcome) {
+    outcome = o;
+    autoOutcome = false;
+  }
+
   function rollOtherTarget(o: (typeof otherTargets)[number]) {
     openRoll({
       type: "damage",
       title: o.kind === "other" ? o.feature.name : `${o.feature.name} – Schaden`,
       subtitle: o.kind === "other" ? `Ausgelöst durch ${attack.name || "Angriff"}` : `Weiteres Ziel, ausgelöst durch ${attack.name || "Angriff"}`,
       dice: diceString(o.expr),
-      damageType: o.kind === "other" ? undefined : o.text || undefined,
+      damageType: o.kind === "damage" ? o.text || undefined : undefined,
       effect: o.kind === "other" ? o.text : undefined,
-      crit: o.kind !== "other" && o.feature.critWithAttack && outcome === "crit",
-      canCrit: o.kind !== "other",
+      heal: o.kind === "healing",
+      crit: o.kind === "damage" && o.feature.critWithAttack && outcome === "crit",
+      canCrit: o.kind === "damage",
       physical: isPhysical(c.rollMode),
     });
     otherRolled = [...otherRolled, o.feature.id];
@@ -338,8 +364,8 @@
     {#if options.onHit.length}
       <p class="tiny muted">Nach einem Treffer kannst du zusätzlich wählen: {options.onHit.map(o => o.feature.name).join(", ")}.</p>
     {/if}
-    {#if attack.versatileDamage}
-      <label class="checkbox small"><input type="checkbox" bind:checked={twoHanded} /> Zweihändig führen ({attack.versatileDamage})</label>
+    {#if versatile}
+      <label class="checkbox small"><input type="checkbox" bind:checked={twoHanded} /> Zweihändig führen ({versatile})</label>
     {/if}
   {:else}
     <div class="outcome">
@@ -349,9 +375,9 @@
         <p class="small">Wie ist der Angriff ausgegangen?</p>
       {/if}
       <div class="segmented" role="group" aria-label="Ergebnis">
-        <button aria-pressed={outcome === "hit"} disabled={damageRolled} onclick={() => (outcome = "hit")}><Icon name="hit" size={14} /> Treffer</button>
-        <button aria-pressed={outcome === "crit"} disabled={damageRolled} onclick={() => (outcome = "crit")}>Kritisch</button>
-        <button aria-pressed={outcome === "miss"} disabled={damageRolled} onclick={() => (outcome = "miss")}><X size={14} /> Verfehlt</button>
+        <button aria-pressed={outcome === "hit"} disabled={damageRolled} onclick={() => setOutcome("hit")}><Icon name="hit" size={14} /> Treffer</button>
+        <button aria-pressed={outcome === "crit"} disabled={damageRolled} onclick={() => setOutcome("crit")}>Kritisch</button>
+        <button aria-pressed={outcome === "miss"} disabled={damageRolled} onclick={() => setOutcome("miss")}><X size={14} /> Verfehlt</button>
       </div>
       {#if damageRolled}<p class="tiny muted">Schaden gewürfelt: Ergebnis und Auswahl stehen fest.</p>{/if}
     </div>
@@ -367,8 +393,16 @@
       {:else}
         <p class="small muted">Keine Fähigkeiten mit Auslöser „Bei Treffer“ für diese Waffe.</p>
       {/if}
-      {#if attack.versatileDamage}
-        <label class="checkbox small"><input type="checkbox" bind:checked={twoHanded} disabled={damageRolled} /> Zweihändig geführt ({attack.versatileDamage})</label>
+      {#if outcome === "crit" && visible(options.onCrit).length}
+        <h4 class="label">Bei kritischem Treffer</h4>
+        <div class="options">
+          {#each visible(options.onCrit) as o (o.feature.id)}
+            {@render optionRow(o, selectedHit, id => (selectedHit = toggle(selectedHit, id)), damageRolled)}
+          {/each}
+        </div>
+      {/if}
+      {#if versatile}
+        <label class="checkbox small"><input type="checkbox" bind:checked={twoHanded} disabled={damageRolled} /> Zweihändig geführt ({versatile})</label>
       {/if}
     {:else if outcome === "miss"}
       {#if missOptions.length}
@@ -395,7 +429,7 @@
     </div>
   {/if}
 
-  {#if step === "result" && offhandChoices.length}
+  {#if step === "result" && offhandReady && offhandChoices.length}
     <div class="offhand">
       <h4 class="label">Zweite leichte Waffe</h4>
       <p class="tiny muted">
