@@ -27,6 +27,7 @@ import {
   nextTurn,
   normalizeFeature,
   startCombat,
+  trackUsage,
   useFeature,
   usesLeft,
 } from "./features";
@@ -274,6 +275,8 @@ describe("Schadensart wie der Angriff", () => {
     const f = normalizeFeature({ damage: "1d8", damageType: "Feuer" });
     expect(f.damageTypeFromAttack).toBe(false);
     expect(f.damageOtherTarget).toBe(false);
+    expect(f.critWithAttack).toBe(false);
+    expect(normalizeFeature({ critWithAttack: true }).critWithAttack).toBe(true);
     expect(featureDamageType(f, newAttack({ damageType: "Hieb" }))).toBe("Feuer");
     expect(normalizeFeature({ damageTypeFromAttack: true, damageOtherTarget: "ja" })).toMatchObject({ damageTypeFromAttack: true, damageOtherTarget: false });
   });
@@ -323,6 +326,56 @@ describe("Mehrere Attribute zur Wahl", () => {
     expect(diceString(featureDamageExpr(c, f)!)).toBe("1d8+4");
     expect(diceString(featureDamageExpr(c, f, { 0: "dex" })!)).toBe("1d8+2");
     expect(describeDamageAdds(c, f.damageAdds, { 0: "dex" })).toBe("GES-Mod. +1, Stufe +1");
-    expect(describeDamageAdds(c, f.damageAdds)).toBe("STR-Mod. +3, Stufe +1");
+    expect(describeDamageAdds(c, f.damageAdds)).toBe("GES/STR-Mod. +3 (STR, im Kampf wählbar), Stufe +1");
+  });
+});
+
+describe("Review-Korrekturen Fähigkeiten", () => {
+  it("Wurfart hängt an den Bausteinen, nicht an der angezeigten Art", () => {
+    const hex = newFeature({ damage: "1d6", effectType: "debuff" });
+    expect(featureRollKind(hex)).toBe("damage");
+    expect(featureRollKind(newFeature({ damage: "1d8", effectType: "healing" }))).toBe("healing");
+    expect(normalizeFeature({ damage: "1d8", effectType: "healing" }).heals).toBe(true);
+    expect(normalizeFeature({ damage: "1d8", effectType: "buff", heals: true }).heals).toBe(true);
+  });
+
+  it("trackUsage gibt nur zurück, was wirklich verbraucht wurde", () => {
+    const c = normalizeCharacter({ resources: [{ id: "luck", name: "Glück", max: 1, used: 0 }] });
+    const a = newFeature({ name: "A", resourceId: "luck", resourceCost: 1, activation: "reaction" });
+    const b = newFeature({ name: "B", resourceId: "luck", resourceCost: 1 });
+    c.features = [a, b];
+    startCombat(c);
+    const ua = trackUsage(c, () => useFeature(c, a));
+    const ub = trackUsage(c, () => useFeature(c, b));
+    expect(c.resources[0]!.used).toBe(1);
+    ub.undo();
+    expect(c.resources[0]!.used).toBe(1);
+    expect(c.combat.used.reaction).toBe(true);
+    ua.undo();
+    expect(c.resources[0]!.used).toBe(0);
+    expect(c.combat.used.reaction).toBe(false);
+  });
+
+  it("Kampfende füllt Nutzungen pro Zug auf", () => {
+    const c = normalizeCharacter({});
+    const sneak = buildPreset("sneak", "2024", "Spezies");
+    c.features = [sneak];
+    startCombat(c);
+    useFeature(c, sneak);
+    expect(usesLeft(c, sneak)).toBe(0);
+    endCombat(c);
+    expect(usesLeft(c, sneak)).toBe(1);
+  });
+});
+
+describe("trackUsage mit Gegenständen", () => {
+  it("gibt verbrauchte Gegenstände zurück", () => {
+    const c = normalizeCharacter({ inventory: [{ id: "pfeil", name: "Pfeile", quantity: 3 }] });
+    const f = newFeature({ name: "Schuss", itemId: "pfeil", itemCost: 1 });
+    c.features = [f];
+    const t = trackUsage(c, () => useFeature(c, f));
+    expect(c.inventory[0]!.quantity).toBe(2);
+    t.undo();
+    expect(c.inventory[0]!.quantity).toBe(3);
   });
 });

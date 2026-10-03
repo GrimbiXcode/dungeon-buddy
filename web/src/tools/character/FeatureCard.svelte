@@ -113,14 +113,14 @@
       {#if feature.uses.max != null && feature.uses.max <= 12}
         <span class="pips">
           {#each Array.from({ length: feature.uses.max }, (_, i) => i) as i (i)}
-            <button class="pip" class:on={i < feature.uses.max - feature.uses.used} aria-label="Nutzung {i + 1}" onclick={() => togglePip(i)}></button>
+            <button class="pip" class:on={i < Math.max(0, feature.uses.max - feature.uses.used)} aria-label="Nutzung {i + 1}" onclick={() => togglePip(i)}></button>
           {/each}
         </span>
       {/if}
       <span class="muted">
         {#if left != null}{left} übrig{/if}
         {#if feature.uses.max != null} · {label.reset(feature.uses.reset)}{/if}
-        {#if resource} · kostet {feature.resourceCost} {resource.name} ({resource.max - resource.used} übrig){/if}
+        {#if resource} · kostet {feature.resourceCost} {resource.name} ({Math.max(0, resource.max - resource.used)} übrig){/if}
       </span>
     </div>
   {/if}
@@ -184,7 +184,7 @@
   .name-btn :global(.chev.open) { transform: rotate(180deg); }
   .use { flex: none; }
   .meta { gap: 0.25rem; }
-  .meta .badge { font-size: 0.7rem; }
+  .meta .badge { font-size: 0.7rem; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
   .act-action { color: var(--accent-text); border-color: var(--accent); }
   .act-bonus { color: var(--warning); border-color: color-mix(in oklab, var(--warning) 50%, transparent); }
   .act-reaction { color: var(--success); border-color: color-mix(in oklab, var(--success) 50%, transparent); }

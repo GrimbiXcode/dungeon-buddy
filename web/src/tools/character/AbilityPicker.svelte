@@ -4,7 +4,7 @@
   import { sheet } from "./context";
 
   /** Attributwahl für Zuschläge mit mehreren Attributen, mit aktuellem Modifikator je Attribut */
-  let { feature, picks = $bindable({}) }: { feature: Feature; picks?: AbilityPicks } = $props();
+  let { feature, picks = $bindable({}), disabled = false }: { feature: Feature; picks?: AbilityPicks; disabled?: boolean } = $props();
 
   const ctx = sheet();
   const c = $derived(ctx.data);
@@ -17,7 +17,7 @@
     <span class="tiny muted">{damageAddLabel(add)}:</span>
     <div class="segmented" role="group" aria-label="Attribut für {feature.name || 'Fähigkeit'}">
       {#each add.abilities as ab (ab)}
-        <button type="button" aria-pressed={current === ab} onclick={() => (picks = { ...picks, [index]: ab })}>
+        <button type="button" aria-pressed={current === ab} {disabled} onclick={() => (picks = { ...picks, [index]: ab })}>
           {ABILITY_SHORT[ab]} <span class="mono">{formatMod(abilityMod(c.abilities[ab]))}</span>
         </button>
       {/each}

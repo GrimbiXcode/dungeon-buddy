@@ -1,4 +1,5 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import { Plus, Trash2 } from "@lucide/svelte";
   import Icon from "../../components/Icon.svelte";
   import { ARMOR_TYPES, UNARMORED_DEFENSES, armorClass, newArmor, setEquipped, type ArmorItem } from "../../lib/armor";
@@ -93,7 +94,7 @@
         </select>
       </label>
       {#if c.acMode === "manual"}
-        <label class="field"><span class="label">Grundwert</span><input class="input input-sm mono" type="number" bind:value={c.ac} /></label>
+        <label class="field"><span class="label">Grundwert</span><NumberField class="input input-sm mono" bind:value={c.ac} /></label>
       {:else}
         <label class="field">
           <span class="label">Ungerüstete Verteidigung</span>
@@ -102,7 +103,7 @@
           </select>
         </label>
       {/if}
-      <label class="field"><span class="label">Sonstiger Bonus</span><input class="input input-sm mono" type="number" bind:value={c.acBonus} /></label>
+      <label class="field"><span class="label">Sonstiger Bonus</span><NumberField class="input input-sm mono" bind:value={c.acBonus} /></label>
     </div>
     <p class="tiny muted">Löschen im Bearbeiten-Modus. Schilde, aktive Effekte und temporäre Boni zählen auch beim festen Grundwert.</p>
   {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import { Plus, Trash2 } from "@lucide/svelte";
   import { profBonus, totalLevel } from "../../lib/character";
   import { CLASSES, proficiencyBonus, rulesTerms } from "../../lib/dnd";
@@ -38,7 +39,7 @@
         {#each RULESETS as r (r.key)}<option value={r.key}>{r.name}</option>{/each}
       </select>
     </label>
-    <label class="field"><span class="label">Erfahrungspunkte</span><input class="input mono" type="number" min="0" bind:value={c.xp} /></label>
+    <label class="field"><span class="label">Erfahrungspunkte</span><NumberField class="input mono" min={0} bind:value={c.xp} /></label>
     <label class="field">
       <span class="label">Übungsbonus</span>
       <select class="select" value={c.profBonusOverride ?? ""} onchange={e => {
@@ -64,7 +65,7 @@
     <div class="class-row">
       <input class="input input-sm" list="sheet-class-list" value={k.name} oninput={e => onClassName(i, (e.currentTarget as HTMLInputElement).value)} placeholder="Klasse" aria-label="Klasse" />
       <input class="input input-sm" bind:value={k.subclass} placeholder="Unterklasse" aria-label="Unterklasse" />
-      <label class="tiny muted">Stufe<input class="input input-sm mono" type="number" min="1" max="20" bind:value={k.level} /></label>
+      <label class="tiny muted">Stufe<NumberField class="input input-sm mono" min={1} max={20} bind:value={k.level} /></label>
       <label class="tiny muted">TW
         <select class="select input-sm" bind:value={k.hitDie}>
           {#each [6, 8, 10, 12] as d (d)}<option value={d}>W{d}</option>{/each}

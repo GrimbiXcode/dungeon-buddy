@@ -1,4 +1,5 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import Modal from "../../components/Modal.svelte";
   import { ARMOR_PRESETS, ARMOR_TYPES, normalizeArmor, type ArmorItem } from "../../lib/armor";
 
@@ -20,8 +21,9 @@
 
   function typeChanged() {
     if (a.type === "shield" && a.baseAc > 5) a.baseAc = 2;
-    if (a.type === "medium" && a.dexCap == null) {
-      a.dexCap = 2;
+    // Mittelschwer: GES-Grenze setzen, auch von schwer (Grenze 0) kommend
+    if (a.type === "medium" && !dexLimited) {
+      a.dexCap = a.dexCap || 2;
       dexLimited = true;
     }
     if (a.type === "light") dexLimited = false;
@@ -69,18 +71,18 @@
     <div class="grid-3">
       <label class="field">
         <span class="label">{a.type === "shield" ? "RK-Bonus" : "Grund-RK"}</span>
-        <input class="input mono" type="number" min="0" bind:value={a.baseAc} />
+        <NumberField class="input mono" min={0} bind:value={a.baseAc} />
       </label>
-      <label class="field"><span class="label">Magischer Bonus</span><input class="input mono" type="number" bind:value={a.bonus} /></label>
+      <label class="field"><span class="label">Magischer Bonus</span><NumberField class="input mono" bind:value={a.bonus} /></label>
       {#if a.type !== "shield"}
-        <label class="field"><span class="label">Mindeststärke</span><input class="input mono" type="number" min="0" bind:value={a.strength} /></label>
+        <label class="field"><span class="label">Mindeststärke</span><NumberField class="input mono" min={0} bind:value={a.strength} /></label>
       {/if}
     </div>
     {#if a.type === "light" || a.type === "medium"}
       <div class="row">
         <label class="checkbox small"><input type="checkbox" bind:checked={dexLimited} /> GES-Bonus begrenzt</label>
         {#if dexLimited}
-          <label class="small row cap">auf höchstens <input class="input input-sm mono" type="number" min="0" bind:value={a.dexCap} /></label>
+          <label class="small row cap">auf höchstens <NumberField class="input input-sm mono" min={0} bind:value={a.dexCap} /></label>
         {/if}
       </div>
     {:else if a.type === "heavy"}
@@ -100,6 +102,6 @@
 
 <style>
   .cap { gap: 0.35rem; }
-  .cap input { width: 4rem; }
+  .cap :global(input) { width: 4rem; }
   .error { color: var(--danger); }
 </style>

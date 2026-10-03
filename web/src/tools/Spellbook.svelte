@@ -90,7 +90,7 @@
   }
 
   const rollChars = $derived(
-    new Map<string, RollChar>(chars.map(c => [c.record.id, { id: c.record.id, name: c.record.name, data: c.data }]))
+    new Map<string, RollChar>(chars.map(c => [c.record.id, { id: c.record.id, name: c.record.name, data: c.data, ruleset: c.record.ruleset }]))
   );
 
   function rollCharFor(spell: Spell): RollChar | null {

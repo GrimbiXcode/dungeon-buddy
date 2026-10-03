@@ -1,4 +1,5 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import { unitSystem } from "../../lib/session.svelte";
   import Modal from "../../components/Modal.svelte";
   import { newAttack, sortProperties, type Attack } from "../../lib/character";
@@ -253,12 +254,12 @@
             <option value="none">keins</option>
           </select>
         </label>
-        <label class="field"><span class="label">Bonus Treffer</span><input class="input mono" type="number" bind:value={a.toHitBonus} /></label>
+        <label class="field"><span class="label">Bonus Treffer</span><NumberField class="input mono" bind:value={a.toHitBonus} /></label>
         <label class="checkbox prof"><input type="checkbox" bind:checked={a.proficient} /> Geübt</label>
       </div>
       <div class="grid-3">
         <label class="field"><span class="label">Schaden</span><input class="input mono" bind:value={a.damage} placeholder="1d8" /></label>
-        <label class="field"><span class="label">Bonus Schaden</span><input class="input mono" type="number" bind:value={a.damageBonus} /></label>
+        <label class="field"><span class="label">Bonus Schaden</span><NumberField class="input mono" bind:value={a.damageBonus} /></label>
         <label class="field"><span class="label">Schadensart</span><input class="input" bind:value={a.damageType} placeholder="Hieb" /></label>
       </div>
       <div class="grid-3">

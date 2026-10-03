@@ -1,11 +1,13 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import { unitSystem } from "../../lib/session.svelte";
   import { convertText, distanceUnit, feetToInput, formatDistance, inputToFeet } from "../../lib/units";
   import { Minus, Plus } from "@lucide/svelte";
   import Icon from "../../components/Icon.svelte";
-  import { applyDamage, applyHealing, initiative, profBonus } from "../../lib/character";
+  import { applyDamage, applyHealing, effectiveMaxHp, effectiveSpeed, initiative, profBonus } from "../../lib/character";
   import { formatMod, rulesTerms } from "../../lib/dnd";
   import { armorClass } from "../../lib/armor";
+  import { toast } from "../../lib/toast.svelte";
   import { sheet } from "./context";
   import ArmorClassModal from "./ArmorClassModal.svelte";
 
@@ -18,16 +20,32 @@
   const ac = $derived(armorClass(c));
   const acBoosted = $derived(c.combat.effects.some(e => e.ac && e.ac.mode !== "none"));
 
+  /** Kritischer Treffer bei 0 TP: zwei Fehlschläge */
+  let critHit = $state(false);
+
   function apply(kind: "damage" | "heal" | "temp") {
     const n = Math.floor(Number(amount));
     if (!n || n < 0) return;
-    if (kind === "damage") applyDamage(c, n);
-    else if (kind === "heal") applyHealing(c, n);
+    if (kind === "damage") {
+      const note = applyDamage(c, n, { crit: critHit });
+      if (note) toast(note);
+      critHit = false;
+    }
+    else if (kind === "heal") applyHealing(c, n, maxHp);
     else c.hp.temp = Math.max(c.hp.temp, n);
     amount = null;
   }
 
-  const hpPercent = $derived(c.hp.max > 0 ? Math.min(100, Math.round((c.hp.current / c.hp.max) * 100)) : 0);
+  /** TP-Maximum und Bewegung unter Erschöpfung */
+  const maxHp = $derived(effectiveMaxHp(c, ctx.ruleset));
+  const speed = $derived(effectiveSpeed(c, ctx.ruleset));
+  const hpPercent = $derived(maxHp > 0 ? Math.min(100, Math.round((c.hp.current / maxHp) * 100)) : 0);
+
+  function setExhaustion(level: number) {
+    c.exhaustion = Math.min(6, Math.max(0, level));
+    // Halbiertes Maximum: aktuelle TP darüber hinaus verfallen
+    c.hp.current = Math.min(c.hp.current, effectiveMaxHp(c, ctx.ruleset));
+  }
   const exhaustionText = $derived.by(() => {
     if (!c.exhaustion) return "";
     if (ctx.ruleset === "2024") return `${-2 * c.exhaustion} auf W20-Tests, −${formatDistance(5 * c.exhaustion, unitSystem())} Bewegung`;
@@ -48,7 +66,7 @@
   {#if ctx.editing && c.acMode === "manual"}
     <div class="stat">
       <span class="label"><Icon name="armor" size={13} /> RK (Grundwert)</span>
-      <input class="input input-sm mono" type="number" bind:value={c.ac} aria-label="Rüstungsklasse" />
+      <NumberField class="input input-sm mono" aria-label="Rüstungsklasse" bind:value={c.ac} />
     </div>
   {:else}
     <button class="stat clickable" onclick={() => (showAc = true)} title={ac.parts.map(p => `${p.label} ${p.value}`).join(", ")}>
@@ -56,10 +74,17 @@
       <span class="value mono" class:boosted={acBoosted}>{ac.total}</span>
     </button>
   {/if}
-  <button class="stat clickable" disabled={ctx.editing} onclick={() => ctx.rollD20("Initiative", initiative(c), "initiative", { ability: "dex" })}>
-    <span class="label"><Icon name="initiative" size={13} /> Initiative</span>
-    <span class="value mono">{formatMod(initiative(c))}</span>
-  </button>
+  {#if ctx.editing}
+    <div class="stat">
+      <span class="label"><Icon name="initiative" size={13} /> Initiative-Bonus</span>
+      <NumberField class="input input-sm mono" bind:value={c.initiativeBonus} aria-label="Zusätzlicher Initiative-Bonus" title="Zusätzlich zu GES (z. B. Talent Aufmerksam)" />
+    </div>
+  {:else}
+    <button class="stat clickable" onclick={() => ctx.rollD20("Initiative", initiative(c, ctx.ruleset), "initiative", { ability: "dex" })}>
+      <span class="label"><Icon name="initiative" size={13} /> Initiative</span>
+      <span class="value mono">{formatMod(initiative(c, ctx.ruleset))}</span>
+    </button>
+  {/if}
   <div class="stat">
     <span class="label"><Icon name="speed" size={13} /> Bewegung</span>
     {#if ctx.editing}
@@ -68,11 +93,18 @@
         type="number"
         step={unitSystem() === "metric" ? 1.5 : 5}
         value={feetToInput(c.speed, unitSystem())}
-        onchange={e => (c.speed = inputToFeet(Number((e.currentTarget as HTMLInputElement).value), unitSystem()))}
+        onchange={e => {
+          const el = e.currentTarget as HTMLInputElement;
+          // Leeres oder ungültiges Feld: alten Wert behalten
+          if (el.value !== "" && Number.isFinite(el.valueAsNumber)) c.speed = Math.max(0, inputToFeet(el.valueAsNumber, unitSystem()));
+          el.value = String(feetToInput(c.speed, unitSystem()));
+        }}
         aria-label="Bewegungsrate in {distanceUnit(unitSystem())}"
       />
     {:else}
-      <span class="value mono">{formatDistance(c.speed, unitSystem()).split(" ")[0]}<small> {distanceUnit(unitSystem())}</small></span>
+      <span class="value mono" class:reduced={speed !== c.speed} title={speed !== c.speed ? `Erschöpfung: sonst ${formatDistance(c.speed, unitSystem())}` : undefined}
+        >{formatDistance(speed, unitSystem()).split(" ")[0]}<small> {distanceUnit(unitSystem())}</small></span
+      >
     {/if}
   </div>
   <div class="stat">
@@ -87,16 +119,21 @@
     </div>
     <div class="hp-main">
       {#if ctx.editing}
-        <label class="tiny muted">Aktuell <input class="input input-sm mono" type="number" bind:value={c.hp.current} /></label>
-        <label class="tiny muted">Maximum <input class="input input-sm mono" type="number" bind:value={c.hp.max} /></label>
-        <label class="tiny muted">Temporär <input class="input input-sm mono" type="number" min="0" bind:value={c.hp.temp} /></label>
+        <label class="tiny muted">Aktuell <NumberField class="input input-sm mono" bind:value={c.hp.current} /></label>
+        <label class="tiny muted">Maximum <NumberField class="input input-sm mono" bind:value={c.hp.max} /></label>
+        <label class="tiny muted">Temporär <NumberField class="input input-sm mono" min={0} bind:value={c.hp.temp} /></label>
       {:else}
-        <span class="hp-value mono" class:down={c.hp.current === 0}>{c.hp.current}<small>/{c.hp.max}</small></span>
+        <span class="hp-value mono" class:down={c.hp.current === 0}
+          >{c.hp.current}<small>/{maxHp}</small>{#if maxHp !== c.hp.max}<small class="reduced" title="Erschöpfung: TP-Maximum halbiert"> (½)</small>{/if}</span
+        >
         <div class="hp-actions">
           <input class="input input-sm mono" type="number" min="0" inputmode="numeric" placeholder="Wert" bind:value={amount} aria-label="Trefferpunkte-Wert" />
           <button class="btn btn-sm btn-danger" onclick={() => apply("damage")} aria-label="Schaden"><Minus size={14} /> Schaden</button>
           <button class="btn btn-sm" onclick={() => apply("heal")} aria-label="Heilen"><Plus size={14} /> Heilen</button>
           <button class="btn btn-sm btn-ghost" onclick={() => apply("temp")}>Temp</button>
+          {#if c.hp.current === 0}
+            <label class="checkbox tiny"><input type="checkbox" bind:checked={critHit} /> Kritischer Treffer (2 Fehlschläge)</label>
+          {/if}
         </div>
       {/if}
     </div>
@@ -109,9 +146,9 @@
     </button>
     <div class="exhaustion" title={exhaustionText}>
       <span class="small">Erschöpfung</span>
-      <button class="btn btn-sm btn-icon" aria-label="Erschöpfung verringern" disabled={c.exhaustion === 0} onclick={() => (c.exhaustion = Math.max(0, c.exhaustion - 1))}><Minus size={14} /></button>
+      <button class="btn btn-sm btn-icon" aria-label="Erschöpfung verringern" disabled={c.exhaustion === 0} onclick={() => setExhaustion(c.exhaustion - 1)}><Minus size={14} /></button>
       <strong class="mono">{c.exhaustion}</strong>
-      <button class="btn btn-sm btn-icon" aria-label="Erschöpfung erhöhen" disabled={c.exhaustion >= 6} onclick={() => (c.exhaustion = Math.min(6, c.exhaustion + 1))}><Plus size={14} /></button>
+      <button class="btn btn-sm btn-icon" aria-label="Erschöpfung erhöhen" disabled={c.exhaustion >= 6} onclick={() => setExhaustion(c.exhaustion + 1)}><Plus size={14} /></button>
     </div>
     {#if exhaustionText}<span class="tiny exhaustion-text">{exhaustionText}</span>{/if}
   </div>
@@ -156,6 +193,7 @@
   .hp-value { font-size: 2rem; font-weight: 800; font-family: var(--font-display); line-height: 1; }
   .hp-value small { font-size: 1rem; color: var(--muted); }
   .hp-value.down { color: var(--danger); }
+  .reduced { color: var(--warning); }
   .hp-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; flex: 1; justify-content: flex-end; }
   .hp-actions input { width: 5rem; }
   .bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }

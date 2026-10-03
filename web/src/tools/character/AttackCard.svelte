@@ -3,7 +3,7 @@
   import { ChevronDown, Trash2 } from "@lucide/svelte";
   import Icon from "../../components/Icon.svelte";
   import { attackAbility, attackDamageBonus, attackRange, attackToHit, isFinesse, offhandWeapons, type Attack } from "../../lib/character";
-  import { formatDice, parseDice } from "../../lib/dice";
+  import { addExpr, diceString, formatDice, parseDice } from "../../lib/dice";
   import { ABILITY_SHORT, formatMod, type Ability } from "../../lib/dnd";
   import { appliesToAttack } from "../../lib/features";
   import { LOW_STOCK, attackConsumption, hasStock } from "../../lib/inventory";
@@ -31,12 +31,15 @@
     return formatDice({ ...expr, bonus: expr.bonus + attackDamageBonus(c, a) });
   }
 
+  /** Waffenschaden mit Bonus und Zusatzschaden (wie im Angriffs-Assistenten) */
   function damageDice(a: Attack) {
     const expr = parseDice(a.damage);
     if (!expr) return "";
-    const bonus = expr.bonus + attackDamageBonus(c, a);
-    return `${expr.groups.map(g => `${g.count}d${g.sides}`).join("+")}${bonus ? (bonus > 0 ? `+${bonus}` : `${bonus}`) : ""}`;
+    const extra = parseDice(a.extraDamage);
+    return diceString(addExpr({ ...expr, bonus: expr.bonus + attackDamageBonus(c, a) }, extra ?? { groups: [], bonus: 0 }));
   }
+
+  const damageTypes = (a: Attack) => [...new Set([a.damageType, parseDice(a.extraDamage) ? a.extraDamageType : ""].filter(Boolean))].join(" / ");
 
   const abilityLabel = $derived.by(() => {
     const ab = attackAbility(c, attack);
@@ -54,7 +57,7 @@
       <Icon name="roll" size={14} /> {formatMod(attackToHit(c, attack))}
     </button>
     {#if damageDice(attack)}
-      <button class="btn btn-sm btn-ghost mono dmg" onclick={() => ctx.rollDamage(`${attack.name} – Schaden`, damageDice(attack), { damageType: attack.damageType })}>
+      <button class="btn btn-sm btn-ghost mono dmg" onclick={() => ctx.rollDamage(`${attack.name} – Schaden`, damageDice(attack), { damageType: damageTypes(attack) || undefined })}>
         {damageText(attack)}
       </button>
     {/if}

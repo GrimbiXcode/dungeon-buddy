@@ -15,7 +15,7 @@
   import { confirmDialog } from "../lib/confirm.svelte";
   import { rulesTerms } from "../lib/dnd";
   import { debounce } from "../lib/format";
-  import { d20Request, isPhysical, openRoll } from "../lib/roller.svelte";
+  import { d20Request, isPhysical, openRoll, roller } from "../lib/roller.svelte";
   import { route } from "../lib/router.svelte";
   import { session } from "../lib/session.svelte";
   import { toast, toastError } from "../lib/toast.svelte";
@@ -55,13 +55,17 @@
   import Portrait from "./character/Portrait.svelte";
   import {
     abilityChoices,
+    appliesToAttack,
+    isAttackBound,
+    needsTargetChoice,
     confirmLinkSuccess,
     describeDamageAdds,
     featureDamageExpr,
     featureDamageType,
     featureRollKind,
     linkedFeatures,
-    refundFeature,
+    isAvailable,
+    trackUsage,
     rollFeatures,
     sumMods,
     useFeature,
@@ -87,7 +91,11 @@
   let saveState = $state<SaveState>("saved");
   let editing = $state(new URLSearchParams(route.search).has("bearbeiten"));
   let tab = $state<Tab>(readTab());
-  let attackWizard = $state<{ attack: Attack; offhand: boolean } | null>(null);
+  let attackWizard = $state<{ attack: Attack; offhand: boolean; feature?: string } | null>(null);
+  /** Fähigkeit mit Ziel Verbündete/Beliebig: erst fragen, ob sie auf dich wirkt */
+  let targetChoice = $state<{ feature: Feature; picks?: AbilityPicks } | null>(null);
+  /** Fähigkeit, die im Angriff eingesetzt wird: erst die Waffe wählen */
+  let attackFor = $state<Feature | null>(null);
   /** Fähigkeit, für deren Wurf vor dem Einsetzen ein Attribut gewählt wird */
   let featureChoice = $state<{ feature: Feature; picks: AbilityPicks } | null>(null);
   let libraryKind = $state<"feature" | "attack" | "armor" | null>(null);
@@ -137,8 +145,12 @@
           kind,
           ruleset,
           exhaustion: data.exhaustion,
+          conditions: data.conditions,
+          ability: opts.ability ?? null,
           rollMode: data.rollMode,
           target: opts.target,
+          critRange: data.critRange,
+          onResult: opts.onResult,
           followUp: opts.damage ? { ...opts.damage, canCrit: true } : undefined,
           options: rollOptions({ kind, ability: opts.ability ?? null, skill: opts.skill ?? null }),
         })
@@ -157,16 +169,23 @@
         physical: isPhysical(data.rollMode),
       });
     },
-    useFeature(f: Feature, picks?: AbilityPicks) {
-      // Fähigkeiten, die an Treffer/Angriffe gebunden sind, wirken erst im Angriff
-      const attackBound = f.triggers.includes("hit") || f.triggers.includes("attack");
-      const kind = attackBound ? null : featureRollKind(f);
+    useFeature(f: Feature, picks?: AbilityPicks, opts: { onSelf?: boolean } = {}) {
+      // Fähigkeiten, die an Treffer/Angriffe gebunden sind, setzt man im Angriff ein: Waffe wählen
+      if (isAttackBound(f) && f.appliesTo.scope !== "none") {
+        attackFor = f;
+        return;
+      }
+      const kind = featureRollKind(f);
       // Mehrere Attribute zur Wahl: erst fragen, dann einsetzen und würfeln
       if (kind && !picks && featureDamageExpr(data, f) && abilityChoices(f).length) {
         featureChoice = { feature: f, picks: {} };
         return;
       }
-      for (const note of useFeature(data, f)) toast(note);
+      if (opts.onSelf == null && needsTargetChoice(f)) {
+        targetChoice = { feature: f, picks };
+        return;
+      }
+      for (const note of useFeature(data, f, { onSelf: opts.onSelf })) toast(note);
       const expr = kind ? featureDamageExpr(data, f, picks) : null;
       if (kind && expr) {
         const adds = f.damageAdds.length ? `Inklusive ${describeDamageAdds(data, f.damageAdds, picks)}` : "";
@@ -177,11 +196,11 @@
           subtitle: [f.damageOtherTarget ? "Weiteres Ziel" : "", adds, f.save ? `Rettungswurf: ${f.save}` : ""].filter(Boolean).join(" · ") || undefined,
         });
       } else {
-        toast(`${f.name} eingesetzt${f.benefit ? `: ${f.benefit}` : "."}`, "success");
+        toast(opts.onSelf === false ? `${f.name} auf andere eingesetzt.` : `${f.name} eingesetzt${f.benefit ? `: ${f.benefit}` : "."}`, "success");
       }
     },
     openAttack(a: Attack, opts = {}) {
-      attackWizard = { attack: a, offhand: Boolean(opts.offhand) };
+      attackWizard = { attack: a, offhand: Boolean(opts.offhand), feature: opts.feature };
     },
     addToLibrary(kind: "feature" | "attack" | "armor", item: Feature | Attack | ArmorItem) {
       const payload =
@@ -215,13 +234,13 @@
     libraryKind = null;
     if (kind === "feature") {
       const missing = unresolvedLinks(data, item.data);
-      data.features.push(featureFromLibrary(data, item.data));
+      data.features.push(featureFromLibrary(data, item.data, item.name));
       if (missing.length) toast(`Verknüpfung zu ${missing.join(", ")} fehlt im Bogen – bei Bedarf im Editor setzen.`);
       tab = "faehigkeiten";
     } else if (kind === "attack") {
-      data.attacks.push(attackFromLibrary(data, item.data));
+      data.attacks.push(attackFromLibrary(data, item.data, item.name));
     } else if (kind === "armor") {
-      data.armor.push(armorFromLibrary(item.data));
+      data.armor.push(armorFromLibrary(item.data, item.name));
     }
     toast(`„${item.name}“ übernommen.`, "success");
   }
@@ -230,6 +249,9 @@
   function rollOptions(roll: RollContext): RollOption[] {
     const options: RollOption[] = rollFeatures(data, roll).map(rf => {
       const f = rf.feature;
+      // Rückgängig machen gibt nur zurück, was wirklich verbraucht wurde
+      let undoUse: (() => void) | null = null;
+      let undoSuccess: (() => void) | null = null;
       const sum = sumMods([{ label: f.name, mods: rf.mods }]);
       const onSuccess = linkedFeatures(data, f).filter(x => x.link.when === "success");
       return {
@@ -242,14 +264,24 @@
         mode: sum.advantage && !sum.disadvantage ? "advantage" : sum.disadvantage && !sum.advantage ? "disadvantage" : null,
         auto: rf.automatic,
         disabled: !rf.available,
+        available: () => rf.automatic || isAvailable(data, f),
         onToggle: on => {
-          if (on) for (const note of useFeature(data, f, { markEconomy: f.activation === "reaction" })) toast(note);
-          else refundFeature(data, f);
+          if (on) {
+            const t = trackUsage(data, () => useFeature(data, f, { markEconomy: f.activation === "reaction" }));
+            for (const note of t.result) toast(note);
+            undoUse = t.undo;
+          } else {
+            undoSuccess?.();
+            undoUse?.();
+            undoSuccess = undoUse = null;
+          }
         },
         onSuccess: onSuccess.length
           ? {
               label: onSuccess.map(x => `${x.feature.name} verbrauchen`).join(", "),
-              run: () => onSuccess.forEach(x => confirmLinkSuccess(data, f, x.feature.id)),
+              run: () => {
+                undoSuccess = trackUsage(data, () => onSuccess.forEach(x => confirmLinkSuccess(data, f, x.feature.id))).undo;
+              },
             }
           : undefined,
       };
@@ -262,13 +294,18 @@
 
   onMount(() => {
     void load();
+    // Würfe in „Letzte Würfe“ diesem Charakter zuordnen
+    roller.owner = characterId;
+    // Tab wird verborgen/geschlossen: sofort speichern (auch wenn gerade ein Speichern läuft)
     const flushOnHide = () => {
-      if (document.visibilityState === "hidden" && saveState === "dirty") save.flush();
+      if (document.visibilityState === "hidden") flushNow();
     };
     document.addEventListener("visibilitychange", flushOnHide);
     return () => {
+      if (roller.owner === characterId) roller.owner = null;
       document.removeEventListener("visibilitychange", flushOnHide);
-      if (saveState === "dirty") save.flush();
+      destroyed = true;
+      flushNow();
     };
   });
 
@@ -292,7 +329,12 @@
     return JSON.stringify({ name, ruleset, data: $state.snapshot(data) });
   }
 
-  const save = debounce(async () => {
+  /** Bogen geschlossen: keine Wiederholungen mehr, nur noch ein letzter Versuch */
+  let destroyed = false;
+  /** Während eines laufenden Speicherns verlangt: danach sofort weiterspeichern */
+  let flushAfterSave = false;
+
+  async function doSave() {
     if (!record) return;
     const current = snapshot();
     if (current === lastSaved) {
@@ -300,26 +342,43 @@
       return;
     }
     saveState = "saving";
+    // Beim Verlassen soll die Anfrage das Schliessen des Tabs überleben
+    const final = destroyed || document.visibilityState === "hidden" || flushAfterSave;
+    flushAfterSave = false;
     try {
       const body = JSON.parse(current) as { name: string; ruleset: Ruleset; data: CharacterData };
-      const updated = await put<CharacterRecord>(url, {
-        name: body.name.trim() || "Unbenannt",
-        ruleset: body.ruleset,
-        data: body.data,
-        revision: record.revision,
-      });
+      const updated = await put<CharacterRecord>(
+        url,
+        { name: body.name.trim() || "Unbenannt", ruleset: body.ruleset, data: body.data, revision: record.revision },
+        { keepalive: final }
+      );
       record.revision = updated.revision;
       lastSaved = current;
       saveState = snapshot() === current ? "saved" : "dirty";
-      if (saveState === "dirty") save();
+      if (saveState === "dirty") {
+        if (flushAfterSave || destroyed) void doSave();
+        else save();
+      }
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) saveState = "conflict";
-      else {
-        saveState = "error";
-        setTimeout(() => saveState === "error" && save(), 5000);
-      }
+      else saveState = "error";
+      if (destroyed) toast("Änderungen am Bogen konnten nicht gespeichert werden.", "error");
+      else if (saveState === "error") setTimeout(() => !destroyed && saveState === "error" && save(), 5000);
     }
-  }, 700);
+  }
+
+  const save = debounce(() => void doSave(), 700);
+
+  /** Sofort speichern, statt auf die Verzögerung zu warten */
+  function flushNow() {
+    if (!record || saveState === "conflict") return;
+    if (saveState === "saving") {
+      flushAfterSave = true;
+      return;
+    }
+    save.cancel();
+    if (snapshot() !== lastSaved) void doSave();
+  }
 
   // Jede Änderung am Bogen speichert automatisch
   $effect(() => {
@@ -338,7 +397,7 @@
       const latest = await get<CharacterRecord>(url);
       record!.revision = latest.revision;
       saveState = "dirty";
-      save.flush();
+      flushNow();
     } else {
       await load();
       toast("Bogen neu geladen.");
@@ -520,9 +579,64 @@
   </Modal>
 {/if}
 
+{#if targetChoice}
+  {@const choice = targetChoice}
+  <Modal title="{choice.feature.name || 'Fähigkeit'}: Ziel" size="sm" onclose={() => (targetChoice = null)}>
+    <p class="small">Auf wen wirkst du „{choice.feature.name}“?</p>
+    <p class="tiny muted">Nur auf dich wirkt es auf deinen Bogen (RK, Würfe). Auf andere wird nur Dauer und Konzentration verfolgt.</p>
+    {#snippet footer()}
+      <button class="btn" onclick={() => (targetChoice = null)}>Abbrechen</button>
+      <button
+        class="btn"
+        onclick={() => {
+          const { feature, picks } = choice;
+          targetChoice = null;
+          sheetCtx.useFeature(feature, picks, { onSelf: false });
+        }}>Auf andere</button
+      >
+      <button
+        class="btn btn-primary"
+        onclick={() => {
+          const { feature, picks } = choice;
+          targetChoice = null;
+          sheetCtx.useFeature(feature, picks, { onSelf: true });
+        }}>Auf mich</button
+      >
+    {/snippet}
+  </Modal>
+{/if}
+
+{#if attackFor}
+  {@const f = attackFor}
+  {@const weapons = data.attacks.filter(a => appliesToAttack(f, a))}
+  <Modal title="{f.name || 'Fähigkeit'}: Angriff wählen" size="sm" onclose={() => (attackFor = null)}>
+    <p class="small muted">„{f.name}“ setzt du im Angriff ein. Mit welcher Waffe greifst du an?</p>
+    {#if weapons.length}
+      <div class="stack weapon-pick">
+        {#each weapons as a (a.id)}
+          <button
+            class="btn"
+            onclick={() => {
+              // Erst Werte sichern: `f` hängt an attackFor und wird mit null ungültig
+              const featureId = f.id;
+              attackFor = null;
+              sheetCtx.openAttack(a, { feature: featureId });
+            }}
+          >
+            <Icon name="attack" size={15} /> {a.name || "Angriff"}
+          </button>
+        {/each}
+      </div>
+    {:else}
+      <p class="small">Keine Waffe passt zu „Gilt für“ dieser Fähigkeit.</p>
+    {/if}
+    {#snippet footer()}<button class="btn" onclick={() => (attackFor = null)}>Abbrechen</button>{/snippet}
+  </Modal>
+{/if}
+
 {#if attackWizard}
   {#key attackWizard}
-    <AttackWizard attack={attackWizard.attack} offhand={attackWizard.offhand} onclose={() => (attackWizard = null)} />
+    <AttackWizard attack={attackWizard.attack} offhand={attackWizard.offhand} preselect={attackWizard.feature} onclose={() => (attackWizard = null)} />
   {/key}
 {/if}
 

@@ -64,7 +64,8 @@ export const FEATURE_PRESETS: Preset[] = [
       damage: "1d6",
       uses: { max: 1, used: 0, reset: "turn" },
       triggers: ["hit"],
-      appliesTo: { scope: "all", attackIds: [] },
+      // Finesse- oder Fernkampfwaffe, kein Zauber
+      appliesTo: { scope: "weapon", attackIds: [] },
     }),
   },
   {
@@ -181,7 +182,7 @@ export const FEATURE_PRESETS: Preset[] = [
             benefit: "Schadensbonus in Höhe deines Übungsbonus bei Treffern mit schweren Waffen",
             condition: "Waffe mit der Eigenschaft Schwer, als Teil der Angriffsaktion",
             appliesTo: { scope: "specific", attackIds: [] },
-            rollMods: [newRollMod({ target: "damage", bonus: "2" })],
+            damageAdds: [newDamageAdd({ kind: "proficiency" })],
           }
         : {
             name: "Meister der schweren Waffen (−5/+10)",
@@ -224,7 +225,7 @@ export const FEATURE_PRESETS: Preset[] = [
       target: "self",
       benefit: "+1 RK, solange du eine Rüstung trägst",
       condition: "Nur mit angelegter Rüstung",
-      acMod: { mode: "bonus", value: 1 },
+      acMod: { mode: "bonus", value: 1, armoredOnly: true },
     }),
   },
   {
@@ -326,18 +327,34 @@ export const FEATURE_PRESETS: Preset[] = [
   {
     key: "breath",
     group: "Spezies",
-    build: () => ({
-      name: "Odemwaffe",
-      categories: ["Spezies"],
-      tags: ["Drachenblütiger"],
-      activation: "action",
-      effectType: "damage",
-      target: "area",
-      targetText: "Kegel oder Linie",
-      damage: "1d10",
-      save: "GES-Rettungswurf (SG 8 + KON + Übung), halber Schaden",
-      uses: { max: 2, used: 0, reset: "long" },
-    }),
+    build: r =>
+      r === "2024"
+        ? {
+            name: "Odemwaffe",
+            categories: ["Spezies"],
+            tags: ["Drachenblütiger"],
+            activation: "action",
+            effectType: "damage",
+            target: "area",
+            targetText: "Kegel oder Linie",
+            benefit: "Schaden steigt auf 2W10 (5.), 3W10 (11.), 4W10 (17.); Nutzungen = Übungsbonus",
+            damage: "1d10",
+            save: "GES-Rettungswurf (SG 8 + KON + Übung), halber Schaden",
+            uses: { max: 2, used: 0, reset: "long" },
+          }
+        : {
+            name: "Odemwaffe",
+            categories: ["Spezies"],
+            tags: ["Drachenblütiger"],
+            activation: "action",
+            effectType: "damage",
+            target: "area",
+            targetText: "Kegel oder Linie je nach Abstammung",
+            benefit: "Schaden steigt auf 3W6 (6.), 4W6 (11.), 5W6 (16.)",
+            damage: "2d6",
+            save: "GES- oder KON-Rettungswurf je nach Abstammung (SG 8 + KON + Übung), halber Schaden",
+            uses: { max: 1, used: 0, reset: "short" },
+          },
   },
   {
     key: "savageAttacker",
@@ -352,23 +369,34 @@ export const FEATURE_PRESETS: Preset[] = [
       benefit: "Einmal pro Zug bei einem Treffer: Waffenschadenswürfel zweimal würfeln, ein Ergebnis wählen",
       uses: { max: 1, used: 0, reset: "turn" },
       triggers: ["hit"],
-      appliesTo: { scope: "weapon", attackIds: [] },
+      // 2014 nur Nahkampfwaffen
+      appliesTo: { scope: r === "2024" ? "weapon" : "melee", attackIds: [] },
       rollMods: [newRollMod({ target: "damage", mode: "advantage" })],
     }),
   },
   {
     key: "lucky",
     group: "Talent",
-    build: () => ({
+    build: r => ({
       name: "Glückspilz",
       categories: ["Talent"],
-      tags: ["Herkunft"],
+      tags: r === "2024" ? ["Herkunft"] : [],
       activation: "free",
       effectType: "buff",
       target: "self",
-      benefit: "Vorteil auf einen W20-Test oder Nachteil für einen Angriff gegen dich",
-      uses: { max: 3, used: 0, reset: "long" },
+      benefit:
+        r === "2024"
+          ? "Vorteil auf einen W20-Test oder Nachteil für einen Angriff gegen dich; Glückspunkte = Übungsbonus"
+          : "Zusätzlichen W20 für einen Angriffs-, Attributs- oder Rettungswurf oder einen Angriff gegen dich würfeln und wählen",
+      uses: { max: r === "2024" ? 2 : 3, used: 0, reset: "long" },
       triggers: ["attack", "save", "check", "attacked"],
+      // Im Würfeldialog wählbar (2014: zusätzlicher W20 zur Wahl wirkt wie Vorteil)
+      appliesTo: { scope: "all", attackIds: [] },
+      rollMods: [
+        newRollMod({ target: "attack", mode: "advantage" }),
+        newRollMod({ target: "check", mode: "advantage" }),
+        newRollMod({ target: "save", mode: "advantage" }),
+      ],
     }),
   },
 ];

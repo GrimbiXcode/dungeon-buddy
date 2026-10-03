@@ -182,7 +182,8 @@ export type RollMod = {
   mode: AdvantageMode;
 };
 
-export type AcMod = { mode: AcModMode; value: number };
+/** armoredOnly: Bonus nur mit angelegter Rüstung (Kampfstil Verteidigung) */
+export type AcMod = { mode: AcModMode; value: number; armoredOnly?: boolean };
 
 /**
  * Abhängigkeit zu einer anderen Fähigkeit: Taktisches Verständnis verbraucht
@@ -215,6 +216,10 @@ export type Feature = {
   damageTypeFromAttack: boolean;
   /** Schaden trifft ein weiteres Ziel: eigener Wurf statt Zuschlag auf den Angriffsschaden */
   damageOtherTarget: boolean;
+  /** Weiteres Ziel: Wurf ist kritisch, wenn der auslösende Angriff kritisch war */
+  critWithAttack: boolean;
+  /** Der Wurf heilt (statt Schaden); unabhängig von der angezeigten Art */
+  heals: boolean;
   /** Sonstige Wirkung des Wurfs statt Schaden/Heilung, z. B. "vom erlittenen Schaden abziehen" */
   effectText: string;
   /** Rettungswurf der Ziele, z. B. "GES-Rettungswurf, halber Schaden" */
@@ -293,6 +298,8 @@ export function newFeature(partial: Partial<Feature> = {}): Feature {
     damageType: "",
     damageTypeFromAttack: false,
     damageOtherTarget: false,
+    critWithAttack: false,
+    heals: partial.effectType === "healing",
     effectText: "",
     save: "",
     duration: { kind: "instant", amount: 1, text: "" },
@@ -327,7 +334,9 @@ export function normalizeRollMod(raw: unknown): RollMod {
 
 export function normalizeAcMod(raw: unknown): AcMod {
   const m = obj(raw);
-  return { mode: oneOf(AC_MODES, m.mode, "none"), value: num(m.value, 0) };
+  const mod: AcMod = { mode: oneOf(AC_MODES, m.mode, "none"), value: num(m.value, 0) };
+  if (m.armoredOnly === true) mod.armoredOnly = true;
+  return mod;
 }
 
 /** Frühere Bögen hatten feste Angriffsboni statt Wurfmodifikatoren. */
@@ -387,6 +396,9 @@ export function normalizeFeature(raw: unknown): Feature {
     damageType: str(f.damageType),
     damageTypeFromAttack: f.damageTypeFromAttack === true,
     damageOtherTarget: f.damageOtherTarget === true,
+    critWithAttack: f.critWithAttack === true,
+    // Ältere Daten: Heilung war nur an der Art erkennbar
+    heals: typeof f.heals === "boolean" ? f.heals : f.effectType === "healing",
     effectText: str(f.effectText).slice(0, 200),
     save: str(f.save),
     duration: {
@@ -396,7 +408,7 @@ export function normalizeFeature(raw: unknown): Feature {
     },
     uses: {
       max: typeof uses.max === "number" ? Math.max(0, uses.max) : null,
-      used: Math.max(0, num(uses.used, 0)),
+      used: Math.max(0, Math.min(typeof uses.max === "number" ? Math.max(0, uses.max) : Infinity, num(uses.used, 0))),
       reset: oneOf(USE_RESETS, uses.reset, "long"),
     },
     resourceId: typeof f.resourceId === "string" ? f.resourceId : null,
@@ -467,7 +479,11 @@ export function dependentFeatures(c: CharacterData, f: Feature) {
   return c.features.filter(x => x.id !== f.id && x.links.some(l => l.featureId === f.id));
 }
 
-/** Verbleibende Einsätze; null = unbegrenzt. Verknüpfte Fähigkeiten begrenzen mit. */
+/**
+ * Verbleibende Einsätze; null = unbegrenzt. Verknüpfte Fähigkeiten begrenzen
+ * mit, aber nur mit ihren eigenen Nutzungen (wie beim Verbrauch, nicht über
+ * deren Verknüpfungen weiter).
+ */
 export function usesLeft(c: CharacterData, f: Feature, depth = 0): number | null {
   const own = f.uses.max == null ? null : Math.max(0, f.uses.max - f.uses.used);
   const res = resourceOf(c, f);
@@ -475,7 +491,7 @@ export function usesLeft(c: CharacterData, f: Feature, depth = 0): number | null
   const item = itemById(c, f.itemId);
   const fromItem = item ? Math.floor(item.quantity / Math.max(1, f.itemCost)) : null;
   let left = minLeft(minLeft(own, fromResource), fromItem);
-  if (depth < 3) {
+  if (depth < 1) {
     for (const { link, feature } of linkedFeatures(c, f)) {
       const other = usesLeft(c, feature, depth + 1);
       if (other != null && link.cost > 0) left = minLeft(left, Math.floor(other / link.cost));
@@ -519,6 +535,44 @@ export function confirmLinkSuccess(c: CharacterData, f: Feature, featureId: stri
   if (link && other) consumeUses(c, other, link.cost);
 }
 
+/**
+ * Änderungen an Nutzungen, Ressourcen, Gegenständen und Aktionsarten durch `run` erfassen
+ * und rückgängig machbar machen. Zurückgegeben wird nur, was `run` wirklich
+ * verbraucht hat (z. B. nichts, wenn die Ressource schon leer war).
+ */
+export function trackUsage<T>(c: CharacterData, run: () => T): { result: T; undo: () => void } {
+  const uses = new Map(c.features.map(f => [f.id, f.uses.used]));
+  const res = new Map(c.resources.map(r => [r.id, r.used]));
+  const items = new Map(c.inventory.map(i => [i.id, i.quantity]));
+  const economy = { ...c.combat.used };
+  const effects = new Set(c.combat.effects.map(e => e.id));
+  const result = run();
+  const usedDelta = c.features.map(f => ({ id: f.id, d: f.uses.used - (uses.get(f.id) ?? f.uses.used) })).filter(x => x.d);
+  const resDelta = c.resources.map(r => ({ id: r.id, d: r.used - (res.get(r.id) ?? r.used) })).filter(x => x.d);
+  const itemDelta = c.inventory.map(i => ({ id: i.id, d: (items.get(i.id) ?? i.quantity) - i.quantity })).filter(x => x.d > 0);
+  const slots = (Object.keys(economy) as (keyof CombatState["used"])[]).filter(k => !economy[k] && c.combat.used[k]);
+  const added = c.combat.effects.filter(e => !effects.has(e.id)).map(e => e.id);
+  return {
+    result,
+    undo() {
+      for (const { id, d } of usedDelta) {
+        const f = c.features.find(x => x.id === id);
+        if (f) f.uses.used = Math.max(0, f.uses.used - d);
+      }
+      for (const { id, d } of resDelta) {
+        const r = c.resources.find(x => x.id === id);
+        if (r) r.used = Math.max(0, r.used - d);
+      }
+      for (const { id, d } of itemDelta) {
+        const item = itemById(c, id);
+        if (item) refundItem(c, item, d);
+      }
+      for (const k of slots) c.combat.used[k] = false;
+      if (added.length) c.combat.effects = c.combat.effects.filter(e => !added.includes(e.id));
+    },
+  };
+}
+
 export function isAvailable(c: CharacterData, f: Feature) {
   const left = usesLeft(c, f);
   return left == null || left > 0;
@@ -555,7 +609,17 @@ export function durationRounds(f: Feature): number | null {
  * Aktionsart markieren und bei andauernder Wirkung einen Effekt anlegen.
  * Gibt Hinweise zurück (z. B. beendete Konzentration).
  */
-export function useFeature(c: CharacterData, f: Feature, opts: { markEconomy?: boolean } = {}): string[] {
+/**
+ * Wirkt die Fähigkeit nach dem Einsetzen auf den eigenen Bogen (RK, Würfe)?
+ * Bei Zielen wie Verbündete muss man das erst klären.
+ */
+export function needsTargetChoice(f: Feature) {
+  const lasting = f.duration.kind !== "instant" && f.activation !== "passive";
+  const affectsSheet = f.acMod.mode !== "none" || f.rollMods.length > 0;
+  return lasting && affectsSheet && (f.target === "ally" || f.target === "any");
+}
+
+export function useFeature(c: CharacterData, f: Feature, opts: { markEconomy?: boolean; onSelf?: boolean } = {}): string[] {
   const notes: string[] = [];
   consumeUses(c, f, 1);
   for (const { link, feature } of linkedFeatures(c, f)) {
@@ -568,13 +632,15 @@ export function useFeature(c: CharacterData, f: Feature, opts: { markEconomy?: b
   }
 
   if (f.duration.kind !== "instant" && f.activation !== "passive") {
+    // Auf andere gewirkt: Dauer und Konzentration verfolgen, aber ohne Wirkung auf den eigenen Bogen
+    const self = opts.onSelf !== false;
     notes.push(...addEffect(c, {
-      name: f.name,
-      featureId: f.id,
+      name: self ? f.name : `${f.name} (auf andere)`,
+      featureId: self ? f.id : null,
       remaining: durationRounds(f),
       concentration: f.duration.kind === "concentration",
       note: f.benefit || f.duration.text,
-      ac: f.acMod.mode !== "none" ? { ...f.acMod } : null,
+      ac: self && f.acMod.mode !== "none" ? { ...f.acMod } : null,
     }));
   }
   return notes;
@@ -620,6 +686,7 @@ export function endCombat(c: CharacterData): RecoveryRow[] {
   c.combat.round = 1;
   c.combat.spent = {};
   resetTurn(c);
+  for (const f of c.features) if (f.uses.reset === "turn") f.uses.used = 0;
   // Effekte mit Rundendauer enden mit dem Kampf, längere bleiben
   c.combat.effects = c.combat.effects.filter(e => e.remaining == null || e.remaining > 10);
   return recovery;
@@ -671,6 +738,11 @@ export function isRangedAttack(a: Attack) {
   return a.kind === "ranged";
 }
 
+/** Wird die Fähigkeit im Angriff eingesetzt (Auslöser beim Angriff oder bei Treffer)? */
+export function isAttackBound(f: Pick<Feature, "triggers">) {
+  return f.triggers.includes("hit") || f.triggers.includes("crit") || f.triggers.includes("attack");
+}
+
 /** Gilt die Fähigkeit für diesen Angriff? */
 export function appliesToAttack(f: Feature, a: Attack): boolean {
   const scope = f.appliesTo.scope;
@@ -705,22 +777,25 @@ export type AttackOption = {
  * Vorschläge für einen Angriff mit Waffe X:
  *  - before: vor dem Wurf (Vorteil, Trefferbonus, Schadensbonus, passive Boni)
  *  - onHit:  nach einem Treffer (Zusatzschaden wie Hinterhältiger Angriff)
+ *  - onCrit: nur bei kritischem Treffer (Brutaler kritischer Treffer), auch passive
  */
 export function attackOptions(c: CharacterData, a: Attack) {
   const active = new Set(c.combat.effects.map(e => e.featureId));
   const before: AttackOption[] = [];
   const onHit: AttackOption[] = [];
+  const onCrit: AttackOption[] = [];
   for (const f of c.features) {
     if (!appliesToAttack(f, a)) continue;
     const automatic = f.activation === "passive" || active.has(f.id);
     const option = { feature: f, automatic, available: automatic || isAvailable(c, f), spent: !automatic && economySpent(c, f.activation) };
-    const hitTrigger = f.triggers.includes("hit") || f.triggers.includes("crit");
-    if (hitTrigger && !automatic) onHit.push(option);
+    const critOnly = f.triggers.includes("crit") && !f.triggers.includes("hit");
+    if (critOnly) onCrit.push(option);
+    else if (f.triggers.includes("hit") && !automatic) onHit.push(option);
     else before.push(option);
   }
   const order = (x: AttackOption, y: AttackOption) =>
     Number(y.automatic) - Number(x.automatic) || Number(y.available) - Number(x.available) || x.feature.name.localeCompare(y.feature.name);
-  return { before: before.sort(order), onHit: onHit.sort(order) };
+  return { before: before.sort(order), onHit: onHit.sort(order), onCrit: onCrit.sort(order) };
 }
 
 // ── Schaden und Heilung ─────────────────────────────────────────────────
@@ -797,10 +872,10 @@ export function featureDamageType(f: Pick<Feature, "damageType" | "damageTypeFro
  * Was der Wurf der Fähigkeit bewirkt: Schaden, Heilung oder eine sonstige
  * Wirkung als Text; null ohne Wurf.
  */
-export function featureRollKind(f: Pick<Feature, "effectType" | "effectText">): "damage" | "healing" | "other" | null {
+export function featureRollKind(f: Pick<Feature, "damage" | "damageAdds" | "heals" | "effectText">): "damage" | "healing" | "other" | null {
+  if (!f.damage.trim() && !f.damageAdds.length) return null;
   if (f.effectText.trim()) return "other";
-  if (f.effectType === "damage" || f.effectType === "healing") return f.effectType;
-  return null;
+  return f.heals ? "healing" : "damage";
 }
 
 /** Text hinter den Würfeln: Schadensart oder sonstige Wirkung */
@@ -810,13 +885,17 @@ export function featureRollLabel(f: Feature, attack?: Pick<Attack, "damageType">
 
 /**
  * Kurztext der Zuschläge mit aktuellem Wert, z. B. "Kämpferstufe +3, KON-Mod. +2".
- * Ohne Wahl bei mehreren Attributen der höchste Modifikator.
+ * Mehrere Attribute ohne Wahl: alle nennen, gerechnet mit dem höchsten
+ * ("STR/GES-Mod. +3 (STR, im Kampf wählbar)").
  */
 export function describeDamageAdds(c: CharacterData, adds: DamageAdd[], picks: AbilityPicks = {}) {
   return adds
     .map((a, i) => {
-      const pick = isAbilityChoice(a) ? pickedAbility(c, a, picks[i]) : undefined;
-      return `${damageAddLabel(a, pick)} ${formatSigned(damageAddValue(c, a, pick))}`;
+      if (!isAbilityChoice(a)) return `${damageAddLabel(a)} ${formatSigned(damageAddValue(c, a))}`;
+      const chosen = picks[i] && a.abilities.includes(picks[i]) ? picks[i] : undefined;
+      const pick = pickedAbility(c, a, chosen);
+      const value = formatSigned(damageAddValue(c, a, pick));
+      return chosen ? `${damageAddLabel(a, pick)} ${value}` : `${damageAddLabel(a)} ${value} (${ABILITY_SHORT[pick]}, im Kampf wählbar)`;
     })
     .join(", ");
 }

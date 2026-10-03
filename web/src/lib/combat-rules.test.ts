@@ -17,6 +17,7 @@ import {
   addEffect,
   combineAdvantage,
   confirmLinkSuccess,
+  attackOptions,
   newFeature,
   newRollMod,
   normalizeFeature,
@@ -26,6 +27,7 @@ import {
   sumMods,
   useFeature,
   usesLeft,
+  needsTargetChoice,
   WEAPON_PROPERTIES,
 } from "./features";
 import { featureFromLibrary, featureToLibrary } from "./library";
@@ -196,9 +198,21 @@ describe("Rüstungsklasse", () => {
     const defense = buildPreset("defense", "2024", "Spezies");
     const shieldSpell = buildPreset("shield", "2024", "Spezies");
     c.features = [defense, shieldSpell];
-    expect(armorClass(c).total).toBe(14);
+    // Verteidigung gilt nur mit Rüstung
+    expect(armorClass(c).total).toBe(13);
     useFeature(c, shieldSpell);
-    expect(armorClass(c).total).toBe(19);
+    expect(armorClass(c).total).toBe(18);
+    c.armor = [newArmor({ name: "Lederrüstung", type: "light", baseAc: 11, equipped: true })];
+    expect(armorClass(c).total).toBe(20);
+  });
+
+  it("schwere Rüstung ignoriert auch einen negativen GES-Modifikator", () => {
+    const c = base();
+    c.abilities.dex = 8;
+    c.armor = [newArmor({ name: "Ritterrüstung", type: "heavy", baseAc: 18, equipped: true })];
+    expect(armorClass(c).total).toBe(18);
+    c.armor = [newArmor({ name: "Schuppenpanzer", type: "medium", baseAc: 14, dexCap: 2, equipped: true })];
+    expect(armorClass(c).total).toBe(13);
   });
 });
 
@@ -267,5 +281,58 @@ describe("Waffeneigenschaften", () => {
     expect(normalizeAttack({ properties: ["Munition", "Zweihändig"] }).properties).toEqual(["Geschosse", "Zweihändig"]);
     expect(WEAPON_PROPERTIES).toContain("Geschosse");
     expect(WEAPON_PROPERTIES).not.toContain("Munition");
+  });
+});
+
+describe("Review-Korrekturen Angriffe", () => {
+  it("Fähigkeiten nur bei kritischem Treffer stehen separat, auch passive", () => {
+    const c = normalizeCharacter({});
+    const axe = newAttack({ name: "Axt", ability: "str", damage: "1d12", kind: "melee" });
+    c.attacks = [axe];
+    const brutal = newFeature({ name: "Brutaler kritischer Treffer", activation: "passive", damage: "1d12", triggers: ["crit"], appliesTo: { scope: "melee", attackIds: [] } });
+    c.features = [brutal];
+    const opts = attackOptions(c, axe);
+    expect(opts.before).toEqual([]);
+    expect(opts.onCrit.map(o => o.feature.name)).toEqual(["Brutaler kritischer Treffer"]);
+  });
+
+  it("Angriffe mit Zauberattribut erhalten den Zauberangriffsbonus", () => {
+    const c = normalizeCharacter({ abilities: { cha: 16 }, spellcasting: { ability: "cha", attackBonusExtra: 1 } });
+    const blast = newAttack({ name: "Schauriger Strahl", ability: "spell", damage: "1d10", kind: "ranged" });
+    expect(attackToHit(c, blast)).toBe(3 + 2 + 1);
+  });
+
+  it("Krit-Bereich wird begrenzt", () => {
+    expect(normalizeCharacter({}).critRange).toBe(20);
+    expect(normalizeCharacter({ critRange: 19 }).critRange).toBe(19);
+    expect(normalizeCharacter({ critRange: 3 }).critRange).toBe(15);
+  });
+});
+
+describe("Ziel Verbündete", () => {
+  it("fragt nach dem Ziel und wirkt auf andere nicht auf den eigenen Bogen", () => {
+    const c = normalizeCharacter({ abilities: { dex: 10 } });
+    const sof = buildPreset("shieldOfFaith", "2024", "Spezies");
+    c.features = [sof];
+    expect(needsTargetChoice(sof)).toBe(true);
+    useFeature(c, sof, { onSelf: false });
+    expect(armorClass(c).total).toBe(10);
+    expect(c.combat.effects[0]!.name).toContain("auf andere");
+    const d = normalizeCharacter({ abilities: { dex: 10 } });
+    d.features = [sof];
+    useFeature(d, sof, { onSelf: true });
+    expect(armorClass(d).total).toBe(12);
+  });
+});
+
+describe("Magierrüstung bei festem Grundwert", () => {
+  it("wirkt als Mindestwert, Schild bleibt", () => {
+    const c = normalizeCharacter({ ac: 11, acMode: "manual", abilities: { dex: 14 } });
+    c.features = [newFeature({ name: "Magierrüstung", activation: "action", duration: { kind: "hours", amount: 8, text: "" }, acMod: { mode: "base", value: 13 } })];
+    expect(armorClass(c).total).toBe(11);
+    useFeature(c, c.features[0]!);
+    expect(armorClass(c).total).toBe(15);
+    c.ac = 17;
+    expect(armorClass(c).total).toBe(17);
   });
 });

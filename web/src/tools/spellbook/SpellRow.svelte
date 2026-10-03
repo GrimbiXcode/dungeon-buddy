@@ -84,8 +84,12 @@
         subtitle: `${char.name} · ${d.attack === "melee" ? "Nahkampf-Zauberangriff" : "Fernkampf-Zauberangriff"}`,
         modifier: spellAttackBonus(char.data),
         kind: "attack",
-        ruleset,
+        // Erschöpfung nach den Regeln des Charakters, wie auf dem Bogen
+        ruleset: char.ruleset,
+        owner: char.id,
         exhaustion: char.data.exhaustion,
+        conditions: char.data.conditions,
+        critRange: char.data.critRange,
         rollMode: char.data.rollMode,
         followUp: damageDice
           ? { title: `${spell.name} – Schaden`, dice: damageDice, damageType: dmgType || undefined, canCrit: true }

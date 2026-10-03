@@ -2,6 +2,8 @@ import {
   ABILITIES,
   SKILLS,
   abilityMod,
+  conditionEffect,
+  exhaustionEffect,
   proficiencyBonus,
   type Ability,
   type SkillKey,
@@ -90,7 +92,8 @@ export type CharacterData = {
   initiativeBonus: number;
   speed: number;
   hp: { max: number; current: number; temp: number };
-  hitDiceUsed: number;
+  /** Verbrauchte Trefferwürfel je Würfelgrösse, z. B. { "10": 2, "6": 1 } */
+  hitDiceUsed: Record<string, number>;
   deathSaves: { successes: number; failures: number };
   inspiration: boolean;
   exhaustion: number;
@@ -98,6 +101,8 @@ export type CharacterData = {
   attacks: Attack[];
   /** Kampfstil Zwei-Waffen-Kampf: Attributsmodifikator auch beim Zusatzangriff */
   twoWeaponFighting: boolean;
+  /** Kritischer Treffer ab diesem W20-Wert (Champion: 19) */
+  critRange: number;
   /** Konfigurierbare Fähigkeiten: Klasse, Herkunft, Talente, Ausrüstung … */
   features: Feature[];
   /** Zustand des Kampf-Assistenten */
@@ -214,6 +219,16 @@ export function normalizeAttack(a: unknown): Attack {
  * Bringt beliebige gespeicherte Daten in die aktuelle Form. Fehlende Felder
  * bekommen Standardwerte – so bleiben alte Bögen nach Erweiterungen lesbar.
  */
+/** Verbrauchte Plätze/Nutzungen zwischen 0 und dem Maximum */
+export function clampUsed(used: number, max: number) {
+  return Math.min(Math.max(0, max), Math.max(0, used));
+}
+
+/** Übrige Plätze/Nutzungen, nie negativ (auch wenn das Maximum gesenkt wurde) */
+export function leftOf(x: { max: number; used: number }) {
+  return Math.max(0, x.max - x.used);
+}
+
 export function normalizeCharacter(raw: unknown): CharacterData {
   const d = obj(raw);
   const abilities = obj(d.abilities);
@@ -229,21 +244,23 @@ export function normalizeCharacter(raw: unknown): CharacterData {
   // Ältere Bögen hatten nur eine feste RK: dort bleibt sie manuell
   const acMode = d.acMode === "auto" || d.acMode === "manual" ? d.acMode : typeof d.ac === "number" && !Array.isArray(d.armor) ? "manual" : "auto";
 
+  const classes = arr(d.classes).map(c => {
+    const o = obj(c);
+    return {
+      id: str(o.id) || uid(),
+      name: str(o.name),
+      subclass: str(o.subclass),
+      level: Math.min(20, Math.max(1, num(o.level, 1))),
+      hitDie: num(o.hitDie, 8),
+    };
+  });
+
   return {
     rollMode: (["inherit", "digital", "physical"].includes(rollMode) ? rollMode : "inherit") as RollModeSetting,
     species: str(d.species),
     background: str(d.background),
     alignment: str(d.alignment),
-    classes: arr(d.classes).map(c => {
-      const o = obj(c);
-      return {
-        id: str(o.id) || uid(),
-        name: str(o.name),
-        subclass: str(o.subclass),
-        level: Math.min(20, Math.max(1, num(o.level, 1))),
-        hitDie: num(o.hitDie, 8),
-      };
-    }),
+    classes,
     xp: num(d.xp, 0),
     abilities: Object.fromEntries(ABILITIES.map(a => [a, num(abilities[a], 10)])) as Record<Ability, number>,
     saveProficiencies: Object.fromEntries(ABILITIES.map(a => [a, bool(saves[a])])) as Record<Ability, boolean>,
@@ -262,14 +279,15 @@ export function normalizeCharacter(raw: unknown): CharacterData {
     armor: arr(d.armor).map(normalizeArmor),
     initiativeBonus: num(d.initiativeBonus, 0),
     speed: num(d.speed, 30),
-    hp: { max: num(hp.max, 10), current: num(hp.current, num(hp.max, 10)), temp: num(hp.temp, 0) },
-    hitDiceUsed: num(d.hitDiceUsed, 0),
+    hp: { max: num(hp.max, 10), current: Math.max(0, num(hp.current, num(hp.max, 10))), temp: Math.max(0, num(hp.temp, 0)) },
+    hitDiceUsed: normalizeHitDiceUsed(d.hitDiceUsed, classes),
     deathSaves: { successes: num(death.successes, 0), failures: num(death.failures, 0) },
     inspiration: bool(d.inspiration),
     exhaustion: Math.min(6, Math.max(0, num(d.exhaustion, 0))),
     conditions: arr(d.conditions).filter((x): x is string => typeof x === "string"),
     attacks: arr(d.attacks).map(normalizeAttack),
     twoWeaponFighting: bool(d.twoWeaponFighting),
+    critRange: Math.min(20, Math.max(15, num(d.critRange, 20))),
     features: Array.isArray(d.features) ? d.features.map(normalizeFeature) : [],
     combat: normalizeCombat(d.combat),
     spellcasting: {
@@ -278,9 +296,14 @@ export function normalizeCharacter(raw: unknown): CharacterData {
       dcExtra: num(sc.dcExtra, 0),
       slots: Array.from({ length: 9 }, (_, i) => {
         const s = obj(slotsRaw[i]);
-        return { max: num(s.max, 0), used: num(s.used, 0) };
+        const max = Math.max(0, num(s.max, 0));
+        return { max, used: clampUsed(num(s.used, 0), max) };
       }),
-      pact: { level: num(pact.level, 1), max: num(pact.max, 0), used: num(pact.used, 0) },
+      pact: {
+        level: Math.min(9, Math.max(1, num(pact.level, 1))),
+        max: Math.max(0, num(pact.max, 0)),
+        used: clampUsed(num(pact.used, 0), Math.max(0, num(pact.max, 0))),
+      },
     },
     resources: arr(d.resources).map(r => {
       const o = obj(r);
@@ -288,8 +311,8 @@ export function normalizeCharacter(raw: unknown): CharacterData {
       return newResource({
         id: str(o.id) || uid(),
         name: str(o.name),
-        max: num(o.max, 1),
-        used: num(o.used, 0),
+        max: Math.max(0, num(o.max, 1)),
+        used: clampUsed(num(o.used, 0), Math.max(0, num(o.max, 1))),
         reset: (["short", "long", "none"].includes(reset) ? reset : "long") as Resource["reset"],
       });
     }),
@@ -345,12 +368,49 @@ export function skillBonus(c: CharacterData, key: SkillKey) {
   return mod(c, skill.ability) + prof;
 }
 
-export function initiative(c: CharacterData) {
-  return mod(c, "dex") + c.initiativeBonus + (c.jackOfAllTrades ? Math.floor(profBonus(c) / 2) : 0);
+/**
+ * Alleskönner: 2014 halber Übungsbonus auf jeden Attributswurf ohne Übung
+ * (auch Initiative), 2024 nur auf Fertigkeitswürfe ohne Übung.
+ */
+function jackBonus(c: CharacterData, ruleset: Ruleset) {
+  return c.jackOfAllTrades && ruleset === "2014" ? Math.floor(profBonus(c) / 2) : 0;
 }
 
-export function passive(c: CharacterData, key: SkillKey) {
-  return 10 + skillBonus(c, key);
+/** Bonus auf einen reinen Attributswurf */
+export function checkBonus(c: CharacterData, ability: Ability, ruleset: Ruleset) {
+  return mod(c, ability) + jackBonus(c, ruleset);
+}
+
+export function initiative(c: CharacterData, ruleset: Ruleset) {
+  return mod(c, "dex") + c.initiativeBonus + jackBonus(c, ruleset);
+}
+
+/**
+ * Passiver Wert. Nachteil auf den Wurf (Erschöpfung 2014, Vergiftet,
+ * Verängstigt) zieht 5 ab.
+ */
+export function passive(c: CharacterData, key: SkillKey, ruleset: Ruleset) {
+  const skill = SKILLS.find(s => s.key === key)!;
+  const sources = [
+    ...(exhaustionEffect(ruleset, c.exhaustion, "skill").disadvantage ? [{ mode: "disadvantage" }] : []),
+    ...conditionEffect(c.conditions, "skill", skill.ability, ruleset).sources,
+  ];
+  const adv = sources.some(s => s.mode === "advantage");
+  const dis = sources.some(s => s.mode === "disadvantage");
+  return 10 + skillBonus(c, key) + (adv && !dis ? 5 : dis && !adv ? -5 : 0);
+}
+
+/** TP-Maximum unter Erschöpfung (2014 ab Stufe 4 halbiert) */
+export function effectiveMaxHp(c: CharacterData, ruleset: Ruleset) {
+  return ruleset === "2014" && c.exhaustion >= 4 ? Math.floor(c.hp.max / 2) : c.hp.max;
+}
+
+/** Bewegungsrate in ft unter Erschöpfung (2014: Stufe 2 halbiert, ab 5 null; 2024: −5 ft je Stufe) */
+export function effectiveSpeed(c: CharacterData, ruleset: Ruleset) {
+  if (!c.exhaustion) return c.speed;
+  if (ruleset === "2024") return Math.max(0, c.speed - 5 * c.exhaustion);
+  if (c.exhaustion >= 5) return 0;
+  return c.exhaustion >= 2 ? Math.floor(c.speed / 2) : c.speed;
 }
 
 export function spellAttackBonus(c: CharacterData) {
@@ -395,7 +455,9 @@ function attackAbilityMod(c: CharacterData, attack: Attack, choice?: Ability | n
 export type AttackRollOpts = { ability?: Ability | null; offhand?: boolean };
 
 export function attackToHit(c: CharacterData, attack: Attack, opts: AttackRollOpts = {}) {
-  return attackAbilityMod(c, attack, opts.ability) + (attack.proficient ? profBonus(c) : 0) + attack.toHitBonus;
+  // Angriffe mit dem Zauberattribut sind Zauberangriffe: Bonus wie beim Zauberangriff
+  const spellExtra = attackAbility(c, attack, opts.ability) === "spell" ? c.spellcasting.attackBonusExtra : 0;
+  return attackAbilityMod(c, attack, opts.ability) + (attack.proficient ? profBonus(c) : 0) + attack.toHitBonus + spellExtra;
 }
 
 /**
@@ -425,10 +487,57 @@ export function offhandIsNick(attack: Attack, ruleset: Ruleset) {
   return ruleset === "2024" && /nick|einkerben/i.test(attack.mastery);
 }
 
-export function hitDiceSummary(c: CharacterData) {
+export type HitDicePool = { die: number; total: number; used: number };
+
+/** Trefferwürfel je Würfelgrösse, grösste zuerst */
+export function hitDicePools(c: Pick<CharacterData, "classes" | "hitDiceUsed">): HitDicePool[] {
   const byDie = new Map<number, number>();
   for (const k of c.classes) byDie.set(k.hitDie, (byDie.get(k.hitDie) ?? 0) + k.level);
-  return [...byDie.entries()].map(([die, count]) => `${count}W${die}`).join(" + ");
+  return [...byDie.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([die, total]) => ({ die, total, used: Math.min(total, Math.max(0, c.hitDiceUsed[die] ?? 0)) }));
+}
+
+export function hitDiceLeft(c: Pick<CharacterData, "classes" | "hitDiceUsed">) {
+  return hitDicePools(c).reduce((sum, p) => sum + p.total - p.used, 0);
+}
+
+/**
+ * Verbrauchte Trefferwürfel; ältere Bögen hatten nur eine Gesamtzahl, die
+ * auf die Würfelgrössen verteilt wird (grösste zuerst).
+ */
+function normalizeHitDiceUsed(raw: unknown, classes: { level: number; hitDie: number }[]): Record<string, number> {
+  const pools = hitDicePools({ classes: classes as CharacterData["classes"], hitDiceUsed: {} });
+  const out: Record<string, number> = {};
+  if (typeof raw === "number") {
+    let rest = Math.max(0, raw);
+    for (const p of pools) {
+      const take = Math.min(rest, p.total);
+      if (take) out[p.die] = take;
+      rest -= take;
+    }
+    return out;
+  }
+  const o = obj(raw);
+  for (const p of pools) {
+    const used = Math.min(p.total, Math.max(0, num(o[p.die], 0)));
+    if (used) out[p.die] = used;
+  }
+  return out;
+}
+
+/** Einen Trefferwürfel dieser Grösse als verbraucht markieren; false, wenn keiner übrig ist */
+export function spendHitDie(c: CharacterData, die: number) {
+  const pool = hitDicePools(c).find(p => p.die === die);
+  if (!pool || pool.used >= pool.total) return false;
+  c.hitDiceUsed = { ...c.hitDiceUsed, [die]: pool.used + 1 };
+  return true;
+}
+
+export function hitDiceSummary(c: CharacterData) {
+  return hitDicePools(c)
+    .map(p => `${p.total}W${p.die}`)
+    .join(" + ");
 }
 
 export function classSummary(c: CharacterData) {
@@ -447,31 +556,78 @@ export function shortRest(c: CharacterData) {
 }
 
 export function longRest(c: CharacterData, ruleset: "2014" | "2024") {
-  c.hp.current = c.hp.max;
+  // Erst die Erschöpfung senken, dann bis zum (dann gültigen) Maximum heilen
+  c.exhaustion = Math.max(0, c.exhaustion - 1);
+  c.hp.current = effectiveMaxHp(c, ruleset);
   c.hp.temp = 0;
   c.deathSaves = { successes: 0, failures: 0 };
   for (const s of c.spellcasting.slots) s.used = 0;
   c.spellcasting.pact.used = 0;
   for (const r of c.resources) if (r.reset !== "none") r.used = 0;
   // Trefferwürfel: 2014 die Hälfte zurück, 2024 alle
+  // Zurück kommen zuerst die grossen Würfel
   const total = totalLevel(c);
-  const regain = ruleset === "2024" ? total : Math.max(1, Math.floor(total / 2));
-  c.hitDiceUsed = Math.max(0, c.hitDiceUsed - regain);
-  c.exhaustion = Math.max(0, c.exhaustion - 1);
+  let regain = ruleset === "2024" ? total : Math.max(1, Math.floor(total / 2));
+  const used: Record<string, number> = {};
+  for (const p of hitDicePools(c)) {
+    const back = Math.min(regain, p.used);
+    regain -= back;
+    if (p.used - back) used[p.die] = p.used - back;
+  }
+  c.hitDiceUsed = used;
   restFeatures(c, "long");
 }
 
-/** Schaden anwenden: zuerst temporäre TP, dann aktuelle. */
-export function applyDamage(c: CharacterData, amount: number) {
+/**
+ * Schaden anwenden: zuerst temporäre TP, dann aktuelle. Bei 0 TP zählt
+ * Schaden als Fehlschlag beim Todesrettungswurf (kritisch: zwei); bleibt
+ * nach dem Sturz auf 0 noch Schaden in Höhe des TP-Maximums übrig, ist der
+ * Charakter sofort tot. Gibt einen Hinweis zurück.
+ */
+export function applyDamage(c: CharacterData, amount: number, opts: { crit?: boolean } = {}): string | null {
   let rest = Math.max(0, amount);
-  const fromTemp = Math.min(c.hp.temp, rest);
-  c.hp.temp -= fromTemp;
+  if (!rest) return null;
+  const fromTemp = Math.min(Math.max(0, c.hp.temp), rest);
+  c.hp.temp = Math.max(0, c.hp.temp - fromTemp);
   rest -= fromTemp;
-  c.hp.current = Math.max(0, c.hp.current - rest);
+  if (!rest) return null;
+  const before = Math.max(0, c.hp.current);
+  c.hp.current = Math.max(0, before - rest);
+  const overflow = rest - before;
+  if (c.hp.max > 0 && overflow >= c.hp.max) {
+    c.deathSaves = { successes: 0, failures: 3 };
+    return "Massiver Schaden: Der Schaden übersteigt das TP-Maximum – sofortiger Tod.";
+  }
+  if (before === 0) {
+    c.deathSaves.failures = Math.min(3, c.deathSaves.failures + (opts.crit ? 2 : 1));
+    c.deathSaves.successes = Math.min(3, c.deathSaves.successes);
+    return c.deathSaves.failures >= 3 ? "Drei Fehlschläge: Der Charakter stirbt." : `Schaden bei 0 TP: ${opts.crit ? "zwei Fehlschläge" : "ein Fehlschlag"} beim Todesrettungswurf.`;
+  }
+  if (c.hp.current === 0) return "0 TP: bewusstlos. Ab jetzt Todesrettungswürfe.";
+  return null;
 }
 
-export function applyHealing(c: CharacterData, amount: number) {
+/**
+ * Ergebnis eines Todesrettungswurfs eintragen: ab 10 Erfolg, natürliche 20
+ * bringt 1 TP zurück, natürliche 1 zählt zwei Fehlschläge.
+ */
+export function applyDeathSave(c: CharacterData, kept: number, total: number): string {
+  if (kept === 20) {
+    c.hp.current = Math.max(1, c.hp.current);
+    c.deathSaves = { successes: 0, failures: 0 };
+    return "Natürliche 20: Du kommst mit 1 TP wieder zu dir.";
+  }
+  if (kept === 1) c.deathSaves.failures = Math.min(3, c.deathSaves.failures + 2);
+  else if (total >= 10) c.deathSaves.successes = Math.min(3, c.deathSaves.successes + 1);
+  else c.deathSaves.failures = Math.min(3, c.deathSaves.failures + 1);
+  if (c.deathSaves.failures >= 3) return "Drei Fehlschläge: Der Charakter stirbt.";
+  if (c.deathSaves.successes >= 3) return "Drei Erfolge: stabil (bewusstlos, 0 TP).";
+  return kept === 1 ? "Natürliche 1: zwei Fehlschläge." : total >= 10 ? "Erfolg." : "Fehlschlag.";
+}
+
+/** Heilen bis zum TP-Maximum (unter Erschöpfung ggf. das verringerte) */
+export function applyHealing(c: CharacterData, amount: number, maxHp = c.hp.max) {
   if (amount <= 0) return;
-  if (c.hp.current === 0) c.deathSaves = { successes: 0, failures: 0 };
-  c.hp.current = Math.min(c.hp.max, c.hp.current + amount);
+  if (c.hp.current <= 0) c.deathSaves = { successes: 0, failures: 0 };
+  c.hp.current = Math.min(Math.max(maxHp, 0), Math.max(0, c.hp.current) + amount);
 }

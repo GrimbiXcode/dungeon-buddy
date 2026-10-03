@@ -1,6 +1,7 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import { ABILITIES, ABILITY_NAMES, ABILITY_SHORT, formatMod } from "../../lib/dnd";
-  import { mod, saveBonus } from "../../lib/character";
+  import { mod, saveBonus, checkBonus } from "../../lib/character";
   import { sheet } from "./context";
 
   const ctx = sheet();
@@ -14,11 +15,11 @@
       {#if ctx.editing}
         <label class="ability editing">
           <span class="short">{ABILITY_SHORT[a]}</span>
-          <input class="input input-sm score-input mono" type="number" min="1" max="30" bind:value={c.abilities[a]} aria-label={ABILITY_NAMES[a]} />
+          <NumberField class="input input-sm score-input mono" min={1} max={30} aria-label={ABILITY_NAMES[a]} bind:value={c.abilities[a]} />
           <span class="mod mono">{formatMod(mod(c, a))}</span>
         </label>
       {:else}
-        <button class="ability" title="{ABILITY_NAMES[a]}swurf" onclick={() => ctx.rollD20(`${ABILITY_NAMES[a]}swurf`, mod(c, a), "check", { ability: a })}>
+        <button class="ability" title="{ABILITY_NAMES[a]}swurf" onclick={() => ctx.rollD20(`${ABILITY_NAMES[a]}swurf`, checkBonus(c, a, ctx.ruleset), "check", { ability: a })}>
           <span class="short">{ABILITY_SHORT[a]}</span>
           <span class="mod mono">{formatMod(mod(c, a))}</span>
           <span class="score mono">{c.abilities[a]}</span>
@@ -78,7 +79,7 @@
     border: 1px solid var(--border);
     background: var(--bg);
   }
-  .score-input { width: 4.2rem; text-align: center; font-weight: 700; font-size: 1.1rem; }
+  :global(.input.score-input) { width: 4.2rem; text-align: center; font-weight: 700; font-size: 1.1rem; }
   .saves-title { margin: 1rem 0 0.4rem; }
   .saves { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem 0.75rem; }
   .save {

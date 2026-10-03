@@ -1,4 +1,5 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import { tick } from "svelte";
   import { unitSystem } from "../../lib/session.svelte";
   import Modal from "../../components/Modal.svelte";
@@ -109,7 +110,7 @@
   // svelte-ignore state_referenced_locally
   const startOther = Boolean(f.effectText.trim());
   // svelte-ignore state_referenced_locally
-  const startHealing = f.effectType === "healing" && !startOther;
+  const startHealing = f.heals && !startOther;
   // svelte-ignore state_referenced_locally
   let on = $state<Record<Single, boolean>>({
     twice: f.rollMods.some(isDamageTwice),
@@ -170,8 +171,13 @@
     if (m.target === "attack" || m.target === "damage") ensureScope();
   }
 
+  /** Auslöser rund um Angriffe brauchen einen Angriffsbezug, sonst erscheint die Fähigkeit nie im Angriff */
+  const ATTACK_TRIGGERS: Trigger[] = ["attack", "hit", "crit", "miss"];
+
   function toggleTrigger(t: Trigger) {
-    f.triggers = f.triggers.includes(t) ? f.triggers.filter(x => x !== t) : [...f.triggers, t];
+    const on = !f.triggers.includes(t);
+    f.triggers = on ? [...f.triggers, t] : f.triggers.filter(x => x !== t);
+    if (on && ATTACK_TRIGGERS.includes(t)) ensureScope();
   }
 
   /** Attribut eines Zuschlags an-/abwählen; mindestens eines bleibt */
@@ -215,6 +221,7 @@
     switch (key) {
       case "bonus":
         bonusMods = [...bonusMods, newRollMod({ target: "attack" })];
+        ensureScope();
         anchor = `bonus-${bonusMods.length - 1}`;
         break;
       case "adv":
@@ -285,6 +292,7 @@
         f.damageType = "";
         f.damageTypeFromAttack = false;
         f.damageOtherTarget = false;
+        f.critWithAttack = false;
         f.damageAdds = [];
         break;
       case "save":
@@ -344,6 +352,7 @@
       return;
     }
     if (!on.other) f.effectText = "";
+    f.heals = on.healing;
     if (f.damageAdds.some(a => a.kind === "classLevel" && !a.className.trim())) {
       error = "Bitte bei „Klassenstufe“ die Klasse angeben (z. B. Kämpfer).";
       return;
@@ -353,12 +362,23 @@
       error = `Ungültiger Bonus „${badMod.bonus}“ (Beispiele: 2, -1, 1d4, -1d4).`;
       return;
     }
+    // Abzugswürfel auf den Schaden kann der Schadenswurf nicht abbilden (nur feste Abzüge)
+    const negDamage = bonusMods.find(m => m.target === "damage" && parseBonus(m.bonus)?.sign === -1 && parseBonus(m.bonus)?.dice.length);
+    if (negDamage) {
+      error = `Würfel abziehen geht beim Schadenswurf nicht („${negDamage.bonus}“). Feste Abzüge wie -2 gehen.`;
+      return;
+    }
     f.rollMods = composedMods();
+    // Ohne Angriffsbezug wirken Angriffs-/Schadenswürfe und Angriffs-Auslöser nirgends
+    if (f.appliesTo.scope === "none" && (f.rollMods.some(m => m.target === "attack" || m.target === "damage") || f.triggers.some(t => ATTACK_TRIGGERS.includes(t)))) {
+      f.appliesTo = { scope: "all", attackIds: [] };
+    }
     f.tags = on.tags ? tags : [];
     if (!on.uses) f.uses.max = null;
     else if (f.uses.max == null) f.uses.max = 1;
     if (!on.effect) f.effectType = derivedType;
-    onsave($state.snapshot(f) as Feature);
+    // In Form bringen wie beim Laden (z. B. Nutzungen nicht über dem Maximum)
+    onsave(normalizeFeature($state.snapshot(f)));
   }
 </script>
 
@@ -399,7 +419,7 @@
     <Plus size={14} /> Modifikator oder Stufe hinzurechnen
   </button>
   {#if f.damageAdds.length && damagePreview}
-    <p class="tiny muted">Für diesen Charakter: <span class="mono">{formatDice(damagePreview)}</span> ({describeDamageAdds(c, f.damageAdds)})</p>
+    <p class="tiny muted">Für diesen Charakter: <span class="mono">{formatDice(damagePreview)}</span> · {describeDamageAdds(c, f.damageAdds)}</p>
   {/if}
 {/snippet}
 
@@ -481,8 +501,11 @@
           <select class="select" bind:value={f.acMod.mode} aria-label="Art">
             {#each AC_MODES.filter(a => a.key !== "none") as a (a.key)}<option value={a.key}>{a.label}</option>{/each}
           </select>
-          <input class="input mono" type="number" bind:value={f.acMod.value} aria-label="Wert" />
+          <NumberField class="input mono" aria-label="Wert" bind:value={f.acMod.value} />
         </div>
+        {#if f.acMod.mode === "bonus"}
+          <label class="checkbox small"><input type="checkbox" bind:checked={() => f.acMod.armoredOnly === true, v => (f.acMod.armoredOnly = v || undefined)} /> Nur mit angelegter Rüstung</label>
+        {/if}
         <p class="tiny muted">Wirkt, solange die Fähigkeit aktiv ist (passiv immer, sonst nach dem Einsetzen für die Dauer).</p>
       </div>
     {/if}
@@ -522,6 +545,9 @@
         {@render damageAddsEditor()}
         <label class="checkbox small"><input type="checkbox" bind:checked={f.damageTypeFromAttack} /> Schadensart des auslösenden Angriffs (Waffe oder Zauber)</label>
         <label class="checkbox small"><input type="checkbox" bind:checked={f.damageOtherTarget} /> Trifft ein weiteres Ziel (eigener Schadenswurf)</label>
+        {#if f.damageOtherTarget}
+          <label class="checkbox small sub"><input type="checkbox" bind:checked={f.critWithAttack} /> Kritisch, wenn der Angriff kritisch war</label>
+        {/if}
         <p class="tiny muted">
           {#if f.damageOtherTarget}
             Im Angriffs-Assistenten würfelst du den Schaden nach dem Waffenschaden separat für das weitere Ziel, ohne Boni des Angriffs.
@@ -579,7 +605,7 @@
             {#each DURATIONS.filter(d => d.key !== "instant") as d (d.key)}<option value={d.key}>{d.label}</option>{/each}
           </select>
           {#if ["rounds", "minutes", "hours", "concentration"].includes(f.duration.kind)}
-            <input class="input mono" type="number" min="1" bind:value={f.duration.amount} aria-label="Anzahl" />
+            <NumberField class="input mono" min={1} aria-label="Anzahl" bind:value={f.duration.amount} />
           {:else if f.duration.kind === "special"}
             <input class="input" bind:value={f.duration.text} aria-label="Dauer (Text)" />
           {/if}
@@ -598,7 +624,7 @@
       <div class="block" id="feature-block-uses">
         {@render blockHead("uses", () => remove("uses"))}
         <div class="row uses">
-          <input class="input mono num" type="number" min="0" max="99" bind:value={f.uses.max} aria-label="Anzahl" />
+          <NumberField class="input mono num" min={0} max={99} aria-label="Anzahl" bind:value={f.uses.max} />
           <span class="small muted">×</span>
           <select class="select" bind:value={f.uses.reset} aria-label="Zurücksetzen">
             {#each USE_RESETS as r (r.key)}<option value={r.key}>{r.label}</option>{/each}
@@ -613,7 +639,7 @@
           <select class="select grow" bind:value={f.resourceId} aria-label="Ressource">
             {#each c.resources as r (r.id)}<option value={r.id}>{r.name} ({r.max})</option>{/each}
           </select>
-          <input class="input mono num" type="number" min="0" bind:value={f.resourceCost} aria-label="Kosten" title="Kosten" />
+          <NumberField class="input mono num" min={0} aria-label="Kosten" title="Kosten" bind:value={f.resourceCost} />
         </div>
       </div>
     {/if}
@@ -636,7 +662,7 @@
           <select class="select grow" bind:value={link.featureId} aria-label="Fähigkeit">
             {#each linkable as x (x.id)}<option value={x.id}>{x.name || "Ohne Namen"}</option>{/each}
           </select>
-          <input class="input mono num" type="number" min="0" bind:value={link.cost} aria-label="Nutzungen" title="Nutzungen" />
+          <NumberField class="input mono num" min={0} aria-label="Nutzungen" title="Nutzungen" bind:value={link.cost} />
         </div>
         <select class="select" bind:value={link.when} aria-label="Wann">
           {#each LINK_WHEN as w (w.key)}<option value={w.key}>{w.label}</option>{/each}
@@ -757,9 +783,10 @@
   .plus { color: var(--muted); font-weight: 700; width: 0.8rem; text-align: center; }
   .add-inline { align-self: flex-start; }
   .abilities { padding-left: 1.2rem; }
+  .sub { padding-left: 1.5rem; }
   .abilities .chip { min-height: 30px; padding: 0.2rem 0.6rem; }
   .uses .select { width: auto; flex: 1; }
-  .num { width: 4.5rem; flex: none; }
+  form :global(.num) { width: 4.5rem; flex: none; }
 
   .add-more {
     min-height: 46px;

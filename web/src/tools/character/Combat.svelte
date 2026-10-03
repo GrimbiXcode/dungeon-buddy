@@ -1,9 +1,12 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import { Plus, Trash2 } from "@lucide/svelte";
   import Icon from "../../components/Icon.svelte";
   import Modal from "../../components/Modal.svelte";
-  import { hitDiceSummary, mod, newResource, totalLevel } from "../../lib/character";
+  import { applyDeathSave, hitDiceLeft, hitDicePools, hitDiceSummary, leftOf, mod, newResource, spendHitDie as markHitDie } from "../../lib/character";
   import { CONDITIONS } from "../../lib/dnd";
+  import { confirmDialog } from "../../lib/confirm.svelte";
+  import { toast } from "../../lib/toast.svelte";
   import { sheet } from "./context";
 
   const ctx = sheet();
@@ -18,10 +21,26 @@
     c.conditions = c.conditions.includes(name) ? c.conditions.filter(x => x !== name) : [...c.conditions, name];
   }
 
+  /**
+   * Todesrettungswurf: Ergebnis wird eingetragen. Würfelt man im Dialog neu
+   * (oder ändert Optionen), ersetzt das neue Ergebnis das alte.
+   */
+  function rollDeathSave() {
+    const base = { deathSaves: { ...c.deathSaves }, hp: c.hp.current };
+    ctx.rollD20("Todesrettungswurf", 0, "deathSave", {
+      target: 10,
+      subtitle: "Wird eingetragen. 10 oder mehr: Erfolg. Natürliche 20: 1 TP. Natürliche 1: zwei Fehlschläge.",
+      onResult: (kept, total) => {
+        c.deathSaves = { ...base.deathSaves };
+        c.hp.current = base.hp;
+        toast(applyDeathSave(c, kept, total));
+      },
+    });
+  }
+
   /** Trefferwürfel ausgeben: würfeln (Heilung) und als verbraucht markieren. */
   function spendHitDie(die: number) {
-    if (c.hitDiceUsed >= totalLevel(c)) return;
-    c.hitDiceUsed++;
+    if (!markHitDie(c, die)) return;
     const con = mod(c, "con");
     ctx.rollDamage(`Trefferwürfel W${die}`, `1d${die}${con ? (con > 0 ? `+${con}` : `${con}`) : ""}`, {
       heal: true,
@@ -29,7 +48,20 @@
     });
   }
 
-  const hitDieTypes = $derived([...new Set(c.classes.map(k => k.hitDie))]);
+  const pools = $derived(hitDicePools(c));
+
+  /** Ressource entfernen; Fähigkeiten, die sie verbrauchten, verlieren den Bezug (statt unbegrenzt zu werden) */
+  async function removeResource(id: string) {
+    const users = c.features.filter(f => f.resourceId === id);
+    const name = c.resources.find(r => r.id === id)?.name || "Ressource";
+    if (users.length && !(await confirmDialog(`„${name}“ wird von ${users.map(f => f.name).join(", ")} verbraucht. Diese Fähigkeiten verbrauchen danach nichts mehr.`, { confirmLabel: "Entfernen" }))) return;
+    for (const f of users) f.resourceId = null;
+    c.resources = c.resources.filter(x => x.id !== id);
+  }
+
+  function setUsed(die: number, used: number) {
+    c.hitDiceUsed = { ...c.hitDiceUsed, [die]: used };
+  }
 </script>
 
 <div class="combat">
@@ -64,7 +96,7 @@
           <button class="pip failure" class:on={c.deathSaves.failures >= n} aria-label="Fehlschlag {n}" onclick={() => setDeath("failures", n)}></button>
         {/each}
       </div>
-      <button class="btn btn-sm" onclick={() => ctx.rollD20("Todesrettungswurf", 0, "deathSave", { target: 10, subtitle: "10 oder mehr: Erfolg. Natürliche 20: 1 TP. Natürliche 1: zwei Fehlschläge." })}>
+      <button class="btn btn-sm" onclick={rollDeathSave}>
         Würfeln
       </button>
     </div>
@@ -72,13 +104,17 @@
 
   <section class="card">
     <h3><Icon name="hp" size={16} /> Trefferwürfel</h3>
-    <p class="small"><strong>{Math.max(0, totalLevel(c) - c.hitDiceUsed)}</strong> von {hitDiceSummary(c) || totalLevel(c)} übrig</p>
+    <p class="small"><strong>{hitDiceLeft(c)}</strong> von {hitDiceSummary(c)} übrig</p>
     {#if ctx.editing}
-      <label class="tiny muted">Verbraucht <input class="input input-sm mono used" type="number" min="0" max={totalLevel(c)} bind:value={c.hitDiceUsed} /></label>
+      <div class="row">
+        {#each pools as p (p.die)}
+          <label class="tiny muted">W{p.die} verbraucht <NumberField class="input input-sm mono used" min={0} max={p.total} bind:value={() => p.used, v => setUsed(p.die, v ?? 0)} /></label>
+        {/each}
+      </div>
     {:else}
       <div class="row">
-        {#each hitDieTypes as die (die)}
-          <button class="btn btn-sm" disabled={c.hitDiceUsed >= totalLevel(c)} onclick={() => spendHitDie(die)}>W{die} ausgeben</button>
+        {#each pools as p (p.die)}
+          <button class="btn btn-sm" disabled={p.used >= p.total} onclick={() => spendHitDie(p.die)}>W{p.die} ausgeben ({p.total - p.used} übrig)</button>
         {/each}
       </div>
     {/if}
@@ -98,13 +134,13 @@
       {#if ctx.editing}
         <div class="res-edit">
           <input class="input input-sm grow" bind:value={r.name} aria-label="Name" />
-          <input class="input input-sm mono num" type="number" min="0" bind:value={r.max} aria-label="Maximum" />
+          <NumberField class="input input-sm mono num" min={0} aria-label="Maximum" bind:value={r.max} />
           <select class="select input-sm reset" bind:value={r.reset} aria-label="Zurücksetzen bei">
             <option value="short">Kurze Rast</option>
             <option value="long">Lange Rast</option>
             <option value="none">Nie</option>
           </select>
-          <button class="btn btn-sm btn-icon btn-danger" aria-label="Entfernen" onclick={() => (c.resources = c.resources.filter(x => x.id !== r.id))}><Trash2 size={14} /></button>
+          <button class="btn btn-sm btn-icon btn-danger" aria-label="Entfernen" onclick={() => removeResource(r.id)}><Trash2 size={14} /></button>
         </div>
       {:else}
         <div class="res">
@@ -112,13 +148,13 @@
           {#if r.max <= 10}
             <span class="pips">
               {#each Array.from({ length: r.max }, (_, i) => i) as i (i)}
-                <button class="pip" class:on={i < r.max - r.used} aria-label="{r.name} {i + 1}" onclick={() => (r.used = i < r.max - r.used ? r.max - i : r.max - i - 1)}></button>
+                <button class="pip" class:on={i < leftOf(r)} aria-label="{r.name} {i + 1}" onclick={() => (r.used = i < leftOf(r) ? r.max - i : r.max - i - 1)}></button>
               {/each}
             </span>
           {:else}
             <span class="row counter">
               <button class="btn btn-sm btn-icon" aria-label="verbrauchen" onclick={() => (r.used = Math.min(r.max, r.used + 1))}>−</button>
-              <span class="mono">{r.max - r.used}/{r.max}</span>
+              <span class="mono">{leftOf(r)}/{r.max}</span>
               <button class="btn btn-sm btn-icon" aria-label="zurückgewinnen" onclick={() => (r.used = Math.max(0, r.used - 1))}>+</button>
             </span>
           {/if}
@@ -158,12 +194,12 @@
   .pip.on { background: var(--accent); border-color: var(--accent); }
   .pip.success.on { background: var(--success); border-color: var(--success); }
   .pip.failure.on { background: var(--danger); border-color: var(--danger); }
-  .used { width: 5rem; display: block; margin-top: 0.2rem; }
+  .combat :global(.used) { width: 5rem; display: block; margin-top: 0.2rem; }
   .res, .res-edit { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
   .res:last-child, .res-edit:last-child { border-bottom: 0; }
   .pips { display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: flex-end; }
   .pips .pip { width: 18px; height: 18px; }
-  .num { width: 4rem; }
+  .combat :global(.num) { width: 4rem; }
   .reset { width: 8.5rem; }
   .counter { gap: 0.35rem; }
   @media (max-width: 480px) {

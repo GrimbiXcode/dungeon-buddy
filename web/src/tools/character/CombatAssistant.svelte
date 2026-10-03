@@ -25,10 +25,10 @@
     type Activation,
     type Feature,
   } from "../../lib/features";
-  import { d20Request, isPhysical, openRoll } from "../../lib/roller.svelte";
+  import { isPhysical, openRoll } from "../../lib/roller.svelte";
   import { toast } from "../../lib/toast.svelte";
   import type { Spell } from "../../lib/types";
-  import { applySpellEffect, isPrepared, spellDice } from "../spellbook/spells";
+  import { applySpellEffect, damageTypeName, isPrepared, spellDice } from "../spellbook/spells";
   import { formatDice } from "../../lib/dice";
   import Stepper from "../../components/Stepper.svelte";
   import { parseDice } from "../../lib/dice";
@@ -178,7 +178,7 @@
 
   function begin(rollInitiative: boolean) {
     startCombat(c);
-    if (rollInitiative) ctx.rollD20("Initiative", initiative(c), "initiative", { ability: "dex" });
+    if (rollInitiative) ctx.rollD20("Initiative", initiative(c, ctx.ruleset), "initiative", { ability: "dex" });
   }
 
   function turn() {
@@ -218,20 +218,14 @@
     for (const note of applySpellEffect(c, s, ctx.ruleset)) toast(note);
     const dmg = spellDice(s, "damage", c, slotLevel);
     const heal = spellDice(s, "heal", c, slotLevel);
+    const damageType = damageTypeName(s.data.damageType) || undefined;
     if (s.data.attack) {
-      openRoll(
-        d20Request({
-          title: `${s.name} – Zauberangriff`,
-          modifier: spellAttackBonus(c),
-          kind: "attack",
-          ruleset: ctx.ruleset,
-          exhaustion: c.exhaustion,
-          rollMode: c.rollMode,
-          followUp: dmg ? { title: `${s.name} – Schaden`, dice: dmg, damageType: s.data.damageType ?? undefined, canCrit: true } : undefined,
-        })
-      );
+      // Über den Bogen würfeln, damit Segen & Co. als Optionen erscheinen
+      ctx.rollD20(`${s.name} – Zauberangriff`, spellAttackBonus(c), "attack", {
+        damage: dmg ? { title: `${s.name} – Schaden`, dice: dmg, damageType } : undefined,
+      });
     } else if (dmg) {
-      openRoll({ type: "damage", title: `${s.name} – Schaden`, dice: dmg, damageType: s.data.damageType ?? undefined, canCrit: false, physical: isPhysical(c.rollMode) });
+      openRoll({ type: "damage", title: `${s.name} – Schaden`, dice: dmg, damageType, canCrit: false, physical: isPhysical(c.rollMode) });
     } else if (heal) {
       openRoll({ type: "damage", title: `${s.name} – Heilung`, dice: heal, heal: true, canCrit: false, physical: isPhysical(c.rollMode) });
     }

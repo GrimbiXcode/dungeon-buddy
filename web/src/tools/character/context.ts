@@ -16,16 +16,24 @@ export type SheetContext = {
     title: string,
     modifier: number,
     kind: RollKind,
-    opts?: { subtitle?: string; target?: number; damage?: DamageSpec; ability?: Ability | null; skill?: SkillKey | null }
+    opts?: {
+      subtitle?: string;
+      target?: number;
+      damage?: DamageSpec;
+      ability?: Ability | null;
+      skill?: SkillKey | null;
+      /** Ergebnis (wird bei erneutem Wurf im Dialog erneut gemeldet) */
+      onResult?: (kept: number, total: number) => void;
+    }
   ): void;
   rollDamage(title: string, dice: string, opts?: { damageType?: string; heal?: boolean; effect?: string; subtitle?: string }): void;
   /**
    * Fähigkeit einsetzen (Nutzung, Aktionsart, Effekt, ggf. Würfelwurf).
    * Ohne picks fragt der Bogen nach, wenn mehrere Attribute zur Wahl stehen.
    */
-  useFeature(f: Feature, picks?: AbilityPicks): void;
+  useFeature(f: Feature, picks?: AbilityPicks, opts?: { onSelf?: boolean }): void;
   /** Angriffs-Assistent für eine Waffe öffnen (offhand: Zusatzangriff mit leichter Waffe) */
-  openAttack(a: Attack, opts?: { offhand?: boolean }): void;
+  openAttack(a: Attack, opts?: { offhand?: boolean; feature?: string }): void;
   /** Eintrag in die eigene Bibliothek kopieren */
   addToLibrary(kind: "feature", item: Feature): void;
   addToLibrary(kind: "attack", item: Attack): void;

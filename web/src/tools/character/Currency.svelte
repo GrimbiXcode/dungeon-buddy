@@ -1,4 +1,5 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import { sheet } from "./context";
 
   const ctx = sheet();
@@ -18,7 +19,7 @@
     {#each coins as coin (coin.key)}
       <label class="coin" title={coin.title}>
         <span class="label">{coin.label}</span>
-        <input class="input input-sm mono" type="number" min="0" bind:value={c.currency[coin.key]} aria-label={coin.title} />
+        <NumberField class="input input-sm mono" min={0} aria-label={coin.title} bind:value={c.currency[coin.key]} />
       </label>
     {/each}
   </div>
@@ -28,5 +29,5 @@
   h3 { margin: 0 0 0.5rem; font-size: 1rem; }
   .coins { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.4rem; }
   .coin { display: flex; flex-direction: column; gap: 0.2rem; align-items: center; }
-  .coin input { text-align: center; }
+  .coin :global(input) { text-align: center; }
 </style>
