@@ -12,6 +12,7 @@ import {
   endCombat,
   isAvailable,
   isDamageTwice,
+  matchesFilter,
   newFeature,
   newRollMod,
   nextTurn,
@@ -177,5 +178,27 @@ describe("Bausteine im Editor", () => {
     // Nur bei Waffenangriffen, nicht bei Zauberangriffen
     const spell = newAttack({ name: "Feuerpfeil", ability: "spell", damage: "1d10", kind: "ranged" });
     expect(appliesToAttack(savage, spell)).toBe(false);
+  });
+});
+
+describe("Kategorien", () => {
+  it("übernimmt die alte Einzelkategorie und startet neue Fähigkeiten ohne Kategorie", () => {
+    expect(normalizeFeature({ name: "Alt", category: "Talent" }).categories).toEqual(["Talent"]);
+    expect(normalizeFeature({ name: "Neu", categories: ["Klasse", " Barbar ", "Klasse", ""] }).categories).toEqual(["Klasse", "Barbar"]);
+    expect(normalizeFeature({ name: "Ohne" }).categories).toEqual([]);
+    expect(newFeature().categories).toEqual([]);
+  });
+
+  it("filtert nach jeder der Kategorien", () => {
+    const f = newFeature({ name: "Kampfrausch", categories: ["Klasse", "Barbar"] });
+    const filter = { search: "", tags: [], effectTypes: [] };
+    expect(matchesFilter(f, { ...filter, categories: ["Barbar"] })).toBe(true);
+    expect(matchesFilter(f, { ...filter, categories: ["Talent"] })).toBe(false);
+    expect(matchesFilter(f, { ...filter, search: "barb", categories: [] })).toBe(true);
+  });
+
+  it("Vorlagen behalten ihre Kategorie, Spezies wird umbenannt", () => {
+    expect(buildPreset("rage", "2024", "Spezies").categories).toEqual(["Klasse"]);
+    expect(buildPreset("breath", "2014", "Volk").categories).toEqual(["Volk"]);
   });
 });

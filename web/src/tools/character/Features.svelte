@@ -8,6 +8,7 @@
   import {
     ACTIVATIONS,
     EFFECT_TYPES,
+    mainCategory,
     matchesFilter,
     newFeature,
     type Activation,
@@ -30,7 +31,7 @@
   let editing = $state<Feature | null>(null);
   let showPresets = $state(false);
 
-  const allCategories = $derived([...new Set(c.features.map(f => f.category))].sort((a, b) => a.localeCompare(b, "de")));
+  const allCategories = $derived([...new Set(c.features.flatMap(f => f.categories))].sort((a, b) => a.localeCompare(b, "de")));
   const allTags = $derived([...new Set(c.features.flatMap(f => f.tags))].sort((a, b) => a.localeCompare(b, "de")));
   const usedEffects = $derived(EFFECT_TYPES.filter(e => c.features.some(f => f.effectType === e.key)));
 
@@ -39,10 +40,15 @@
       f => matchesFilter(f, { search, categories, tags, effectTypes }) && (!activation || f.activation === activation)
     )
   );
+  // Gruppiert nach der ersten Kategorie; ohne Kategorie ganz am Schluss
   const groups = $derived(
-    [...new Set(filtered.map(f => f.category))]
-      .sort((a, b) => a.localeCompare(b, "de"))
-      .map(cat => ({ cat, list: filtered.filter(f => f.category === cat).sort((a, b) => a.name.localeCompare(b.name, "de")) }))
+    [...new Set(filtered.map(mainCategory))]
+      .sort((a, b) => Number(!a) - Number(!b) || a.localeCompare(b, "de"))
+      .map(cat => ({
+        cat,
+        title: cat || "Ohne Kategorie",
+        list: filtered.filter(f => mainCategory(f) === cat).sort((a, b) => a.name.localeCompare(b.name, "de")),
+      }))
   );
   const filtering = $derived(Boolean(search || categories.length || tags.length || effectTypes.length || activation));
 
@@ -94,7 +100,7 @@
     <div class="row">
       <button class="btn btn-sm" onclick={() => (showPresets = true)}><Icon name="library" size={14} /> Aus Vorlage</button>
       <button class="btn btn-sm" onclick={() => ctx.openLibrary("feature")}><Icon name="library" size={14} /> Aus Bibliothek</button>
-      <button class="btn btn-sm btn-primary" onclick={() => (editing = newFeature({ category: categories[0] ?? "Klasse" }))}>
+      <button class="btn btn-sm btn-primary" onclick={() => (editing = newFeature({ categories: [...categories] }))}>
         <Plus size={14} /> Neue Fähigkeit
       </button>
     </div>
@@ -138,7 +144,7 @@
   {:else}
     {#each groups as g (g.cat)}
       <div class="group">
-        <h4 class="label">{g.cat} <span class="faint">({g.list.length})</span></h4>
+        <h4 class="label">{g.title} <span class="faint">({g.list.length})</span></h4>
         <div class="list">
           {#each g.list as f (f.id)}
             <FeatureCard feature={f} compact onedit={() => (editing = f)} ondelete={() => remove(f)} onlibrary={() => ctx.addToLibrary("feature", f)} />

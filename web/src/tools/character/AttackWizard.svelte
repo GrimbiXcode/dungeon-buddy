@@ -56,9 +56,9 @@
   const rollOpts = $derived({ ability: abilityChoice, offhand });
 
   const options = $derived(attackOptions(c, attack));
-  const categories = $derived([...new Set([...options.before, ...options.onHit].map(o => o.feature.category))]);
+  const categories = $derived([...new Set([...options.before, ...options.onHit].flatMap(o => o.feature.categories))]);
   const visible = (list: AttackOption[]) =>
-    list.filter(o => o.automatic || !categoryFilter.length || categoryFilter.includes(o.feature.category));
+    list.filter(o => o.automatic || !categoryFilter.length || o.feature.categories.some(cat => categoryFilter.includes(cat)));
 
   /** Fähigkeiten, die in diesen Angriff einfliessen */
   const activeBefore = $derived(options.before.filter(o => o.automatic || selectedBefore.includes(o.feature.id)));

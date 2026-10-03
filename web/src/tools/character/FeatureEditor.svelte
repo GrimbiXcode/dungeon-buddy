@@ -2,6 +2,7 @@
   import { tick } from "svelte";
   import { unitSystem } from "../../lib/session.svelte";
   import Modal from "../../components/Modal.svelte";
+  import TagInput from "../../components/TagInput.svelte";
   import { Plus, Trash2, X } from "@lucide/svelte";
   import { parseBonus, parseDice } from "../../lib/dice";
   import { ABILITIES, ABILITY_NAMES, SKILLS, rulesTerms } from "../../lib/dnd";
@@ -41,7 +42,7 @@
   // svelte-ignore state_referenced_locally
   let f = $state(normalizeFeature(JSON.parse(JSON.stringify(feature))));
   // svelte-ignore state_referenced_locally
-  let tagText = $state(feature.tags.join(", "));
+  let tags = $state([...feature.tags]);
   let error = $state<string | null>(null);
 
   // ── Bausteine ──────────────────────────────────────────────────────────
@@ -118,7 +119,7 @@
   });
 
   const categories = $derived([
-    ...new Set([...baseCategories(rulesTerms(ctx.ruleset).species), ...c.features.map(x => x.category)].filter(Boolean)),
+    ...new Set([...baseCategories(rulesTerms(ctx.ruleset).species), ...c.features.flatMap(x => x.categories)].filter(Boolean)),
   ]);
   const allTags = $derived([...new Set(c.features.flatMap(x => x.tags))]);
 
@@ -271,7 +272,7 @@
         f.condition = "";
         break;
       case "tags":
-        tagText = "";
+        tags = [];
         break;
     }
   }
@@ -299,7 +300,7 @@
       return;
     }
     f.rollMods = composedMods();
-    f.tags = on.tags ? [...new Set(tagText.split(",").map(t => t.trim()).filter(Boolean))] : [];
+    f.tags = on.tags ? tags : [];
     if (!on.uses) f.uses.max = null;
     else if (f.uses.max == null) f.uses.max = 1;
     if (!on.effect) f.effectType = derivedType;
@@ -330,13 +331,10 @@
 
 <Modal title={feature.name ? `${feature.name} bearbeiten` : "Neue Fähigkeit"} size="lg" {onclose}>
   <form id="feature-form" onsubmit={submit}>
-    <div class="grid-2">
-      <label class="field"><span class="label">Name</span><input class="input" bind:value={f.name} required maxlength="120" /></label>
-      <label class="field">
-        <span class="label">Kategorie</span>
-        <input class="input" list="feature-categories" bind:value={f.category} placeholder="z. B. Klasse, Talent, Ausrüstung …" />
-        <datalist id="feature-categories">{#each categories as cat (cat)}<option value={cat}></option>{/each}</datalist>
-      </label>
+    <label class="field"><span class="label">Name</span><input class="input" bind:value={f.name} required maxlength="120" /></label>
+    <div class="field">
+      <label class="label" for="feature-categories">Kategorie <span class="optional">(mehrere möglich, auch eigene)</span></label>
+      <TagInput id="feature-categories" label="Kategorie" bind:values={f.categories} options={categories} placeholder="Wählen oder eintippen" />
     </div>
     <div class="field">
       <span class="label">Einsatz</span>
@@ -547,8 +545,7 @@
     {#if on.tags}
       <div class="block" id="feature-block-tags">
         {@render blockHead("tags", () => remove("tags"))}
-        <input class="input" list="feature-tags" bind:value={tagText} placeholder="z. B. Nahkampf, Kontrolle (kommagetrennt)" aria-label="Schlagworte" />
-        <datalist id="feature-tags">{#each allTags as t (t)}<option value={t}></option>{/each}</datalist>
+        <TagInput label="Schlagworte" bind:values={tags} options={allTags} placeholder="z. B. Nahkampf, Kontrolle" />
       </div>
     {/if}
 
