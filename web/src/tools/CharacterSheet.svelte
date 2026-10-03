@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import { ArrowLeft, Check, CloudOff, GitFork, Moon, Play, RefreshCw, Star } from "@lucide/svelte";
+  import { ArrowLeft, Check, CloudOff, GitFork, RefreshCw, Star } from "@lucide/svelte";
   import Icon from "../components/Icon.svelte";
   import { current } from "../lib/campaign.svelte";
   import { ApiError, get, post, put } from "../lib/api";
@@ -399,11 +399,11 @@
     </span>
     <div class="row actions">
       <div class="segmented" role="group" aria-label="Modus">
-        <button aria-pressed={!editing} onclick={() => (editing = false)}><Play size={14} /> Spielen</button>
+        <button aria-pressed={!editing} onclick={() => (editing = false)}><Icon name="play" size={14} /> Spielen</button>
         <button aria-pressed={editing} onclick={() => (editing = true)}><Icon name="edit" size={14} /> Bearbeiten</button>
       </div>
       <button class="btn btn-sm" onclick={() => rest("short")}><Icon name="shortRest" size={15} /> Kurze Rast</button>
-      <button class="btn btn-sm" onclick={() => rest("long")}><Moon size={15} /> Lange Rast</button>
+      <button class="btn btn-sm" onclick={() => rest("long")}><Icon name="longRest" size={15} /> Lange Rast</button>
     </div>
   </div>
 
