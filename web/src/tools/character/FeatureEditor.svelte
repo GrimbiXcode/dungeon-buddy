@@ -1,19 +1,26 @@
 <script lang="ts">
   import { unitSystem } from "../../lib/session.svelte";
   import Modal from "../../components/Modal.svelte";
-  import { parseDice } from "../../lib/dice";
-  import { rulesTerms } from "../../lib/dnd";
+  import { Plus, Trash2 } from "@lucide/svelte";
+  import { parseBonus, parseDice } from "../../lib/dice";
+  import { ABILITIES, ABILITY_NAMES, SKILLS, rulesTerms } from "../../lib/dnd";
   import {
+    AC_MODES,
     ACTIVATIONS,
+    ADV_MODES,
     DURATIONS,
     EFFECT_TYPES,
+    LINK_WHEN,
+    ROLL_TARGETS,
     SCOPES,
     TARGETS,
     TRIGGERS,
     USE_RESETS,
     baseCategories,
+    newRollMod,
     normalizeFeature,
     type Feature,
+    type RollMod,
     type Trigger,
   } from "../../lib/features";
   import { sheet } from "./context";
@@ -49,6 +56,25 @@
     f.appliesTo.attackIds = ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id];
   }
 
+  /** Andere Fähigkeiten, die diese mitverwenden kann */
+  const linkable = $derived(c.features.filter(x => x.id !== f.id).sort((a, b) => a.name.localeCompare(b.name, "de")));
+
+  function addLink() {
+    const first = linkable.find(x => !f.links.some(l => l.featureId === x.id));
+    if (first) f.links = [...f.links, { featureId: first.id, cost: 1, when: "use" }];
+  }
+
+  function addRollMod() {
+    f.rollMods = [...f.rollMods, newRollMod()];
+  }
+
+  /** Angriffs-/Schadensboni brauchen einen Angriffsbezug */
+  function targetChanged(m: RollMod) {
+    m.ability = null;
+    m.skill = null;
+    if ((m.target === "attack" || m.target === "damage") && f.appliesTo.scope === "none") f.appliesTo.scope = "all";
+  }
+
   function submit(e: SubmitEvent) {
     e.preventDefault();
     if (!f.name.trim()) {
@@ -59,6 +85,12 @@
       error = `Ungültiger Würfelausdruck „${f.damage}“ (Beispiel: 2d6+3).`;
       return;
     }
+    const badMod = f.rollMods.find(m => m.bonus.trim() && !parseBonus(m.bonus));
+    if (badMod) {
+      error = `Ungültiger Bonus „${badMod.bonus}“ (Beispiele: 2, -1, 1d4, -1d4).`;
+      return;
+    }
+    f.rollMods = f.rollMods.filter(m => m.bonus.trim() || m.mode !== "none");
     f.tags = [...new Set(tagText.split(",").map(t => t.trim()).filter(Boolean))];
     if (!limited) f.uses.max = null;
     else if (f.uses.max == null) f.uses.max = 1;
@@ -124,6 +156,27 @@
           {/if}
         </div>
       {/if}
+      <div class="field">
+        <span class="label">Verwendet andere Fähigkeiten</span>
+        {#each f.links as link, i (i)}
+          <div class="row link-row">
+            <select class="select input-sm grow" bind:value={link.featureId} aria-label="Fähigkeit">
+              {#each linkable as x (x.id)}<option value={x.id}>{x.name || "Ohne Namen"}</option>{/each}
+            </select>
+            <input class="input input-sm mono num" type="number" min="0" bind:value={link.cost} aria-label="Nutzungen" title="Nutzungen" />
+            <select class="select input-sm when" bind:value={link.when} aria-label="Wann">
+              {#each LINK_WHEN as w (w.key)}<option value={w.key}>{w.label}</option>{/each}
+            </select>
+            <button type="button" class="btn btn-sm btn-icon btn-ghost" aria-label="Verknüpfung entfernen" onclick={() => (f.links = f.links.filter((_, j) => j !== i))}><Trash2 size={14} /></button>
+          </div>
+        {/each}
+        {#if linkable.length > f.links.length}
+          <button type="button" class="btn btn-sm btn-ghost add" onclick={addLink}><Plus size={14} /> Verknüpfung</button>
+        {:else if !linkable.length}
+          <span class="tiny muted">Lege zuerst die andere Fähigkeit an (z. B. Durchschnaufen für Taktisches Verständnis).</span>
+        {/if}
+        <span class="tiny muted">„Wenn es gelingt“: Der Verbrauch wird erst bestätigt, wenn du ihn nach dem Wurf auslöst.</span>
+      </div>
       <div class="field">
         <span class="label">Auslöser (für Vorschläge im Kampf)</span>
         <div class="chip-row">
@@ -192,15 +245,59 @@
         </div>
       {/if}
       {#if f.appliesTo.scope !== "none"}
-        <div class="grid-3">
-          <label class="field"><span class="label">Treffer-Modifikator</span><input class="input mono" type="number" bind:value={f.attackMods.toHit} /></label>
-          <label class="field"><span class="label">Schadensbonus</span><input class="input mono" type="number" bind:value={f.attackMods.damageBonus} /></label>
-          <label class="checkbox adv"><input type="checkbox" bind:checked={f.attackMods.advantage} /> Gibt Vorteil</label>
-        </div>
         <p class="tiny muted">
           Würfel aus „Schaden“ werden beim Treffer zum Waffenschaden addiert, wenn der Auslöser „Bei Treffer“ gesetzt ist oder
-          die Fähigkeit vor dem Angriff gewählt wird.
+          die Fähigkeit vor dem Angriff gewählt wird. Treffer- und Schadensboni legst du unten unter „Würfe verändern“ fest.
         </p>
+      {/if}
+    </fieldset>
+
+    <fieldset>
+      <legend>Würfe verändern</legend>
+      <p class="tiny muted intro">
+        Bonus als Zahl oder Würfel (z. B. 2, 1d4, -1d4) und/oder Vorteil/Nachteil. Passive und aktive Fähigkeiten wirken
+        automatisch; Fähigkeiten ohne Dauer (frei, vor der Aktion, Reaktion) kannst du im Würfeldialog dazuwählen, auch nach dem Wurf.
+      </p>
+      {#each f.rollMods as m, i (i)}
+        <div class="mod-row">
+          <select class="select input-sm" bind:value={m.target} onchange={() => targetChanged(m)} aria-label="Wurf">
+            {#each ROLL_TARGETS as t (t.key)}<option value={t.key}>{t.label}</option>{/each}
+          </select>
+          {#if m.target === "check" || m.target === "save"}
+            <select class="select input-sm" bind:value={m.ability} aria-label="Attribut">
+              <option value={null}>alle Attribute</option>
+              {#each ABILITIES as a (a)}<option value={a}>{ABILITY_NAMES[a]}</option>{/each}
+            </select>
+          {:else if m.target === "skill"}
+            <select class="select input-sm" bind:value={m.skill} aria-label="Fertigkeit">
+              <option value={null}>alle Fertigkeiten</option>
+              {#each SKILLS as sk (sk.key)}<option value={sk.key}>{sk.name}</option>{/each}
+            </select>
+          {:else}
+            <span></span>
+          {/if}
+          <input class="input input-sm mono" bind:value={m.bonus} placeholder="+2 / 1d4" aria-label="Bonus" />
+          <select class="select input-sm" bind:value={m.mode} aria-label="Vorteil/Nachteil">
+            {#each ADV_MODES as a (a.key)}<option value={a.key}>{a.label}</option>{/each}
+          </select>
+          <button type="button" class="btn btn-sm btn-icon btn-ghost" aria-label="Modifikator entfernen" onclick={() => (f.rollMods = f.rollMods.filter((_, j) => j !== i))}><Trash2 size={14} /></button>
+        </div>
+      {/each}
+      <button type="button" class="btn btn-sm btn-ghost add" onclick={addRollMod}><Plus size={14} /> Modifikator</button>
+
+      <div class="grid-2 ac">
+        <label class="field">
+          <span class="label">Rüstungsklasse</span>
+          <select class="select" bind:value={f.acMod.mode}>
+            {#each AC_MODES as a (a.key)}<option value={a.key}>{a.label}</option>{/each}
+          </select>
+        </label>
+        {#if f.acMod.mode !== "none"}
+          <label class="field"><span class="label">Wert</span><input class="input mono" type="number" bind:value={f.acMod.value} /></label>
+        {/if}
+      </div>
+      {#if f.acMod.mode !== "none"}
+        <p class="tiny muted">Wirkt, solange die Fähigkeit aktiv ist (passiv immer, sonst nach dem Einsetzen für die Dauer).</p>
       {/if}
     </fieldset>
 
@@ -240,6 +337,14 @@
   }
   .chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
   .weapons { margin-bottom: 0.8rem; }
-  .adv { align-self: center; margin-top: 0.8rem; }
+  .link-row { gap: 0.35rem; margin-bottom: 0.35rem; flex-wrap: nowrap; }
+  .link-row .when { width: auto; max-width: 14rem; }
+  .add { align-self: flex-start; }
+  .intro { margin: 0 0 0.5rem; }
+  .mod-row { display: grid; grid-template-columns: 1.2fr 1.2fr 0.8fr 0.9fr auto; gap: 0.35rem; margin-bottom: 0.35rem; align-items: center; }
+  @media (max-width: 560px) {
+    .mod-row { grid-template-columns: 1fr 1fr; }
+  }
+  .ac { margin-top: 0.8rem; }
   .error { color: var(--danger); }
 </style>

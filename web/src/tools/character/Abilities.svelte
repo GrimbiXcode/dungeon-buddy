@@ -18,7 +18,7 @@
           <span class="mod mono">{formatMod(mod(c, a))}</span>
         </label>
       {:else}
-        <button class="ability" title="{ABILITY_NAMES[a]}swurf" onclick={() => ctx.rollD20(`${ABILITY_NAMES[a]}swurf`, mod(c, a), "check")}>
+        <button class="ability" title="{ABILITY_NAMES[a]}swurf" onclick={() => ctx.rollD20(`${ABILITY_NAMES[a]}swurf`, mod(c, a), "check", { ability: a })}>
           <span class="short">{ABILITY_SHORT[a]}</span>
           <span class="mod mono">{formatMod(mod(c, a))}</span>
           <span class="score mono">{c.abilities[a]}</span>
@@ -37,7 +37,7 @@
           <span class="mono">{formatMod(saveBonus(c, a))}</span>
         </label>
       {:else}
-        <button class="save" onclick={() => ctx.rollD20(`Rettungswurf ${ABILITY_NAMES[a]}`, saveBonus(c, a), "save")}>
+        <button class="save" onclick={() => ctx.rollD20(`Rettungswurf ${ABILITY_NAMES[a]}`, saveBonus(c, a), "save", { ability: a })}>
           <span class="dot" class:on={c.saveProficiencies[a]} aria-label={c.saveProficiencies[a] ? "geübt" : "nicht geübt"}></span>
           <span class="grow">{ABILITY_NAMES[a]}</span>
           <span class="mono bonus">{formatMod(saveBonus(c, a))}</span>

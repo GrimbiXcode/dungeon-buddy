@@ -3,15 +3,31 @@
   import { convertText } from "../../lib/units";
   import { Crosshair, Dices, Swords, X } from "@lucide/svelte";
   import Modal from "../../components/Modal.svelte";
-  import { attackDamageBonus, attackToHit, type Attack } from "../../lib/character";
+  import {
+    attackAbility,
+    attackDamageBonus,
+    attackToHit,
+    isFinesse,
+    offhandIsNick,
+    offhandWeapons,
+    type Attack,
+  } from "../../lib/character";
   import { addExpr, diceString, formatDice, parseDice, type DiceExpr } from "../../lib/dice";
-  import { formatMod } from "../../lib/dnd";
-  import { attackOptions, label, useFeature, usesLeft, type AttackOption } from "../../lib/features";
+  import { ABILITY_SHORT, formatMod, type Ability } from "../../lib/dnd";
+  import {
+    attackOptions,
+    describeRollMods,
+    label,
+    sumMods,
+    useFeature,
+    usesLeft,
+    type AttackOption,
+  } from "../../lib/features";
   import { d20Request, isPhysical, openRoll } from "../../lib/roller.svelte";
   import { toast } from "../../lib/toast.svelte";
   import { sheet } from "./context";
 
-  let { attack, onclose }: { attack: Attack; onclose: () => void } = $props();
+  let { attack, offhand = false, onclose }: { attack: Attack; offhand?: boolean; onclose: () => void } = $props();
 
   const ctx = sheet();
   const c = $derived(ctx.data);
@@ -19,14 +35,23 @@
   type Economy = "action" | "bonus" | "reaction";
   type Outcome = "hit" | "crit" | "miss";
 
+  // svelte-ignore state_referenced_locally
+  const nick = offhandIsNick(attack, ctx.ruleset);
   let step = $state<"prepare" | "result">("prepare");
-  let economy = $state<Economy>("action");
+  // svelte-ignore state_referenced_locally
+  let economy = $state<Economy>(offhand ? "bonus" : "action");
   let selectedBefore = $state<string[]>([]);
   let selectedHit = $state<string[]>([]);
   let categoryFilter = $state<string[]>([]);
   let rolled = $state<{ kept: number; total: number } | null>(null);
   let outcome = $state<Outcome | null>(null);
   let twoHanded = $state(false);
+  let damageRolled = $state(false);
+  // svelte-ignore state_referenced_locally
+  let abilityChoice = $state<Ability | null>(isFinesse(attack) ? (attackAbility(ctx.data, attack) as Ability) : null);
+
+  const finesse = $derived(isFinesse(attack) && (attack.ability === "str" || attack.ability === "dex"));
+  const rollOpts = $derived({ ability: abilityChoice, offhand });
 
   const options = $derived(attackOptions(c, attack));
   const categories = $derived([...new Set([...options.before, ...options.onHit].map(o => o.feature.category))]);
@@ -37,21 +62,28 @@
   const activeBefore = $derived(options.before.filter(o => o.automatic || selectedBefore.includes(o.feature.id)));
   const activeHit = $derived(options.onHit.filter(o => selectedHit.includes(o.feature.id)));
 
-  const toHit = $derived(attackToHit(c, attack) + activeBefore.reduce((s, o) => s + o.feature.attackMods.toHit, 0));
-  const advantage = $derived(activeBefore.some(o => o.feature.attackMods.advantage));
+  const attackMods = $derived(sumMods(activeBefore.map(o => ({ label: o.feature.name, mods: o.feature.rollMods.filter(m => m.target === "attack") }))));
+  const damageMods = $derived(
+    sumMods([...activeBefore, ...activeHit].map(o => ({ label: o.feature.name, mods: o.feature.rollMods.filter(m => m.target === "damage") })))
+  );
+
+  const toHit = $derived(attackToHit(c, attack, rollOpts) + attackMods.flat);
+  const toHitDice = $derived(attackMods.dice.map(d => `${d.sign < 0 ? "−" : "+"}${d.groups.map(g => `${g.count}W${g.sides}`).join("+")}`).join(" "));
+  const advantage = $derived(attackMods.advantage && !attackMods.disadvantage);
+  const disadvantage = $derived(attackMods.disadvantage && !attackMods.advantage);
 
   const damage = $derived.by(() => {
     const base = parseDice(twoHanded && attack.versatileDamage ? attack.versatileDamage : attack.damage);
     let expr: DiceExpr = base ?? { groups: [], bonus: 0 };
     const types = [attack.damageType];
-    expr = addExpr(expr, { groups: [], bonus: attackDamageBonus(c, attack) });
+    expr = addExpr(expr, { groups: [], bonus: attackDamageBonus(c, attack, rollOpts) + damageMods.flat });
+    for (const d of damageMods.dice) if (d.sign > 0) expr = addExpr(expr, { groups: d.groups, bonus: 0 });
     const extra = parseDice(attack.extraDamage);
     if (extra) {
       expr = addExpr(expr, extra);
       types.push(attack.extraDamageType);
     }
     for (const o of [...activeBefore, ...activeHit]) {
-      expr = addExpr(expr, { groups: [], bonus: o.feature.attackMods.damageBonus });
       const d = o.feature.effectType === "damage" ? parseDice(o.feature.damage) : null;
       if (d) {
         expr = addExpr(expr, d);
@@ -61,7 +93,12 @@
     return { expr, types: [...new Set(types.filter(Boolean))] };
   });
 
-  const economySpentNow = $derived(c.combat.active && c.combat.used[economy]);
+  const economySpentNow = $derived(c.combat.active && !(offhand && nick) && c.combat.used[economy]);
+
+  /** Zusatzangriff mit einer zweiten leichten Waffe anbieten */
+  const offhandChoices = $derived(
+    offhand || c.combat.offhandUsed || (c.combat.active && economy !== "action") ? [] : offhandWeapons(c, attack, ctx.ruleset)
+  );
 
   function toggle(list: string[], id: string) {
     return list.includes(id) ? list.filter(x => x !== id) : [...list, id];
@@ -76,22 +113,40 @@
 
   function rollAttack() {
     consume(activeBefore);
-    if (c.combat.active) c.combat.used[economy] = true;
+    if (c.combat.active) {
+      if (offhand) {
+        c.combat.offhandUsed = true;
+        if (!nick) c.combat.used.bonus = true;
+      } else {
+        c.combat.used[economy] = true;
+        if (economy === "action" && offhandWeapons(c, attack, ctx.ruleset).length) c.combat.lightAttack = attack.id;
+      }
+    }
     const request = d20Request({
-      title: `${attack.name || "Angriff"} – Angriffswurf`,
+      title: `${attack.name || "Angriff"} – ${offhand ? "Zusatzangriff" : "Angriffswurf"}`,
       subtitle: activeBefore.length ? `Mit: ${activeBefore.map(o => o.feature.name).join(", ")}` : undefined,
       modifier: toHit,
       kind: "attack",
       ruleset: ctx.ruleset,
       exhaustion: c.exhaustion,
       rollMode: c.rollMode,
+      options: attackMods.dice.map((d, i) => ({
+        id: `dice-${i}`,
+        label: d.label,
+        flat: 0,
+        dice: d.groups,
+        sign: d.sign,
+        mode: null,
+        auto: true,
+      })),
       onResult: (kept, total) => {
         rolled = { kept, total };
         outcome = kept === 20 ? "crit" : kept === 1 ? "miss" : outcome;
       },
     });
-    // Vorteil aus Fähigkeiten; trifft er auf Nachteil (Erschöpfung 2014), heben sie sich auf
+    // Vorteil/Nachteil aus Fähigkeiten; gegensätzliche Quellen heben sich auf
     if (advantage) request.mode = request.mode === "disadvantage" ? "normal" : "advantage";
+    if (disadvantage) request.mode = request.mode === "advantage" ? "normal" : "disadvantage";
     openRoll(request);
     step = "result";
   }
@@ -108,7 +163,12 @@
       canCrit: true,
       physical: isPhysical(c.rollMode),
     });
-    onclose();
+    damageRolled = true;
+    if (!offhandChoices.length) onclose();
+  }
+
+  function startOffhand(a: Attack) {
+    ctx.openAttack(a, { offhand: true });
   }
 
   const missOptions = $derived(c.features.filter(f => f.triggers.includes("miss") && (f.appliesTo.scope === "none" || options.before.concat(options.onHit).some(o => o.feature.id === f.id))));
@@ -133,9 +193,7 @@
       </span>
       <span class="tiny muted block">
         {[
-          f.attackMods.advantage ? "Vorteil" : "",
-          f.attackMods.toHit ? `Treffer ${formatMod(f.attackMods.toHit)}` : "",
-          f.attackMods.damageBonus ? `Schaden ${formatMod(f.attackMods.damageBonus)}` : "",
+          describeRollMods(f.rollMods.filter(m => m.target === "attack" || m.target === "damage")),
           f.effectType === "damage" && parseDice(f.damage) ? `+${formatDice(parseDice(f.damage)!)} ${f.damageType}` : "",
           convertText(f.benefit, unitSystem()),
         ]
@@ -148,9 +206,15 @@
   </label>
 {/snippet}
 
-<Modal title="Angriff: {attack.name || 'Waffe'}" size="md" {onclose}>
+<Modal title="{offhand ? 'Zusatzangriff' : 'Angriff'}: {attack.name || 'Waffe'}" size="md" {onclose}>
+  {#if offhand}
+    <p class="small offhand-hint">
+      Zweite leichte Waffe{nick ? " (Einkerben: Teil der Angriffsaktion)" : " als Bonusaktion"}. Attributsmodifikator
+      {c.twoWeaponFighting ? "zählt dank Kampfstil Zwei-Waffen-Kampf." : "nur, wenn er negativ ist."}
+    </p>
+  {/if}
   <div class="summary">
-    <div><span class="label">Treffer</span><strong class="mono">{formatMod(toHit)}</strong>{#if advantage}<span class="badge badge-accent">Vorteil</span>{/if}</div>
+    <div><span class="label">Treffer</span><strong class="mono">{formatMod(toHit)}</strong>{#if toHitDice}<span class="mono small">{toHitDice}</span>{/if}{#if advantage}<span class="badge badge-accent">Vorteil</span>{/if}{#if disadvantage}<span class="badge badge-danger">Nachteil</span>{/if}</div>
     <div><span class="label">Schaden</span><strong class="mono">{formatDice(damage.expr)}</strong><span class="tiny muted">{damage.types.join(" / ")}</span></div>
   </div>
   {#if attack.properties.length || attack.mastery || attack.range}
@@ -169,7 +233,17 @@
   {/if}
 
   {#if step === "prepare"}
-    {#if c.combat.active}
+    {#if finesse}
+      <div class="row economy">
+        <span class="small muted">Finesse: Angriff mit</span>
+        <div class="segmented" role="group" aria-label="Attribut">
+          {#each ["str", "dex"] as const as ab (ab)}
+            <button aria-pressed={abilityChoice === ab} onclick={() => (abilityChoice = ab)}>{ABILITY_SHORT[ab]}</button>
+          {/each}
+        </div>
+      </div>
+    {/if}
+    {#if c.combat.active && !offhand}
       <div class="row economy">
         <span class="small muted">Angriff als</span>
         <div class="segmented" role="group" aria-label="Aktionsart">
@@ -238,11 +312,29 @@
     {/if}
   {/if}
 
+  {#if step === "result" && offhandChoices.length}
+    <div class="offhand">
+      <h4 class="label">Zweite leichte Waffe</h4>
+      <p class="tiny muted">
+        Nach dem Angriff mit einer leichten Waffe darfst du mit einer anderen leichten Waffe einen Zusatzangriff machen
+        ({ctx.ruleset === "2024" ? "Bonusaktion, mit Einkerben als Teil der Angriffsaktion" : "Bonusaktion"}), ohne positiven Attributsmodifikator beim Schaden.
+      </p>
+      <div class="row">
+        {#each offhandChoices as w (w.id)}
+          <button class="btn btn-sm" onclick={() => startOffhand(w)}>
+            <Swords size={14} /> Zusatzangriff: {w.name || "Waffe"}
+            <span class="tiny muted">({offhandIsNick(w, ctx.ruleset) ? "Angriffsaktion" : "Bonusaktion"})</span>
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
   {#snippet footer()}
     {#if step === "prepare"}
       <button class="btn" onclick={onclose}>Abbrechen</button>
       <button class="btn btn-primary" onclick={rollAttack}><Dices size={16} /> Angriff würfeln ({formatMod(toHit)})</button>
-    {:else if outcome === "hit" || outcome === "crit"}
+    {:else if (outcome === "hit" || outcome === "crit") && !damageRolled}
       <button class="btn" onclick={onclose}>Schliessen</button>
       <button class="btn btn-primary" onclick={rollDamage}>
         <Swords size={16} /> {outcome === "crit" ? "Kritischen Schaden würfeln" : "Schaden würfeln"} ({formatDice(damage.expr)})
@@ -301,4 +393,7 @@
   .outcome { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.6rem; }
   .outcome p { margin: 0; }
   .segmented button { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .offhand { margin-top: 0.8rem; padding-top: 0.6rem; border-top: 1px dashed var(--border); }
+  .offhand h4 { margin-top: 0; }
+  .offhand-hint { margin: 0 0 0.6rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent-text); }
 </style>

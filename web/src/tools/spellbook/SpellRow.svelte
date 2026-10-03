@@ -1,7 +1,7 @@
 <script lang="ts">
   import { unitSystem } from "../../lib/session.svelte";
   import { convertText } from "../../lib/units";
-  import { Check, ChevronDown, Crosshair, Heart, Lock, Pencil, Sparkles, Star, Swords, Trash2 } from "@lucide/svelte";
+  import { Check, ChevronDown, Crosshair, Heart, Lock, Pencil, Sparkles, Star, Swords, Trash2, LibraryBig } from "@lucide/svelte";
   import Markdown from "../../components/Markdown.svelte";
   import { spellAttackBonus, spellSaveDc } from "../../lib/character";
   import { formatMod } from "../../lib/dnd";
@@ -19,6 +19,7 @@
     onedit,
     ondelete,
     oncast,
+    onlibrary,
   }: {
     spell: Spell;
     /** Charakter, mit dessen Werten gewürfelt wird */
@@ -30,6 +31,7 @@
     onedit: () => void;
     ondelete: () => void;
     oncast: (slot: number | "pact") => void;
+    onlibrary?: () => void;
   } = $props();
 
   let expanded = $state(false);
@@ -249,6 +251,7 @@
         {#if spell.srdKey}<span class="tiny faint">SRD</span>{/if}
         <span class="grow"></span>
         <button class="btn btn-sm" onclick={onedit}><Pencil size={14} /> Bearbeiten</button>
+        {#if onlibrary}<button class="btn btn-sm" onclick={onlibrary}><LibraryBig size={14} /> In Bibliothek</button>{/if}
         <button class="btn btn-sm btn-danger" onclick={ondelete}><Trash2 size={14} /> Löschen</button>
       </div>
     </div>

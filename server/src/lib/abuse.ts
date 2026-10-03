@@ -18,6 +18,9 @@ export const QUOTAS = {
   spellsPerCharacter: 1000,
   attachmentsPerCampaign: 1000,
   attachmentsPerCharacter: 200,
+  libraryItemsPerUser: 3000,
+  /** Freunde inkl. offener Anfragen */
+  friendsPerUser: 300,
 } as const;
 export type QuotaName = keyof typeof QUOTAS;
 
@@ -31,6 +34,8 @@ export const RATE_LIMITS = {
   create: { limit: 300, windowMs: 60 * 60_000 },
   /** Entsperr-Anträge */
   unblockRequest: { limit: 3, windowMs: 24 * 60 * 60_000 },
+  /** Freundschaftsanfragen per Code (erschwert das Durchprobieren von Codes) */
+  friendRequest: { limit: 20, windowMs: 60 * 60_000 },
   /** ZIP-Export mit allen Anhängen (viel Datenverkehr) */
   export: { limit: 5, windowMs: 60 * 60_000 },
 } as const;
@@ -108,6 +113,8 @@ const QUOTA_LABELS: Record<QuotaName, string> = {
   spellsPerCharacter: "Zauber pro Charakter",
   attachmentsPerCampaign: "Anhänge pro Kampagne",
   attachmentsPerCharacter: "Anhänge pro Charakter",
+  libraryItemsPerUser: "Bibliothekseinträge pro Konto",
+  friendsPerUser: "Freunde und Anfragen pro Konto",
 };
 
 /** Speicherplatz für Anhänge pro Konto (gespeicherte Grösse nach Verarbeitung). */

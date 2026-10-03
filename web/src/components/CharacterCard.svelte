@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import { GitFork, Heart, Shield, Skull } from "@lucide/svelte";
   import { classSummary, normalizeCharacter, totalLevel } from "../lib/character";
+  import { armorClass } from "../lib/armor";
   import { session } from "../lib/session.svelte";
   import { rulesetLabel } from "../lib/themes";
   import type { CharacterRecord } from "../lib/types";
@@ -49,7 +50,7 @@
       <span class="badge" title="Eigenständige Kopie"><GitFork size={11} /> {character.forkedFromName ? `Kopie von ${character.forkedFromName}` : "Kopie"}</span>
     {/if}
     <span class="badge"><Heart size={11} /> {d.hp.current}/{d.hp.max}</span>
-    <span class="badge"><Shield size={11} /> {d.ac}</span>
+    <span class="badge"><Shield size={11} /> {armorClass(d).total}</span>
   </div>
   {#if meta}<div class="meta">{@render meta()}</div>{/if}
   {#if actions}<div class="row actions">{@render actions()}</div>{/if}

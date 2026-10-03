@@ -5,6 +5,7 @@ import { assertQuota, countRows } from "../lib/abuse.js";
 import { copyAttachmentToCharacter } from "../lib/attachment-copy.js";
 import { onlyGiven, requireCampaign } from "../lib/crud.js";
 import { HttpError, idParam, noContent, notFound, parse } from "../lib/http.js";
+import { activeCharacterOf } from "./campaigns.js";
 
 /**
  * Charaktere gehören dem Benutzer und können mehreren Kampagnen zugewiesen
@@ -264,12 +265,15 @@ export async function characterRoutes(app: FastifyInstance) {
       `;
       characterId = row!.id as string;
     }
+    const before = await activeCharacterOf(campaign.id);
     await sql`
       INSERT INTO campaign_characters (campaign_id, character_id)
       VALUES (${campaign.id}, ${characterId})
       ON CONFLICT (campaign_id, character_id)
       DO UPDATE SET active = true, left_at = NULL, left_reason = ''
     `;
+    // Bisher aktiver Charakter bleibt aktiv; gab es keinen, wird es der neue
+    await sql`UPDATE campaigns SET main_character_id = ${before ?? characterId} WHERE id = ${campaign.id}`;
     const [row] = await sql`
       SELECT ch.*, cc.active, cc.joined_at, cc.left_at, cc.left_reason
       FROM campaign_characters cc JOIN characters ch ON ch.id = cc.character_id
@@ -283,6 +287,7 @@ export async function characterRoutes(app: FastifyInstance) {
     const campaign = await requireCampaign(req);
     const ch = await requireCharacter(req);
     const input = parse(z.object({ active: z.boolean(), leftReason: z.string().max(500).default("") }), req.body);
+    const before = await activeCharacterOf(campaign.id);
     const [row] = await sql`
       UPDATE campaign_characters
       SET active = ${input.active},
@@ -292,6 +297,11 @@ export async function characterRoutes(app: FastifyInstance) {
       RETURNING *
     `;
     if (!row) throw notFound("Zuweisung");
+    if (!input.active && before === ch.id) {
+      await sql`UPDATE campaigns SET main_character_id = NULL WHERE id = ${campaign.id}`;
+    } else if (input.active && !before) {
+      await sql`UPDATE campaigns SET main_character_id = ${ch.id} WHERE id = ${campaign.id}`;
+    }
     return row;
   });
 
@@ -322,6 +332,7 @@ export async function characterRoutes(app: FastifyInstance) {
     if (input.replacementId === ch.id) throw new HttpError(400, "Ein Charakter kann sich nicht selbst ersetzen.");
     const [replacement] = await sql`SELECT id FROM characters WHERE id = ${input.replacementId} AND user_id = ${req.user!.id}`;
     if (!replacement) throw notFound("Ersatzcharakter");
+    const before = await activeCharacterOf(campaign.id);
     await sql.begin(async tx => {
       const left = await tx`
         UPDATE campaign_characters SET active = false, left_at = now(), left_reason = ${input.reason}
@@ -333,6 +344,9 @@ export async function characterRoutes(app: FastifyInstance) {
         ON CONFLICT (campaign_id, character_id) DO UPDATE SET active = true, left_at = NULL, left_reason = ''
       `;
       if (input.markDead) await tx`UPDATE characters SET status = 'dead', updated_at = now() WHERE id = ${ch.id}`;
+      // Der Ersatz übernimmt, wenn der Ausgetauschte aktiv war
+      const main = !before || before === ch.id ? input.replacementId : before;
+      await tx`UPDATE campaigns SET main_character_id = ${main} WHERE id = ${campaign.id}`;
     });
     return { ok: true };
   });

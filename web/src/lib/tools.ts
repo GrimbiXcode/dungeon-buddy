@@ -44,6 +44,12 @@ export function availableTools() {
   return TOOLS.filter(t => t.slug !== "anhaenge" || session.info?.attachments);
 }
 
+/** Link auf ein Tool; „Charakterbogen“ führt direkt zum aktiven Charakter. */
+export function toolHref(campaign: { id: string; activeCharacterId?: string | null }, slug: string) {
+  if (slug === "charaktere" && campaign.activeCharacterId) return `/k/${campaign.id}/charaktere/${campaign.activeCharacterId}`;
+  return `/k/${campaign.id}${slug ? `/${slug}` : ""}`;
+}
+
 export function campaignNav() {
   return [
     { slug: "", name: "Übersicht", short: "Übersicht", icon: LayoutDashboard },

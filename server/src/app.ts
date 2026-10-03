@@ -17,6 +17,7 @@ import { characterRoutes } from "./routes/characters.js";
 import { adminRoutes } from "./routes/admin.js";
 import { attachmentRoutes } from "./routes/attachments.js";
 import { meRoutes } from "./routes/me.js";
+import { libraryRoutes } from "./routes/library.js";
 import { srdRoutes } from "./routes/srd.js";
 import { toolRoutes } from "./routes/tools.js";
 import { unblockRoutes } from "./routes/unblock.js";
@@ -142,6 +143,7 @@ export async function buildApp() {
   await app.register(campaignRoutes);
   await app.register(toolRoutes);
   await app.register(characterRoutes);
+  await app.register(libraryRoutes);
   await app.register(attachmentRoutes);
   await app.register(srdRoutes);
   await app.register(unblockRoutes);

@@ -59,11 +59,12 @@
   async function remove(f: Feature) {
     if (!(await confirmDialog(`„${f.name}“ aus dem Bogen entfernen?`, { title: "Fähigkeit löschen" }))) return;
     c.features = c.features.filter(x => x.id !== f.id);
+    for (const x of c.features) x.links = x.links.filter(l => l.featureId !== f.id);
     c.combat.effects = c.combat.effects.filter(e => e.featureId !== f.id);
   }
 
   function addPreset(key: string) {
-    const f = buildPreset(key, ctx.ruleset, speciesLabel);
+    const f = buildPreset(key, ctx.ruleset, speciesLabel, c.features);
     showPresets = false;
     editing = f;
     toast("Vorlage geladen – passe die Werte an und speichere.");
@@ -91,6 +92,7 @@
     </div>
     <div class="row">
       <button class="btn btn-sm" onclick={() => (showPresets = true)}><LibraryBig size={14} /> Aus Vorlage</button>
+      <button class="btn btn-sm" onclick={() => ctx.openLibrary("feature")}><LibraryBig size={14} /> Aus Bibliothek</button>
       <button class="btn btn-sm btn-primary" onclick={() => (editing = newFeature({ category: categories[0] ?? "Klasse" }))}>
         <Plus size={14} /> Neue Fähigkeit
       </button>
@@ -138,7 +140,7 @@
         <h4 class="label">{g.cat} <span class="faint">({g.list.length})</span></h4>
         <div class="list">
           {#each g.list as f (f.id)}
-            <FeatureCard feature={f} compact onedit={() => (editing = f)} ondelete={() => remove(f)} />
+            <FeatureCard feature={f} compact onedit={() => (editing = f)} ondelete={() => remove(f)} onlibrary={() => ctx.addToLibrary("feature", f)} />
           {/each}
         </div>
       </div>

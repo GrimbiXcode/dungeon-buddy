@@ -7,6 +7,8 @@ import {
   type SkillKey,
 } from "./dnd";
 import { uid } from "./format";
+import { normalizeArmor, UNARMORED_DEFENSES, type ArmorItem, type UnarmoredDefense } from "./armor";
+import type { Ruleset } from "./types";
 import {
   normalizeCombat,
   normalizeFeature,
@@ -69,7 +71,14 @@ export type CharacterData = {
   skills: Record<SkillKey, 0 | 1 | 2>;
   jackOfAllTrades: boolean;
   profBonusOverride: number | null;
+  /** "auto": RK aus Rüstung, Schild und Effekten; "manual": fester Grundwert `ac` */
+  acMode: "auto" | "manual";
+  /** Grundwert bei manueller RK */
   ac: number;
+  unarmoredDefense: UnarmoredDefense;
+  /** Dauerhafter Bonus, z. B. Schutzring */
+  acBonus: number;
+  armor: ArmorItem[];
   initiativeBonus: number;
   speed: number;
   hp: { max: number; current: number; temp: number };
@@ -79,6 +88,8 @@ export type CharacterData = {
   exhaustion: number;
   conditions: string[];
   attacks: Attack[];
+  /** Kampfstil Zwei-Waffen-Kampf: Attributsmodifikator auch beim Zusatzangriff */
+  twoWeaponFighting: boolean;
   /** Konfigurierbare Fähigkeiten: Klasse, Herkunft, Talente, Ausrüstung … */
   features: Feature[];
   /** Zustand des Kampf-Assistenten */
@@ -138,6 +149,31 @@ export function newResource(partial: Partial<Resource> = {}): Resource {
   return { id: uid(), name: "", max: 1, used: 0, reset: "long", ...partial };
 }
 
+/** Gespeicherte Angriffsdaten in die aktuelle Form bringen. */
+export function normalizeAttack(a: unknown): Attack {
+  const o = obj(a);
+  const ability = str(o.ability, "str");
+  return newAttack({
+    id: str(o.id) || uid(),
+    name: str(o.name),
+    ability: ([...ABILITIES, "spell", "none"] as string[]).includes(ability) ? (ability as Attack["ability"]) : "str",
+    proficient: bool(o.proficient, true),
+    toHitBonus: num(o.toHitBonus, 0),
+    damage: str(o.damage),
+    addAbilityToDamage: bool(o.addAbilityToDamage, true),
+    damageBonus: num(o.damageBonus, 0),
+    damageType: str(o.damageType),
+    mastery: str(o.mastery),
+    notes: str(o.notes),
+    kind: o.kind === "ranged" ? "ranged" : "melee",
+    properties: arr(o.properties).filter((x): x is string => typeof x === "string"),
+    range: str(o.range),
+    versatileDamage: str(o.versatileDamage),
+    extraDamage: str(o.extraDamage),
+    extraDamageType: str(o.extraDamageType),
+  });
+}
+
 /**
  * Bringt beliebige gespeicherte Daten in die aktuelle Form. Fehlende Felder
  * bekommen Standardwerte – so bleiben alte Bögen nach Erweiterungen lesbar.
@@ -154,6 +190,8 @@ export function normalizeCharacter(raw: unknown): CharacterData {
   const currency = obj(d.currency);
   const slotsRaw = arr(sc.slots);
   const rollMode = str(d.rollMode, "inherit");
+  // Ältere Bögen hatten nur eine feste RK: dort bleibt sie manuell
+  const acMode = d.acMode === "auto" || d.acMode === "manual" ? d.acMode : typeof d.ac === "number" && !Array.isArray(d.armor) ? "manual" : "auto";
 
   return {
     rollMode: (["inherit", "digital", "physical"].includes(rollMode) ? rollMode : "inherit") as RollModeSetting,
@@ -181,7 +219,11 @@ export function normalizeCharacter(raw: unknown): CharacterData {
     ) as Record<SkillKey, 0 | 1 | 2>,
     jackOfAllTrades: bool(d.jackOfAllTrades),
     profBonusOverride: typeof d.profBonusOverride === "number" ? d.profBonusOverride : null,
+    acMode,
     ac: num(d.ac, 10),
+    unarmoredDefense: UNARMORED_DEFENSES.some(u => u.key === d.unarmoredDefense) ? (d.unarmoredDefense as UnarmoredDefense) : "none",
+    acBonus: num(d.acBonus, 0),
+    armor: arr(d.armor).map(normalizeArmor),
     initiativeBonus: num(d.initiativeBonus, 0),
     speed: num(d.speed, 30),
     hp: { max: num(hp.max, 10), current: num(hp.current, num(hp.max, 10)), temp: num(hp.temp, 0) },
@@ -190,29 +232,8 @@ export function normalizeCharacter(raw: unknown): CharacterData {
     inspiration: bool(d.inspiration),
     exhaustion: Math.min(6, Math.max(0, num(d.exhaustion, 0))),
     conditions: arr(d.conditions).filter((x): x is string => typeof x === "string"),
-    attacks: arr(d.attacks).map(a => {
-      const o = obj(a);
-      const ability = str(o.ability, "str");
-      return newAttack({
-        id: str(o.id) || uid(),
-        name: str(o.name),
-        ability: ([...ABILITIES, "spell", "none"] as string[]).includes(ability) ? (ability as Attack["ability"]) : "str",
-        proficient: bool(o.proficient, true),
-        toHitBonus: num(o.toHitBonus, 0),
-        damage: str(o.damage),
-        addAbilityToDamage: bool(o.addAbilityToDamage, true),
-        damageBonus: num(o.damageBonus, 0),
-        damageType: str(o.damageType),
-        mastery: str(o.mastery),
-        notes: str(o.notes),
-        kind: o.kind === "ranged" ? "ranged" : "melee",
-        properties: arr(o.properties).filter((x): x is string => typeof x === "string"),
-        range: str(o.range),
-        versatileDamage: str(o.versatileDamage),
-        extraDamage: str(o.extraDamage),
-        extraDamageType: str(o.extraDamageType),
-      });
-    }),
+    attacks: arr(d.attacks).map(normalizeAttack),
+    twoWeaponFighting: bool(d.twoWeaponFighting),
     features: Array.isArray(d.features) ? d.features.map(normalizeFeature) : [],
     combat: normalizeCombat(d.combat),
     spellcasting: {
@@ -309,18 +330,59 @@ export function spellMod(c: CharacterData) {
   return c.spellcasting.ability ? mod(c, c.spellcasting.ability) : 0;
 }
 
-function attackAbilityMod(c: CharacterData, attack: Attack) {
-  if (attack.ability === "none") return 0;
-  if (attack.ability === "spell") return spellMod(c);
-  return mod(c, attack.ability);
+export const isFinesse = (a: Attack) => a.properties.includes("Finesse");
+export const isLight = (a: Attack) => a.properties.includes("Leicht");
+
+/**
+ * Attribut für den Angriff. Bei Finesse-Waffen darfst du zwischen STR und
+ * GES wählen; ohne Wahl gilt der bessere Wert.
+ */
+export function attackAbility(c: CharacterData, attack: Attack, choice?: Ability | null): Attack["ability"] {
+  if (isFinesse(attack) && (attack.ability === "str" || attack.ability === "dex")) {
+    if (choice === "str" || choice === "dex") return choice;
+    return mod(c, "dex") >= mod(c, "str") ? "dex" : "str";
+  }
+  return attack.ability;
 }
 
-export function attackToHit(c: CharacterData, attack: Attack) {
-  return attackAbilityMod(c, attack) + (attack.proficient ? profBonus(c) : 0) + attack.toHitBonus;
+function attackAbilityMod(c: CharacterData, attack: Attack, choice?: Ability | null) {
+  const ability = attackAbility(c, attack, choice);
+  if (ability === "none") return 0;
+  if (ability === "spell") return spellMod(c);
+  return mod(c, ability);
 }
 
-export function attackDamageBonus(c: CharacterData, attack: Attack) {
-  return (attack.addAbilityToDamage ? attackAbilityMod(c, attack) : 0) + attack.damageBonus;
+export type AttackRollOpts = { ability?: Ability | null; offhand?: boolean };
+
+export function attackToHit(c: CharacterData, attack: Attack, opts: AttackRollOpts = {}) {
+  return attackAbilityMod(c, attack, opts.ability) + (attack.proficient ? profBonus(c) : 0) + attack.toHitBonus;
+}
+
+/**
+ * Schadensbonus. Beim Zusatzangriff mit einer leichten Waffe zählt der
+ * Attributsmodifikator nur, wenn er negativ ist (ausser mit Kampfstil
+ * Zwei-Waffen-Kampf).
+ */
+export function attackDamageBonus(c: CharacterData, attack: Attack, opts: AttackRollOpts = {}) {
+  let abilityPart = attack.addAbilityToDamage ? attackAbilityMod(c, attack, opts.ability) : 0;
+  if (opts.offhand && abilityPart > 0 && !c.twoWeaponFighting) abilityPart = 0;
+  return abilityPart + attack.damageBonus;
+}
+
+/**
+ * Zusatzangriff mit leichten Waffen: Wer mit einer leichten Waffe angreift,
+ * darf mit einer anderen leichten Waffe einen zweiten Angriff machen.
+ * 2014: nur leichte Nahkampfwaffen. 2024: auch geworfene leichte Waffen.
+ */
+export function offhandWeapons(c: CharacterData, attack: Attack, ruleset: Ruleset): Attack[] {
+  const ok = (a: Attack) => isLight(a) && a.ability !== "spell" && (ruleset === "2024" || a.kind === "melee");
+  if (!ok(attack)) return [];
+  return c.attacks.filter(a => a.id !== attack.id && ok(a));
+}
+
+/** 2024, Meisterschaft „Einkerben“: Der Zusatzangriff gehört zur Angriffsaktion statt Bonusaktion. */
+export function offhandIsNick(attack: Attack, ruleset: Ruleset) {
+  return ruleset === "2024" && /nick|einkerben/i.test(attack.mastery);
 }
 
 export function hitDiceSummary(c: CharacterData) {

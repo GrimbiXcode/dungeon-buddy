@@ -59,6 +59,8 @@ export type Campaign = {
   theme: string;
   ruleset: Ruleset;
   archivedAt: string | null;
+  /** Aktiver Charakter: „Charakterbogen“ öffnet direkt seinen Bogen */
+  activeCharacterId: string | null;
   createdAt: string;
   updatedAt: string;
   journalCount?: number;
@@ -174,6 +176,8 @@ export type SpellData = {
   heal: string | null;
   healAddsModifier: boolean;
   upcast: string | null;
+  /** RK-Wirkung, solange der Zauber wirkt (Magierrüstung, Schild …) */
+  acMod?: { mode: "bonus" | "base" | "min"; value: number } | null;
 };
 
 export type SrdSpell = SpellData & { key: string; name: string; level: number };

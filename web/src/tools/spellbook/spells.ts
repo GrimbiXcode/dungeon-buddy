@@ -2,6 +2,7 @@ import { get } from "../../lib/api";
 import { type CharacterData, spellMod, totalLevel } from "../../lib/character";
 import { ABILITY_SHORT, cantripMultiplier, type Ability } from "../../lib/dnd";
 import { addExpr, formatDice, parseDice, scaleExpr } from "../../lib/dice";
+import { addEffect } from "../../lib/features";
 import type { Ruleset, Spell, SpellData, SrdSpellList } from "../../lib/types";
 
 /** Charakter, mit dessen Werten gewürfelt wird. */
@@ -96,7 +97,53 @@ export function emptySpellData(): SpellData {
     heal: null,
     healAddsModifier: false,
     upcast: null,
+    acMod: null,
   };
+}
+
+/** Rundenzahl aus der Wirkungsdauer, z. B. "Concentration, up to 1 minute", "8 Stunden" */
+export function spellRounds(duration: string): number | null {
+  const m = /(\d+)\s*(round|runde|minute|hour|stunde)/i.exec(duration);
+  if (!m) return null;
+  const n = Number(m[1]);
+  const unit = m[2]!.toLowerCase();
+  return unit.startsWith("r") ? n : unit.startsWith("m") ? n * 10 : n * 600;
+}
+
+/** Bekannte SRD-Zauber mit Wirkung auf die RK (lässt sich im Zauber anpassen). */
+export function srdAcMod(key: string | null, ruleset: Ruleset): SpellData["acMod"] {
+  switch (key) {
+    case "mage-armor":
+      return { mode: "base", value: 13 };
+    case "shield":
+      return { mode: "bonus", value: 5 };
+    case "shield-of-faith":
+    case "haste":
+      return { mode: "bonus", value: 2 };
+    case "barkskin":
+      return { mode: "min", value: ruleset === "2024" ? 17 : 16 };
+    default:
+      return null;
+  }
+}
+
+/**
+ * Nach dem Wirken: Konzentration und RK-Wirkung als aktiven Effekt anlegen.
+ * Gibt Hinweise zurück (z. B. beendete Konzentration).
+ */
+export function applySpellEffect(c: CharacterData, s: Spell, ruleset: Ruleset = "2024"): string[] {
+  // Ältere SRD-Zauber ohne eigenes Feld: bekannte Werte verwenden
+  const mod = s.data.acMod === undefined ? srdAcMod(s.srdKey, ruleset) : s.data.acMod;
+  const ac = mod && mod.value ? mod : null;
+  if (!s.data.concentration && !ac) return [];
+  return addEffect(c, {
+    name: s.name,
+    featureId: null,
+    remaining: spellRounds(s.data.duration ?? ""),
+    concentration: Boolean(s.data.concentration),
+    note: "Zauber",
+    ac,
+  });
 }
 
 /** Füllt fehlende Felder mit Standardwerten. */

@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArrowLeft, CircleUser, Users } from "@lucide/svelte";
+  import { ArrowLeft, CircleUser, LibraryBig, Users } from "@lucide/svelte";
   import Logo from "../components/Logo.svelte";
   import { get, patch } from "../lib/api";
   import { current } from "../lib/campaign.svelte";
   import { match, route } from "../lib/router.svelte";
   import { session } from "../lib/session.svelte";
   import { rulesetLabel } from "../lib/themes";
-  import { campaignNav } from "../lib/tools";
+  import { campaignNav, toolHref } from "../lib/tools";
   import type { Campaign, User } from "../lib/types";
   import CampaignHome from "./CampaignHome.svelte";
   import CampaignSettings from "./CampaignSettings.svelte";
@@ -84,7 +84,7 @@
       </div>
       <nav aria-label="Werkzeuge">
         {#each campaignNav() as item (item.slug)}
-          <a href="{base}{item.slug ? `/${item.slug}` : ''}" class:active={isActive(item.slug)} aria-current={isActive(item.slug) ? "page" : undefined}>
+          <a href={toolHref(campaign, item.slug)} class:active={isActive(item.slug)} aria-current={isActive(item.slug) ? "page" : undefined}>
             <item.icon size={18} />
             <span>{item.name}</span>
           </a>
@@ -92,6 +92,7 @@
       </nav>
       <div class="sidebar-foot">
         <a href="/charaktere" class="profile small"><Users size={17} /> Meine Charaktere</a>
+        <a href="/bibliothek" class="profile small"><LibraryBig size={17} /> Bibliothek</a>
         <a href="/profil" class="profile small"><CircleUser size={17} /> {session.user?.displayName}</a>
       </div>
     </aside>
@@ -135,7 +136,7 @@
 
     <nav class="bottom-nav" aria-label="Werkzeuge">
       {#each campaignNav().filter(i => i.slug !== "einstellungen") as item (item.slug)}
-        <a href="{base}{item.slug ? `/${item.slug}` : ''}" class:active={isActive(item.slug)}>
+        <a href={toolHref(campaign, item.slug)} class:active={isActive(item.slug)}>
           <item.icon size={20} />
           <span>{item.short}</span>
         </a>

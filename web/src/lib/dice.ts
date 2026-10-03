@@ -67,6 +67,35 @@ export function addExpr(a: DiceExpr, b: DiceExpr): DiceExpr {
   return { groups, bonus: a.bonus + b.bonus };
 }
 
+/**
+ * Bonus auf einen Wurf, z. B. "+2", "-1", "1d4" (Segen), "-1d4" (Verderben)
+ * oder "1d10+1". Ein Minus vor Würfeln gilt für den ganzen Ausdruck.
+ */
+export type Bonus = { flat: number; dice: DiceGroup[]; sign: 1 | -1 };
+
+export function parseBonus(input: string | null | undefined): Bonus | null {
+  const clean = (input ?? "").replace(/\s+/g, "").replace(/[−–]/g, "-");
+  if (!clean) return null;
+  let sign: 1 | -1 = 1;
+  let body = clean;
+  if (body.startsWith("+")) body = body.slice(1);
+  else if (body.startsWith("-") && /[dw]/i.test(body)) {
+    sign = -1;
+    body = body.slice(1);
+  }
+  const expr = parseDice(body);
+  if (!expr) return null;
+  return { flat: sign * expr.bonus || 0, dice: expr.groups, sign };
+}
+
+export function formatBonus(b: Bonus): string {
+  const parts: string[] = [];
+  const dice = b.dice.map(g => `${g.count}W${g.sides}`).join(" + ");
+  if (dice) parts.push(`${b.sign < 0 ? "−" : "+"}${dice}`);
+  if (b.flat) parts.push(`${b.flat < 0 ? "−" : "+"}${Math.abs(b.flat)}`);
+  return parts.join(" ") || "+0";
+}
+
 export function rollDie(sides: number): number {
   const buf = new Uint32Array(1);
   // Gleichverteilt ohne Modulo-Verzerrung

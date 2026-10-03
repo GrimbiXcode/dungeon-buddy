@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArchiveRestore, Users, ChevronDown, Plus, Trash2, UserPen } from "@lucide/svelte";
+  import { ArchiveRestore, Users, ChevronDown, LibraryBig, Plus, Trash2, UserPen } from "@lucide/svelte";
   import AppShell from "../components/AppShell.svelte";
   import CampaignForm from "../components/CampaignForm.svelte";
   import Modal from "../components/Modal.svelte";
@@ -10,7 +10,7 @@
   import { session } from "../lib/session.svelte";
   import { CAMPAIGN_THEMES, rulesetLabel } from "../lib/themes";
   import { toast, toastError } from "../lib/toast.svelte";
-  import { availableTools, TOOLS, type ToolSlug } from "../lib/tools";
+  import { availableTools, toolHref, TOOLS, type ToolSlug } from "../lib/tools";
   import type { Campaign } from "../lib/types";
 
   let campaigns = $state<Campaign[]>([]);
@@ -43,7 +43,7 @@
   function openTool(slug: ToolSlug) {
     const last = active.find(c => c.id === session.user?.settings.lastCampaignId);
     const target = last ?? (active.length === 1 ? active[0] : null);
-    if (target) navigate(`/k/${target.id}/${slug}`);
+    if (target) navigate(toolHref(target, slug));
     else if (active.length === 0) showForm = true;
     else pickFor = slug;
   }
@@ -82,6 +82,7 @@
     </div>
     <div class="row">
       <a class="btn" href="/charaktere"><Users size={16} /> Meine Charaktere</a>
+      <a class="btn" href="/bibliothek"><LibraryBig size={16} /> Bibliothek</a>
       <a class="btn" href="/profil"><UserPen size={16} /> Profil bearbeiten</a>
     </div>
   </div>
@@ -175,7 +176,7 @@
   <Modal title="{tool.name} – Kampagne wählen" size="sm" onclose={() => (pickFor = null)}>
     <div class="stack">
       {#each active as c (c.id)}
-        <a class="card card-link pick" href="/k/{c.id}/{tool.slug}" data-theme={c.theme}>
+        <a class="card card-link pick" href={toolHref(c, tool.slug)} data-theme={c.theme}>
           <span class="dot" style="background:{themeColor(c.theme)}"></span>
           <strong class="grow truncate">{c.name}</strong>
           <span class="badge">{rulesetLabel(c.ruleset)}</span>
