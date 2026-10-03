@@ -206,6 +206,16 @@ export function normalizeAttack(a: unknown): Attack {
  * Bringt beliebige gespeicherte Daten in die aktuelle Form. Fehlende Felder
  * bekommen Standardwerte – so bleiben alte Bögen nach Erweiterungen lesbar.
  */
+/** Verbrauchte Plätze/Nutzungen zwischen 0 und dem Maximum */
+export function clampUsed(used: number, max: number) {
+  return Math.min(Math.max(0, max), Math.max(0, used));
+}
+
+/** Übrige Plätze/Nutzungen, nie negativ (auch wenn das Maximum gesenkt wurde) */
+export function leftOf(x: { max: number; used: number }) {
+  return Math.max(0, x.max - x.used);
+}
+
 export function normalizeCharacter(raw: unknown): CharacterData {
   const d = obj(raw);
   const abilities = obj(d.abilities);
@@ -254,7 +264,7 @@ export function normalizeCharacter(raw: unknown): CharacterData {
     armor: arr(d.armor).map(normalizeArmor),
     initiativeBonus: num(d.initiativeBonus, 0),
     speed: num(d.speed, 30),
-    hp: { max: num(hp.max, 10), current: num(hp.current, num(hp.max, 10)), temp: num(hp.temp, 0) },
+    hp: { max: num(hp.max, 10), current: Math.max(0, num(hp.current, num(hp.max, 10))), temp: Math.max(0, num(hp.temp, 0)) },
     hitDiceUsed: num(d.hitDiceUsed, 0),
     deathSaves: { successes: num(death.successes, 0), failures: num(death.failures, 0) },
     inspiration: bool(d.inspiration),
@@ -270,9 +280,14 @@ export function normalizeCharacter(raw: unknown): CharacterData {
       dcExtra: num(sc.dcExtra, 0),
       slots: Array.from({ length: 9 }, (_, i) => {
         const s = obj(slotsRaw[i]);
-        return { max: num(s.max, 0), used: num(s.used, 0) };
+        const max = Math.max(0, num(s.max, 0));
+        return { max, used: clampUsed(num(s.used, 0), max) };
       }),
-      pact: { level: num(pact.level, 1), max: num(pact.max, 0), used: num(pact.used, 0) },
+      pact: {
+        level: Math.min(9, Math.max(1, num(pact.level, 1))),
+        max: Math.max(0, num(pact.max, 0)),
+        used: clampUsed(num(pact.used, 0), Math.max(0, num(pact.max, 0))),
+      },
     },
     resources: arr(d.resources).map(r => {
       const o = obj(r);
@@ -280,8 +295,8 @@ export function normalizeCharacter(raw: unknown): CharacterData {
       return newResource({
         id: str(o.id) || uid(),
         name: str(o.name),
-        max: num(o.max, 1),
-        used: num(o.used, 0),
+        max: Math.max(0, num(o.max, 1)),
+        used: clampUsed(num(o.used, 0), Math.max(0, num(o.max, 1))),
         reset: (["short", "long", "none"].includes(reset) ? reset : "long") as Resource["reset"],
       });
     }),
@@ -455,14 +470,14 @@ export function longRest(c: CharacterData, ruleset: "2014" | "2024") {
 /** Schaden anwenden: zuerst temporäre TP, dann aktuelle. */
 export function applyDamage(c: CharacterData, amount: number) {
   let rest = Math.max(0, amount);
-  const fromTemp = Math.min(c.hp.temp, rest);
-  c.hp.temp -= fromTemp;
+  const fromTemp = Math.min(Math.max(0, c.hp.temp), rest);
+  c.hp.temp = Math.max(0, c.hp.temp - fromTemp);
   rest -= fromTemp;
   c.hp.current = Math.max(0, c.hp.current - rest);
 }
 
 export function applyHealing(c: CharacterData, amount: number) {
   if (amount <= 0) return;
-  if (c.hp.current === 0) c.deathSaves = { successes: 0, failures: 0 };
-  c.hp.current = Math.min(c.hp.max, c.hp.current + amount);
+  if (c.hp.current <= 0) c.deathSaves = { successes: 0, failures: 0 };
+  c.hp.current = Math.min(Math.max(c.hp.max, 0), Math.max(0, c.hp.current) + amount);
 }

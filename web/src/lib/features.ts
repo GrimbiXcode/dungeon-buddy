@@ -181,7 +181,8 @@ export type RollMod = {
   mode: AdvantageMode;
 };
 
-export type AcMod = { mode: AcModMode; value: number };
+/** armoredOnly: Bonus nur mit angelegter Rüstung (Kampfstil Verteidigung) */
+export type AcMod = { mode: AcModMode; value: number; armoredOnly?: boolean };
 
 /**
  * Abhängigkeit zu einer anderen Fähigkeit: Taktisches Verständnis verbraucht
@@ -322,7 +323,9 @@ export function normalizeRollMod(raw: unknown): RollMod {
 
 export function normalizeAcMod(raw: unknown): AcMod {
   const m = obj(raw);
-  return { mode: oneOf(AC_MODES, m.mode, "none"), value: num(m.value, 0) };
+  const mod: AcMod = { mode: oneOf(AC_MODES, m.mode, "none"), value: num(m.value, 0) };
+  if (m.armoredOnly === true) mod.armoredOnly = true;
+  return mod;
 }
 
 /** Frühere Bögen hatten feste Angriffsboni statt Wurfmodifikatoren. */
@@ -392,7 +395,7 @@ export function normalizeFeature(raw: unknown): Feature {
     },
     uses: {
       max: typeof uses.max === "number" ? Math.max(0, uses.max) : null,
-      used: Math.max(0, num(uses.used, 0)),
+      used: Math.max(0, Math.min(typeof uses.max === "number" ? Math.max(0, uses.max) : Infinity, num(uses.used, 0))),
       reset: oneOf(USE_RESETS, uses.reset, "long"),
     },
     resourceId: typeof f.resourceId === "string" ? f.resourceId : null,

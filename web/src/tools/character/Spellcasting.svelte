@@ -1,8 +1,9 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import Icon from "../../components/Icon.svelte";
   import { onMount } from "svelte";
   import { get } from "../../lib/api";
-  import { spellAttackBonus, spellMod, spellSaveDc } from "../../lib/character";
+  import { leftOf, spellAttackBonus, spellMod, spellSaveDc } from "../../lib/character";
   import { ABILITIES, ABILITY_NAMES, SPELL_LEVEL_NAMES, formatMod } from "../../lib/dnd";
   import type { Spell } from "../../lib/types";
   import { sheet } from "./context";
@@ -31,13 +32,13 @@
 
   function toggleSlot(index: number, pip: number) {
     const slot = c.spellcasting.slots[index]!;
-    const available = slot.max - slot.used;
+    const available = leftOf(slot);
     slot.used = pip < available ? slot.max - pip : slot.max - pip - 1;
   }
 
   function togglePact(pip: number) {
     const p = c.spellcasting.pact;
-    const available = p.max - p.used;
+    const available = leftOf(p);
     p.used = pip < available ? p.max - pip : p.max - pip - 1;
   }
 </script>
@@ -54,10 +55,10 @@
           </select>
         </label>
         <label class="field"><span class="label">Bonus Angriff</span>
-          <input class="input mono" type="number" bind:value={c.spellcasting.attackBonusExtra} />
+          <NumberField class="input mono" bind:value={c.spellcasting.attackBonusExtra} />
         </label>
         <label class="field"><span class="label">Bonus SG</span>
-          <input class="input mono" type="number" bind:value={c.spellcasting.dcExtra} />
+          <NumberField class="input mono" bind:value={c.spellcasting.dcExtra} />
         </label>
       </div>
     {/if}
@@ -80,12 +81,12 @@
       <p class="tiny muted">Maximale Plätze pro Grad:</p>
       <div class="slot-edit">
         {#each c.spellcasting.slots as slot, i (i)}
-          <label class="tiny muted">Grad {i + 1}<input class="input input-sm mono" type="number" min="0" max="9" bind:value={slot.max} /></label>
+          <label class="tiny muted">Grad {i + 1}<NumberField class="input input-sm mono" min={0} max={9} bind:value={slot.max} /></label>
         {/each}
       </div>
       <div class="grid-3 pact">
-        <label class="tiny muted">Paktplätze<input class="input input-sm mono" type="number" min="0" max="9" bind:value={c.spellcasting.pact.max} /></label>
-        <label class="tiny muted">Paktgrad<input class="input input-sm mono" type="number" min="1" max="9" bind:value={c.spellcasting.pact.level} /></label>
+        <label class="tiny muted">Paktplätze<NumberField class="input input-sm mono" min={0} max={9} bind:value={c.spellcasting.pact.max} /></label>
+        <label class="tiny muted">Paktgrad<NumberField class="input input-sm mono" min={1} max={9} bind:value={c.spellcasting.pact.level} /></label>
       </div>
     {:else if activeSlots.length === 0 && c.spellcasting.pact.max === 0}
       <p class="muted small">Keine Zauberplätze eingetragen.</p>
@@ -96,10 +97,10 @@
             <span class="small w">Grad {slot.level}</span>
             <span class="pips">
               {#each Array.from({ length: slot.max }, (_, p) => p) as p (p)}
-                <button class="pip" class:on={p < slot.max - slot.used} aria-label="Grad {slot.level} Platz {p + 1}" onclick={() => toggleSlot(slot.index, p)}></button>
+                <button class="pip" class:on={p < leftOf(slot)} aria-label="Grad {slot.level} Platz {p + 1}" onclick={() => toggleSlot(slot.index, p)}></button>
               {/each}
             </span>
-            <span class="tiny muted mono">{slot.max - slot.used}/{slot.max}</span>
+            <span class="tiny muted mono">{leftOf(slot)}/{slot.max}</span>
           </div>
         {/each}
         {#if c.spellcasting.pact.max > 0}
@@ -108,10 +109,10 @@
             <span class="small w">Pakt (G{p.level})</span>
             <span class="pips">
               {#each Array.from({ length: p.max }, (_, i) => i) as i (i)}
-                <button class="pip pact-pip" class:on={i < p.max - p.used} aria-label="Paktplatz {i + 1}" onclick={() => togglePact(i)}></button>
+                <button class="pip pact-pip" class:on={i < leftOf(p)} aria-label="Paktplatz {i + 1}" onclick={() => togglePact(i)}></button>
               {/each}
             </span>
-            <span class="tiny muted mono">{p.max - p.used}/{p.max}</span>
+            <span class="tiny muted mono">{leftOf(p)}/{p.max}</span>
           </div>
         {/if}
       </div>

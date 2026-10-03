@@ -1,4 +1,5 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import { unitSystem } from "../../lib/session.svelte";
   import { convertText, distanceUnit, feetToInput, formatDistance, inputToFeet } from "../../lib/units";
   import { Minus, Plus } from "@lucide/svelte";
@@ -48,7 +49,7 @@
   {#if ctx.editing && c.acMode === "manual"}
     <div class="stat">
       <span class="label"><Icon name="armor" size={13} /> RK (Grundwert)</span>
-      <input class="input input-sm mono" type="number" bind:value={c.ac} aria-label="Rüstungsklasse" />
+      <NumberField class="input input-sm mono" aria-label="Rüstungsklasse" bind:value={c.ac} />
     </div>
   {:else}
     <button class="stat clickable" onclick={() => (showAc = true)} title={ac.parts.map(p => `${p.label} ${p.value}`).join(", ")}>
@@ -68,7 +69,12 @@
         type="number"
         step={unitSystem() === "metric" ? 1.5 : 5}
         value={feetToInput(c.speed, unitSystem())}
-        onchange={e => (c.speed = inputToFeet(Number((e.currentTarget as HTMLInputElement).value), unitSystem()))}
+        onchange={e => {
+          const el = e.currentTarget as HTMLInputElement;
+          // Leeres oder ungültiges Feld: alten Wert behalten
+          if (el.value !== "" && Number.isFinite(el.valueAsNumber)) c.speed = Math.max(0, inputToFeet(el.valueAsNumber, unitSystem()));
+          el.value = String(feetToInput(c.speed, unitSystem()));
+        }}
         aria-label="Bewegungsrate in {distanceUnit(unitSystem())}"
       />
     {:else}
@@ -87,9 +93,9 @@
     </div>
     <div class="hp-main">
       {#if ctx.editing}
-        <label class="tiny muted">Aktuell <input class="input input-sm mono" type="number" bind:value={c.hp.current} /></label>
-        <label class="tiny muted">Maximum <input class="input input-sm mono" type="number" bind:value={c.hp.max} /></label>
-        <label class="tiny muted">Temporär <input class="input input-sm mono" type="number" min="0" bind:value={c.hp.temp} /></label>
+        <label class="tiny muted">Aktuell <NumberField class="input input-sm mono" bind:value={c.hp.current} /></label>
+        <label class="tiny muted">Maximum <NumberField class="input input-sm mono" bind:value={c.hp.max} /></label>
+        <label class="tiny muted">Temporär <NumberField class="input input-sm mono" min={0} bind:value={c.hp.temp} /></label>
       {:else}
         <span class="hp-value mono" class:down={c.hp.current === 0}>{c.hp.current}<small>/{c.hp.max}</small></span>
         <div class="hp-actions">

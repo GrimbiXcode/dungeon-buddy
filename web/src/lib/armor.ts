@@ -148,8 +148,9 @@ export function armorClass(c: CharacterData): AcResult {
     const body = wornArmor(c);
     if (body) {
       parts.push({ label: body.name || "Rüstung", value: body.baseAc + body.bonus });
+      // Schwere Rüstung: kein GES-Modifikator, auch kein negativer
       const cap = body.type === "heavy" ? 0 : body.dexCap;
-      const dexPart = cap == null ? dex : Math.min(dex, cap);
+      const dexPart = body.type === "heavy" ? 0 : cap == null ? dex : Math.min(dex, cap);
       if (dexPart) parts.push({ label: cap != null && dex > cap ? `GES (max. ${cap})` : "GES", value: dexPart });
       if (body.strength && c.abilities.str < body.strength) notes.push(`${body.name}: STR ${body.strength} nötig, sonst −3 m (10 ft) Bewegung.`);
       if (body.stealthDisadvantage) notes.push(`${body.name}: Nachteil auf Heimlichkeit.`);
@@ -181,7 +182,11 @@ export function armorClass(c: CharacterData): AcResult {
 
   if (shield) parts.push({ label: shield.name || "Schild", value: shield.baseAc + shield.bonus });
   if (c.acBonus) parts.push({ label: "Sonstiger Bonus", value: c.acBonus });
-  for (const s of sources) if (s.mod.mode === "bonus" && s.mod.value) parts.push({ label: s.label, value: s.mod.value });
+  // „Nur mit Rüstung“ lässt sich bei festem Grundwert nicht prüfen und zählt dort immer
+  const armored = c.acMode === "manual" || Boolean(wornArmor(c));
+  for (const s of sources) {
+    if (s.mod.mode === "bonus" && s.mod.value && (armored || !s.mod.armoredOnly)) parts.push({ label: s.label, value: s.mod.value });
+  }
 
   let total = parts.reduce((t, p) => t + p.value, 0);
   for (const s of sources) {

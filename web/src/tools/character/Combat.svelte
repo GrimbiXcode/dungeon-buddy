@@ -1,8 +1,9 @@
 <script lang="ts">
+  import NumberField from "../../components/NumberField.svelte";
   import { Plus, Trash2 } from "@lucide/svelte";
   import Icon from "../../components/Icon.svelte";
   import Modal from "../../components/Modal.svelte";
-  import { hitDiceSummary, mod, newResource, totalLevel } from "../../lib/character";
+  import { hitDiceSummary, leftOf, mod, newResource, totalLevel } from "../../lib/character";
   import { CONDITIONS } from "../../lib/dnd";
   import { sheet } from "./context";
 
@@ -74,7 +75,7 @@
     <h3><Icon name="hp" size={16} /> Trefferwürfel</h3>
     <p class="small"><strong>{Math.max(0, totalLevel(c) - c.hitDiceUsed)}</strong> von {hitDiceSummary(c) || totalLevel(c)} übrig</p>
     {#if ctx.editing}
-      <label class="tiny muted">Verbraucht <input class="input input-sm mono used" type="number" min="0" max={totalLevel(c)} bind:value={c.hitDiceUsed} /></label>
+      <label class="tiny muted">Verbraucht <NumberField class="input input-sm mono used" min={0} max={totalLevel(c)} bind:value={c.hitDiceUsed} /></label>
     {:else}
       <div class="row">
         {#each hitDieTypes as die (die)}
@@ -98,7 +99,7 @@
       {#if ctx.editing}
         <div class="res-edit">
           <input class="input input-sm grow" bind:value={r.name} aria-label="Name" />
-          <input class="input input-sm mono num" type="number" min="0" bind:value={r.max} aria-label="Maximum" />
+          <NumberField class="input input-sm mono num" min={0} aria-label="Maximum" bind:value={r.max} />
           <select class="select input-sm reset" bind:value={r.reset} aria-label="Zurücksetzen bei">
             <option value="short">Kurze Rast</option>
             <option value="long">Lange Rast</option>
@@ -112,13 +113,13 @@
           {#if r.max <= 10}
             <span class="pips">
               {#each Array.from({ length: r.max }, (_, i) => i) as i (i)}
-                <button class="pip" class:on={i < r.max - r.used} aria-label="{r.name} {i + 1}" onclick={() => (r.used = i < r.max - r.used ? r.max - i : r.max - i - 1)}></button>
+                <button class="pip" class:on={i < leftOf(r)} aria-label="{r.name} {i + 1}" onclick={() => (r.used = i < leftOf(r) ? r.max - i : r.max - i - 1)}></button>
               {/each}
             </span>
           {:else}
             <span class="row counter">
               <button class="btn btn-sm btn-icon" aria-label="verbrauchen" onclick={() => (r.used = Math.min(r.max, r.used + 1))}>−</button>
-              <span class="mono">{r.max - r.used}/{r.max}</span>
+              <span class="mono">{leftOf(r)}/{r.max}</span>
               <button class="btn btn-sm btn-icon" aria-label="zurückgewinnen" onclick={() => (r.used = Math.max(0, r.used - 1))}>+</button>
             </span>
           {/if}
@@ -158,12 +159,12 @@
   .pip.on { background: var(--accent); border-color: var(--accent); }
   .pip.success.on { background: var(--success); border-color: var(--success); }
   .pip.failure.on { background: var(--danger); border-color: var(--danger); }
-  .used { width: 5rem; display: block; margin-top: 0.2rem; }
+  .combat :global(.used) { width: 5rem; display: block; margin-top: 0.2rem; }
   .res, .res-edit { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
   .res:last-child, .res-edit:last-child { border-bottom: 0; }
   .pips { display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: flex-end; }
   .pips .pip { width: 18px; height: 18px; }
-  .num { width: 4rem; }
+  .combat :global(.num) { width: 4rem; }
   .reset { width: 8.5rem; }
   .counter { gap: 0.35rem; }
   @media (max-width: 480px) {

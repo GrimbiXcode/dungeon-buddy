@@ -196,9 +196,21 @@ describe("Rüstungsklasse", () => {
     const defense = buildPreset("defense", "2024", "Spezies");
     const shieldSpell = buildPreset("shield", "2024", "Spezies");
     c.features = [defense, shieldSpell];
-    expect(armorClass(c).total).toBe(14);
+    // Verteidigung gilt nur mit Rüstung
+    expect(armorClass(c).total).toBe(13);
     useFeature(c, shieldSpell);
-    expect(armorClass(c).total).toBe(19);
+    expect(armorClass(c).total).toBe(18);
+    c.armor = [newArmor({ name: "Lederrüstung", type: "light", baseAc: 11, equipped: true })];
+    expect(armorClass(c).total).toBe(20);
+  });
+
+  it("schwere Rüstung ignoriert auch einen negativen GES-Modifikator", () => {
+    const c = base();
+    c.abilities.dex = 8;
+    c.armor = [newArmor({ name: "Ritterrüstung", type: "heavy", baseAc: 18, equipped: true })];
+    expect(armorClass(c).total).toBe(18);
+    c.armor = [newArmor({ name: "Schuppenpanzer", type: "medium", baseAc: 14, dexCap: 2, equipped: true })];
+    expect(armorClass(c).total).toBe(13);
   });
 });
 

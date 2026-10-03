@@ -224,7 +224,7 @@ export const FEATURE_PRESETS: Preset[] = [
       target: "self",
       benefit: "+1 RK, solange du eine Rüstung trägst",
       condition: "Nur mit angelegter Rüstung",
-      acMod: { mode: "bonus", value: 1 },
+      acMod: { mode: "bonus", value: 1, armoredOnly: true },
     }),
   },
   {
