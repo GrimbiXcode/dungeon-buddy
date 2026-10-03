@@ -181,6 +181,7 @@
   /* Umbruch an Wortgrenzen bzw. mit Silbentrennung, nicht mitten im Wort */
   .stat .label { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.68rem; max-width: 100%; text-align: center; overflow-wrap: break-word; hyphens: auto; }
   .stat :global(input) { width: 4.5rem; max-width: 100%; text-align: center; }
+  .stat .label :global(svg) { flex: none; }
   .clickable { cursor: pointer; }
   .clickable:not(:disabled):hover { border-color: var(--accent); background: var(--accent-soft); }
   .clickable:disabled { cursor: default; }
@@ -198,7 +199,7 @@
   /* Knöpfe behalten ihre Höhe; der Krit-Hinweis bei 0 TP steht in einer eigenen Zeile */
   .hp-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; flex: 1; justify-content: flex-end; align-items: center; }
   .hp-main .hp-actions .checkbox { flex-basis: 100%; flex-direction: row; width: auto; justify-content: flex-end; }
-  .hp-actions input { width: 5rem; }
+  .hp-actions input[type="number"] { width: 5rem; }
   .bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
   .bar span { display: block; height: 100%; background: var(--success); transition: width 0.25s; }
   .bar span.low { background: var(--danger); }
