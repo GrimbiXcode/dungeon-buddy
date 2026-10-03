@@ -1,4 +1,4 @@
-import { newFeature, type Feature } from "./features";
+import { newFeature, newRollMod, type Feature, type FeatureLink } from "./features";
 import type { Ruleset } from "./types";
 
 /**
@@ -24,7 +24,11 @@ export const FEATURE_PRESETS: Preset[] = [
       duration: { kind: "minutes", amount: 1, text: "" },
       uses: { max: 2, used: 0, reset: "long" },
       appliesTo: { scope: "melee", attackIds: [] },
-      attackMods: { toHit: 0, damageBonus: 2, advantage: false },
+      rollMods: [
+        newRollMod({ target: "damage", bonus: "2" }),
+        newRollMod({ target: "check", ability: "str", mode: "advantage" }),
+        newRollMod({ target: "save", ability: "str", mode: "advantage" }),
+      ],
     }),
   },
   {
@@ -42,7 +46,7 @@ export const FEATURE_PRESETS: Preset[] = [
       duration: { kind: "rounds", amount: 1, text: "" },
       triggers: ["attack"],
       appliesTo: { scope: "melee", attackIds: [] },
-      attackMods: { toHit: 0, damageBonus: 0, advantage: true },
+      rollMods: [newRollMod({ target: "attack", mode: "advantage" })],
     }),
   },
   {
@@ -93,6 +97,22 @@ export const FEATURE_PRESETS: Preset[] = [
     }),
   },
   {
+    key: "tacticalMind",
+    group: "Kämpfer",
+    build: () => ({
+      name: "Taktisches Verständnis",
+      category: "Klasse",
+      tags: ["Kämpfer"],
+      activation: "free",
+      effectType: "buff",
+      target: "self",
+      benefit: "+1W10 auf einen misslungenen Attributswurf",
+      condition: "Verbraucht Durchschnaufen nur, wenn der Wurf damit gelingt (5e 2024)",
+      triggers: ["check"],
+      rollMods: [newRollMod({ target: "check", bonus: "1d10" })],
+    }),
+  },
+  {
     key: "actionSurge",
     group: "Kämpfer",
     build: () => ({
@@ -139,7 +159,7 @@ export const FEATURE_PRESETS: Preset[] = [
             benefit: "Schadensbonus in Höhe deines Übungsbonus bei Treffern mit schweren Waffen",
             condition: "Waffe mit der Eigenschaft Schwer, als Teil der Angriffsaktion",
             appliesTo: { scope: "specific", attackIds: [] },
-            attackMods: { toHit: 0, damageBonus: 2, advantage: false },
+            rollMods: [newRollMod({ target: "damage", bonus: "2" })],
           }
         : {
             name: "Meister der schweren Waffen (−5/+10)",
@@ -152,7 +172,7 @@ export const FEATURE_PRESETS: Preset[] = [
             condition: "Geübte schwere Nahkampfwaffe",
             triggers: ["attack"],
             appliesTo: { scope: "specific", attackIds: [] },
-            attackMods: { toHit: -5, damageBonus: 10, advantage: false },
+            rollMods: [newRollMod({ target: "attack", bonus: "-5" }), newRollMod({ target: "damage", bonus: "10" })],
           },
   },
   {
@@ -167,7 +187,22 @@ export const FEATURE_PRESETS: Preset[] = [
       target: "self",
       benefit: "+2 auf Fernkampf-Angriffswürfe",
       appliesTo: { scope: "ranged", attackIds: [] },
-      attackMods: { toHit: 2, damageBonus: 0, advantage: false },
+      rollMods: [newRollMod({ target: "attack", bonus: "2" })],
+    }),
+  },
+  {
+    key: "defense",
+    group: "Kampfstil",
+    build: () => ({
+      name: "Kampfstil: Verteidigung",
+      category: "Klasse",
+      tags: ["Kampfstil"],
+      activation: "passive",
+      effectType: "defense",
+      target: "self",
+      benefit: "+1 RK, solange du eine Rüstung trägst",
+      condition: "Nur mit angelegter Rüstung",
+      acMod: { mode: "bonus", value: 1 },
     }),
   },
   {
@@ -183,7 +218,7 @@ export const FEATURE_PRESETS: Preset[] = [
       benefit: "+2 Schaden mit einer einhändigen Nahkampfwaffe ohne weitere Waffe",
       condition: "Keine andere Waffe in der Hand",
       appliesTo: { scope: "melee", attackIds: [] },
-      attackMods: { toHit: 0, damageBonus: 2, advantage: false },
+      rollMods: [newRollMod({ target: "damage", bonus: "2" })],
     }),
   },
   {
@@ -200,6 +235,54 @@ export const FEATURE_PRESETS: Preset[] = [
       condition: "Wenn du getroffen wirst oder Ziel von Magisches Geschoss bist",
       duration: { kind: "rounds", amount: 1, text: "" },
       triggers: ["attacked"],
+      acMod: { mode: "bonus", value: 5 },
+    }),
+  },
+  {
+    key: "bless",
+    group: "Zauber",
+    build: () => ({
+      name: "Segen",
+      category: "Zauber",
+      tags: ["Zauberplatz", "Konzentration"],
+      activation: "action",
+      effectType: "buff",
+      target: "ally",
+      targetText: "Bis zu drei Kreaturen",
+      benefit: "+1W4 auf Angriffs- und Rettungswürfe",
+      duration: { kind: "concentration", amount: 1, text: "" },
+      appliesTo: { scope: "all", attackIds: [] },
+      rollMods: [newRollMod({ target: "attack", bonus: "1d4" }), newRollMod({ target: "save", bonus: "1d4" })],
+    }),
+  },
+  {
+    key: "shieldOfFaith",
+    group: "Zauber",
+    build: () => ({
+      name: "Schild des Glaubens",
+      category: "Zauber",
+      tags: ["Zauberplatz", "Konzentration"],
+      activation: "bonus",
+      effectType: "defense",
+      target: "ally",
+      benefit: "+2 RK",
+      duration: { kind: "concentration", amount: 10, text: "" },
+      acMod: { mode: "bonus", value: 2 },
+    }),
+  },
+  {
+    key: "guidance",
+    group: "Zauber",
+    build: r => ({
+      name: "Anleitung",
+      category: "Zauber",
+      tags: ["Zaubertrick", "Konzentration"],
+      activation: "action",
+      effectType: "buff",
+      target: "ally",
+      benefit: r === "2024" ? "+1W4 auf Attributswürfe mit einer gewählten Fertigkeit" : "+1W4 auf einen Attributswurf",
+      duration: { kind: "concentration", amount: 1, text: "" },
+      rollMods: [newRollMod({ target: "check", bonus: "1d4" })],
     }),
   },
   {
@@ -251,8 +334,17 @@ export const FEATURE_PRESETS: Preset[] = [
   },
 ];
 
-export function buildPreset(key: string, ruleset: Ruleset, speciesLabel: string): Feature {
+/** Vorlagen, die eine andere Fähigkeit mitverwenden (Name der Fähigkeit im Bogen). */
+const PRESET_LINKS: Record<string, { name: string; cost: number; when: FeatureLink["when"] }[]> = {
+  tacticalMind: [{ name: "Durchschnaufen", cost: 1, when: "success" }],
+};
+
+export function buildPreset(key: string, ruleset: Ruleset, speciesLabel: string, existing: Feature[] = []): Feature {
   const preset = FEATURE_PRESETS.find(p => p.key === key)!;
   const partial = preset.build(ruleset);
-  return newFeature({ ...partial, category: partial.category === "Spezies" ? speciesLabel : partial.category });
+  const links = (PRESET_LINKS[key] ?? []).flatMap(l => {
+    const target = existing.find(f => f.name.trim().toLowerCase() === l.name.toLowerCase());
+    return target ? [{ featureId: target.id, cost: l.cost, when: l.when }] : [];
+  });
+  return newFeature({ ...partial, links, category: partial.category === "Spezies" ? speciesLabel : partial.category });
 }

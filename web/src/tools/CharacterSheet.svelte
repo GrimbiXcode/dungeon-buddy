@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import { ArrowLeft, Check, CloudOff, GitFork, Moon, Pencil, Play, RefreshCw, Skull, Sunrise } from "@lucide/svelte";
-  import { ApiError, get, put } from "../lib/api";
+  import { ArrowLeft, Check, CloudOff, GitFork, Moon, Pencil, Play, RefreshCw, Skull, Star, Sunrise } from "@lucide/svelte";
+  import { current } from "../lib/campaign.svelte";
+  import { ApiError, get, post, put } from "../lib/api";
   import {
     classSummary,
     longRest,
@@ -16,7 +17,20 @@
   import { d20Request, isPhysical, openRoll } from "../lib/roller.svelte";
   import { route } from "../lib/router.svelte";
   import { session } from "../lib/session.svelte";
-  import { toast } from "../lib/toast.svelte";
+  import { toast, toastError } from "../lib/toast.svelte";
+  import {
+    armorFromLibrary,
+    armorToLibrary,
+    attackFromLibrary,
+    attackToLibrary,
+    featureFromLibrary,
+    featureToLibrary,
+    unresolvedLinks,
+    type LibraryItem,
+  } from "../lib/library";
+  import LibraryPicker from "../components/LibraryPicker.svelte";
+  import Armor from "./character/Armor.svelte";
+  import type { ArmorItem } from "../lib/armor";
   import type { Campaign, CharacterRecord, Ruleset } from "../lib/types";
   import { rulesetLabel } from "../lib/themes";
   import { setSheet } from "./character/context";
@@ -34,8 +48,19 @@
   import CombatAssistant from "./character/CombatAssistant.svelte";
   import AttackWizard from "./character/AttackWizard.svelte";
   import Portrait from "./character/Portrait.svelte";
-  import { useFeature, type Feature } from "../lib/features";
+  import {
+    confirmLinkSuccess,
+    linkedFeatures,
+    refundFeature,
+    rollFeatures,
+    sumMods,
+    useFeature,
+    type Feature,
+    type RollContext,
+  } from "../lib/features";
   import type { Attack } from "../lib/character";
+  import { stealthDisadvantage, wornArmor } from "../lib/armor";
+  import type { RollOption } from "../lib/roller.svelte";
 
   /** Ohne Kampagne: Bogen aus „Meine Charaktere“ geöffnet. */
   let { characterId, campaign = null }: { characterId: string; campaign?: Campaign | null } = $props();
@@ -51,7 +76,8 @@
   let saveState = $state<SaveState>("saved");
   let editing = $state(new URLSearchParams(route.search).has("bearbeiten"));
   let tab = $state<Tab>(readTab());
-  let attackWizard = $state<Attack | null>(null);
+  let attackWizard = $state<{ attack: Attack; offhand: boolean } | null>(null);
+  let libraryKind = $state<"feature" | "attack" | "armor" | null>(null);
 
   const url = $derived(`/api/characters/${characterId}`);
   const terms = $derived(rulesTerms(ruleset));
@@ -101,6 +127,7 @@
           rollMode: data.rollMode,
           target: opts.target,
           followUp: opts.damage ? { ...opts.damage, canCrit: true } : undefined,
+          options: rollOptions({ kind, ability: opts.ability ?? null, skill: opts.skill ?? null }),
         })
       );
     },
@@ -131,10 +158,84 @@
         toast(`${f.name} eingesetzt${f.benefit ? `: ${f.benefit}` : "."}`, "success");
       }
     },
-    openAttack(a: Attack) {
-      attackWizard = a;
+    openAttack(a: Attack, opts = {}) {
+      attackWizard = { attack: a, offhand: Boolean(opts.offhand) };
+    },
+    addToLibrary(kind: "feature" | "attack" | "armor", item: Feature | Attack | ArmorItem) {
+      const payload =
+        kind === "feature" ? featureToLibrary(data, item as Feature) : kind === "attack" ? attackToLibrary(item as Attack) : armorToLibrary(item as ArmorItem);
+      post("/api/library", { kind, name: item.name || "Ohne Namen", ruleset, data: payload })
+        .then(() => toast(`„${item.name}“ in die Bibliothek aufgenommen.`, "success"))
+        .catch(toastError);
+    },
+    openLibrary(kind) {
+      libraryKind = kind;
     },
   });
+
+  const inCampaign = $derived(Boolean(campaign && record?.campaigns?.some(x => x.campaignId === campaign.id && x.active)));
+  const isActiveCharacter = $derived(Boolean(campaign && campaign.activeCharacterId === characterId));
+
+  async function makeActive() {
+    if (!campaign) return;
+    try {
+      const res = await put<{ activeCharacterId: string | null }>(`/api/campaigns/${campaign.id}/active-character`, { characterId });
+      if (current.campaign?.id === campaign.id) current.campaign.activeCharacterId = res.activeCharacterId;
+      toast("Aktiver Charakter dieser Kampagne.", "success");
+    } catch (e) {
+      toastError(e);
+    }
+  }
+
+  function pickFromLibrary(item: LibraryItem) {
+    const kind = libraryKind;
+    libraryKind = null;
+    if (kind === "feature") {
+      const missing = unresolvedLinks(data, item.data);
+      data.features.push(featureFromLibrary(data, item.data));
+      if (missing.length) toast(`Verknüpfung zu ${missing.join(", ")} fehlt im Bogen – bei Bedarf im Editor setzen.`);
+      tab = "faehigkeiten";
+    } else if (kind === "attack") {
+      data.attacks.push(attackFromLibrary(item.data));
+    } else if (kind === "armor") {
+      data.armor.push(armorFromLibrary(item.data));
+    }
+    toast(`„${item.name}“ übernommen.`, "success");
+  }
+
+  /** Fähigkeiten, die einen W20-Wurf verändern, als Optionen im Würfeldialog */
+  function rollOptions(roll: RollContext): RollOption[] {
+    const options: RollOption[] = rollFeatures(data, roll).map(rf => {
+      const f = rf.feature;
+      const sum = sumMods([{ label: f.name, mods: rf.mods }]);
+      const onSuccess = linkedFeatures(data, f).filter(x => x.link.when === "success");
+      return {
+        id: f.id,
+        label: f.name,
+        detail: [f.benefit, ...onSuccess.map(x => `Verbraucht ${x.link.cost}× ${x.feature.name}, wenn es gelingt`)].filter(Boolean).join(" · ") || undefined,
+        flat: sum.flat,
+        dice: sum.dice.flatMap(d => d.groups),
+        sign: sum.dice[0]?.sign ?? 1,
+        mode: sum.advantage && !sum.disadvantage ? "advantage" : sum.disadvantage && !sum.advantage ? "disadvantage" : null,
+        auto: rf.automatic,
+        disabled: !rf.available,
+        onToggle: on => {
+          if (on) for (const note of useFeature(data, f, { markEconomy: f.activation === "reaction" })) toast(note);
+          else refundFeature(data, f);
+        },
+        onSuccess: onSuccess.length
+          ? {
+              label: onSuccess.map(x => `${x.feature.name} verbrauchen`).join(", "),
+              run: () => onSuccess.forEach(x => confirmLinkSuccess(data, f, x.feature.id)),
+            }
+          : undefined,
+      };
+    });
+    if (roll.kind === "skill" && roll.skill === "stealth" && stealthDisadvantage(data)) {
+      options.unshift({ id: "armor-stealth", label: wornArmor(data)?.name || "Rüstung", detail: "Nachteil auf Heimlichkeit", flat: 0, dice: [], sign: 1, mode: "disadvantage", auto: true });
+    }
+    return options;
+  }
 
   onMount(() => {
     void load();
@@ -276,6 +377,11 @@
         {#if record.status === "dead"}<span class="badge badge-danger"><Skull size={12} /> Verstorben</span>{/if}
         {#if record.status === "retired"}<span class="badge">Im Ruhestand</span>{/if}
         {#if record.forkedFromName}<span class="badge"><GitFork size={12} /> Kopie von {record.forkedFromName}</span>{/if}
+        {#if isActiveCharacter}
+          <span class="badge badge-accent"><Star size={12} /> Aktiver Charakter</span>
+        {:else if inCampaign}
+          <button class="badge make-active" onclick={makeActive} title="„Charakterbogen“ öffnet dann direkt diesen Bogen"><Star size={12} /> Als aktiven Charakter festlegen</button>
+        {/if}
         {#each (record.campaigns ?? []).filter(c => c.active) as c (c.campaignId)}
           <a class="badge campaign-link" href="/k/{c.campaignId}/charaktere/{record.id}">{c.name}</a>
         {/each}
@@ -334,6 +440,7 @@
     {:else if tab === "kampf"}
       <CombatAssistant />
       <Attacks />
+      <Armor />
       <Combat />
     {:else if tab === "faehigkeiten"}
       <Features />
@@ -364,8 +471,14 @@
   </div>
 {/if}
 
+{#if libraryKind}
+  <LibraryPicker kind={libraryKind} {ruleset} onpick={pickFromLibrary} onclose={() => (libraryKind = null)} />
+{/if}
+
 {#if attackWizard}
-  <AttackWizard attack={attackWizard} onclose={() => (attackWizard = null)} />
+  {#key attackWizard}
+    <AttackWizard attack={attackWizard.attack} offhand={attackWizard.offhand} onclose={() => (attackWizard = null)} />
+  {/key}
 {/if}
 
 <style>
@@ -383,6 +496,8 @@
   .meta { margin-top: 0.35rem; gap: 0.3rem; }
   .meta .badge { font-size: 0.7rem; }
   .campaign-link { color: var(--accent-text); }
+  .make-active { cursor: pointer; font: inherit; font-size: 0.7rem; background: transparent; }
+  .make-active:hover { border-color: var(--accent); color: var(--accent-text); }
   .warn-text { color: var(--warning); margin-top: 0.3rem !important; }
   .actions { gap: 0.4rem; }
   .segmented button { display: inline-flex; align-items: center; gap: 0.3rem; }

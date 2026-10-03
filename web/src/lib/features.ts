@@ -6,6 +6,8 @@
  * `normalizeFeature` / `normalizeCombat` in Form gebracht.
  */
 import type { Attack, CharacterData, Resource } from "./character";
+import { ABILITIES, ABILITY_SHORT, SKILLS, type Ability, type RollKind, type SkillKey } from "./dnd";
+import { formatBonus, parseBonus, type DiceGroup } from "./dice";
 import { uid } from "./format";
 
 // ── Auswahllisten ───────────────────────────────────────────────────────
@@ -89,6 +91,40 @@ export const SCOPES = [
 ] as const;
 export type Scope = (typeof SCOPES)[number]["key"];
 
+/** Würfe, die eine Fähigkeit verändern kann. */
+export const ROLL_TARGETS = [
+  { key: "attack", label: "Angriffswurf" },
+  { key: "damage", label: "Schadenswurf" },
+  { key: "check", label: "Attributswurf" },
+  { key: "skill", label: "Fertigkeitswurf" },
+  { key: "save", label: "Rettungswurf" },
+  { key: "initiative", label: "Initiative" },
+  { key: "deathSave", label: "Todesrettungswurf" },
+] as const;
+export type RollTarget = (typeof ROLL_TARGETS)[number]["key"];
+
+export const ADV_MODES = [
+  { key: "none", label: "–" },
+  { key: "advantage", label: "Vorteil" },
+  { key: "disadvantage", label: "Nachteil" },
+] as const;
+export type AdvantageMode = (typeof ADV_MODES)[number]["key"];
+
+/** Wirkung auf die Rüstungsklasse (Schild-Zauber, Magierrüstung, Rindenhaut …) */
+export const AC_MODES = [
+  { key: "none", label: "Keine" },
+  { key: "bonus", label: "Bonus auf die RK" },
+  { key: "base", label: "Grund-RK + GES (ohne Rüstung)" },
+  { key: "min", label: "RK mindestens" },
+] as const;
+export type AcModMode = (typeof AC_MODES)[number]["key"];
+
+export const LINK_WHEN = [
+  { key: "use", label: "beim Einsetzen" },
+  { key: "success", label: "wenn es gelingt (selbst bestätigen)" },
+] as const;
+export type LinkWhen = (typeof LINK_WHEN)[number]["key"];
+
 /** Vorgeschlagene Kategorien; eigene sind jederzeit möglich. */
 export function baseCategories(speciesLabel: string) {
   return ["Klasse", "Unterklasse", speciesLabel, "Hintergrund", "Talent", "Ausrüstung", "Magischer Gegenstand", "Sonstiges"];
@@ -109,6 +145,30 @@ export const WEAPON_PROPERTIES = [
 ] as const;
 
 // ── Typen ───────────────────────────────────────────────────────────────
+
+/**
+ * Veränderung eines Wurfs, z. B. +1W4 auf Angriffe und Rettungswürfe (Segen),
+ * +1W10 auf einen Attributswurf (Taktisches Verständnis) oder Vorteil.
+ * Angriff/Schaden gelten für die Angriffe aus „Gilt für“.
+ */
+export type RollMod = {
+  target: RollTarget;
+  /** Nur Würfe mit diesem Attribut (Attributs- und Rettungswürfe); null = alle */
+  ability: Ability | null;
+  /** Nur diese Fertigkeit; null = alle */
+  skill: SkillKey | null;
+  /** Zahl oder Würfel, z. B. "2", "1d4", "-1d4" */
+  bonus: string;
+  mode: AdvantageMode;
+};
+
+export type AcMod = { mode: AcModMode; value: number };
+
+/**
+ * Abhängigkeit zu einer anderen Fähigkeit: Taktisches Verständnis verbraucht
+ * z. B. eine Nutzung von Durchschnaufen, wenn es gelingt.
+ */
+export type FeatureLink = { featureId: string; cost: number; when: LinkWhen };
 
 export type Feature = {
   id: string;
@@ -139,7 +199,12 @@ export type Feature = {
   resourceCost: number;
   triggers: Trigger[];
   appliesTo: { scope: Scope; attackIds: string[] };
-  attackMods: { toHit: number; damageBonus: number; advantage: boolean };
+  /** Veränderte Würfe (Angriff, Schaden, Attribut, Rettung …) */
+  rollMods: RollMod[];
+  /** Wirkung auf die RK, solange die Fähigkeit wirkt (passiv oder aktiver Effekt) */
+  acMod: AcMod;
+  /** Verbraucht Nutzungen anderer Fähigkeiten */
+  links: FeatureLink[];
 };
 
 export type ActiveEffect = {
@@ -150,7 +215,11 @@ export type ActiveEffect = {
   remaining: number | null;
   concentration: boolean;
   note: string;
+  /** RK-Wirkung, z. B. Schild des Glaubens eines Mitspielers (+2) */
+  ac: AcMod | null;
 };
+
+export type NewEffect = Omit<ActiveEffect, "id" | "ac"> & { ac?: AcMod | null };
 
 export type CombatState = {
   active: boolean;
@@ -158,6 +227,10 @@ export type CombatState = {
   used: { action: boolean; bonus: boolean; reaction: boolean };
   movement: number;
   effects: ActiveEffect[];
+  /** Angriff mit leichter Waffe als Teil der Angriffsaktion in diesem Zug (Waffen-ID) */
+  lightAttack: string | null;
+  /** Zusatzangriff mit der zweiten leichten Waffe in diesem Zug schon gemacht */
+  offhandUsed: boolean;
 };
 
 // ── Normalisierung ──────────────────────────────────────────────────────
@@ -191,9 +264,44 @@ export function newFeature(partial: Partial<Feature> = {}): Feature {
     resourceCost: 1,
     triggers: [],
     appliesTo: { scope: "none", attackIds: [] },
-    attackMods: { toHit: 0, damageBonus: 0, advantage: false },
+    rollMods: [],
+    acMod: { mode: "none", value: 0 },
+    links: [],
     ...partial,
   };
+}
+
+export function newRollMod(partial: Partial<RollMod> = {}): RollMod {
+  return { target: "check", ability: null, skill: null, bonus: "", mode: "none", ...partial };
+}
+
+export function normalizeRollMod(raw: unknown): RollMod {
+  const m = obj(raw);
+  return newRollMod({
+    target: oneOf(ROLL_TARGETS, m.target, "check"),
+    ability: (ABILITIES as readonly string[]).includes(m.ability as string) ? (m.ability as Ability) : null,
+    skill: SKILLS.some(s => s.key === m.skill) ? (m.skill as SkillKey) : null,
+    bonus: str(m.bonus).slice(0, 40),
+    mode: oneOf(ADV_MODES, m.mode, "none"),
+  });
+}
+
+export function normalizeAcMod(raw: unknown): AcMod {
+  const m = obj(raw);
+  return { mode: oneOf(AC_MODES, m.mode, "none"), value: num(m.value, 0) };
+}
+
+/** Frühere Bögen hatten feste Angriffsboni statt Wurfmodifikatoren. */
+function legacyAttackMods(raw: unknown): RollMod[] {
+  const m = obj(raw);
+  const out: RollMod[] = [];
+  const toHit = num(m.toHit, 0);
+  const damage = num(m.damageBonus, 0);
+  if (toHit || m.advantage === true) {
+    out.push(newRollMod({ target: "attack", bonus: toHit ? String(toHit) : "", mode: m.advantage === true ? "advantage" : "none" }));
+  }
+  if (damage) out.push(newRollMod({ target: "damage", bonus: String(damage) }));
+  return out;
 }
 
 export function normalizeFeature(raw: unknown): Feature {
@@ -201,7 +309,6 @@ export function normalizeFeature(raw: unknown): Feature {
   const duration = obj(f.duration);
   const uses = obj(f.uses);
   const applies = obj(f.appliesTo);
-  const mods = obj(f.attackMods);
   return newFeature({
     id: str(f.id) || uid(),
     name: str(f.name),
@@ -234,11 +341,14 @@ export function normalizeFeature(raw: unknown): Feature {
       scope: oneOf(SCOPES, applies.scope, "none"),
       attackIds: Array.isArray(applies.attackIds) ? applies.attackIds.filter((t): t is string => typeof t === "string") : [],
     },
-    attackMods: {
-      toHit: num(mods.toHit, 0),
-      damageBonus: num(mods.damageBonus, 0),
-      advantage: mods.advantage === true,
-    },
+    rollMods: Array.isArray(f.rollMods) ? f.rollMods.map(normalizeRollMod) : legacyAttackMods(f.attackMods),
+    acMod: normalizeAcMod(f.acMod),
+    links: (Array.isArray(f.links) ? f.links : [])
+      .map(l => {
+        const o = obj(l);
+        return { featureId: str(o.featureId), cost: Math.max(0, num(o.cost, 1)), when: oneOf(LINK_WHEN, o.when, "use") };
+      })
+      .filter(l => l.featureId),
   });
 }
 
@@ -259,8 +369,11 @@ export function normalizeCombat(raw: unknown): CombatState {
         remaining: typeof o.remaining === "number" ? o.remaining : null,
         concentration: o.concentration === true,
         note: str(o.note),
+        ac: o.ac ? normalizeAcMod(o.ac) : null,
       };
     }),
+    lightAttack: typeof c.lightAttack === "string" ? c.lightAttack : null,
+    offhandUsed: c.offhandUsed === true,
   };
 }
 
@@ -270,14 +383,64 @@ function resourceOf(c: CharacterData, f: Feature): Resource | undefined {
   return f.resourceId ? c.resources.find(r => r.id === f.resourceId) : undefined;
 }
 
-/** Verbleibende Einsätze; null = unbegrenzt. */
-export function usesLeft(c: CharacterData, f: Feature): number | null {
+const minLeft = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.min(a, b));
+
+/** Verknüpfte Fähigkeiten (die es im Bogen noch gibt). */
+export function linkedFeatures(c: CharacterData, f: Feature) {
+  return f.links
+    .map(link => ({ link, feature: c.features.find(x => x.id === link.featureId && x.id !== f.id) }))
+    .filter((x): x is { link: FeatureLink; feature: Feature } => Boolean(x.feature));
+}
+
+/** Fähigkeiten, die diese Fähigkeit mitverwenden. */
+export function dependentFeatures(c: CharacterData, f: Feature) {
+  return c.features.filter(x => x.id !== f.id && x.links.some(l => l.featureId === f.id));
+}
+
+/** Verbleibende Einsätze; null = unbegrenzt. Verknüpfte Fähigkeiten begrenzen mit. */
+export function usesLeft(c: CharacterData, f: Feature, depth = 0): number | null {
   const own = f.uses.max == null ? null : Math.max(0, f.uses.max - f.uses.used);
   const res = resourceOf(c, f);
   const fromResource = res && f.resourceCost > 0 ? Math.floor((res.max - res.used) / f.resourceCost) : null;
-  if (own == null) return fromResource;
-  if (fromResource == null) return own;
-  return Math.min(own, fromResource);
+  let left = minLeft(own, fromResource);
+  if (depth < 3) {
+    for (const { link, feature } of linkedFeatures(c, f)) {
+      const other = usesLeft(c, feature, depth + 1);
+      if (other != null && link.cost > 0) left = minLeft(left, Math.floor(other / link.cost));
+    }
+  }
+  return left;
+}
+
+/** Nutzungen bzw. Ressource einer Fähigkeit verbrauchen, ohne sie einzusetzen. */
+export function consumeUses(c: CharacterData, f: Feature, count = 1) {
+  if (count <= 0) return;
+  if (f.uses.max != null) f.uses.used = Math.min(f.uses.max, f.uses.used + count);
+  const res = resourceOf(c, f);
+  if (res && f.resourceCost > 0) res.used = Math.min(res.max, res.used + f.resourceCost * count);
+}
+
+/** Verbrauch rückgängig machen (z. B. Option im Würfeldialog wieder abgewählt). */
+export function refundUses(c: CharacterData, f: Feature, count = 1) {
+  if (count <= 0) return;
+  if (f.uses.max != null) f.uses.used = Math.max(0, f.uses.used - count);
+  const res = resourceOf(c, f);
+  if (res && f.resourceCost > 0) res.used = Math.max(0, res.used - f.resourceCost * count);
+}
+
+/** Einsatz rückgängig machen: eigene und mitverbrauchte Nutzungen zurück. */
+export function refundFeature(c: CharacterData, f: Feature) {
+  refundUses(c, f, 1);
+  for (const { link, feature } of linkedFeatures(c, f)) {
+    if (link.when === "use") refundUses(c, feature, link.cost);
+  }
+}
+
+/** Verknüpfung „wenn es gelingt“ bestätigen: Nutzungen der anderen Fähigkeit verbrauchen. */
+export function confirmLinkSuccess(c: CharacterData, f: Feature, featureId: string) {
+  const link = f.links.find(l => l.featureId === featureId);
+  const other = c.features.find(x => x.id === featureId);
+  if (link && other) consumeUses(c, other, link.cost);
 }
 
 export function isAvailable(c: CharacterData, f: Feature) {
@@ -318,9 +481,10 @@ export function durationRounds(f: Feature): number | null {
  */
 export function useFeature(c: CharacterData, f: Feature, opts: { markEconomy?: boolean } = {}): string[] {
   const notes: string[] = [];
-  if (f.uses.max != null) f.uses.used = Math.min(f.uses.max, f.uses.used + 1);
-  const res = resourceOf(c, f);
-  if (res && f.resourceCost > 0) res.used = Math.min(res.max, res.used + f.resourceCost);
+  consumeUses(c, f, 1);
+  for (const { link, feature } of linkedFeatures(c, f)) {
+    if (link.when === "use") consumeUses(c, feature, link.cost);
+  }
 
   if (c.combat.active && opts.markEconomy !== false) {
     const slot = ECONOMY[f.activation];
@@ -334,12 +498,13 @@ export function useFeature(c: CharacterData, f: Feature, opts: { markEconomy?: b
       remaining: durationRounds(f),
       concentration: f.duration.kind === "concentration",
       note: f.benefit || f.duration.text,
+      ac: f.acMod.mode !== "none" ? { ...f.acMod } : null,
     }));
   }
   return notes;
 }
 
-export function addEffect(c: CharacterData, effect: Omit<ActiveEffect, "id">): string[] {
+export function addEffect(c: CharacterData, effect: NewEffect): string[] {
   const notes: string[] = [];
   if (effect.concentration) {
     const previous = c.combat.effects.filter(e => e.concentration);
@@ -348,25 +513,30 @@ export function addEffect(c: CharacterData, effect: Omit<ActiveEffect, "id">): s
   }
   // Gleicher Effekt erneut → Dauer auffrischen statt doppelt
   c.combat.effects = c.combat.effects.filter(e => !(effect.featureId && e.featureId === effect.featureId));
-  c.combat.effects.push({ id: uid(), ...effect });
+  c.combat.effects.push({ id: uid(), ...effect, ac: effect.ac ?? null });
   return notes;
 }
 
 // ── Kampfablauf ─────────────────────────────────────────────────────────
 
+function resetTurn(c: CharacterData) {
+  c.combat.used = { action: false, bonus: false, reaction: false };
+  c.combat.movement = 0;
+  c.combat.lightAttack = null;
+  c.combat.offhandUsed = false;
+}
+
 export function startCombat(c: CharacterData) {
   c.combat.active = true;
   c.combat.round = 1;
-  c.combat.used = { action: false, bonus: false, reaction: false };
-  c.combat.movement = 0;
+  resetTurn(c);
   for (const f of c.features) if (f.uses.reset === "turn") f.uses.used = 0;
 }
 
 export function endCombat(c: CharacterData) {
   c.combat.active = false;
   c.combat.round = 1;
-  c.combat.used = { action: false, bonus: false, reaction: false };
-  c.combat.movement = 0;
+  resetTurn(c);
   // Effekte mit Rundendauer enden mit dem Kampf, längere bleiben
   c.combat.effects = c.combat.effects.filter(e => e.remaining == null || e.remaining > 10);
 }
@@ -377,8 +547,7 @@ export function endCombat(c: CharacterData) {
  */
 export function nextTurn(c: CharacterData): string[] {
   c.combat.round++;
-  c.combat.used = { action: false, bonus: false, reaction: false };
-  c.combat.movement = 0;
+  resetTurn(c);
   for (const f of c.features) if (f.uses.reset === "turn") f.uses.used = 0;
   const expired: string[] = [];
   c.combat.effects = c.combat.effects.filter(e => {
@@ -468,6 +637,110 @@ export function attackOptions(c: CharacterData, a: Attack) {
   const order = (x: AttackOption, y: AttackOption) =>
     Number(y.automatic) - Number(x.automatic) || Number(y.available) - Number(x.available) || x.feature.name.localeCompare(y.feature.name);
   return { before: before.sort(order), onHit: onHit.sort(order) };
+}
+
+// ── Wurfmodifikatoren ───────────────────────────────────────────────────
+
+export type RollContext = { kind: RollKind; ability?: Ability | null; skill?: SkillKey | null };
+
+/**
+ * Passt ein Modifikator zum Wurf? Fertigkeitswürfe und Initiative sind
+ * Attributswürfe, Todesrettungswürfe sind Rettungswürfe.
+ */
+export function rollModMatches(m: RollMod, ctx: RollContext): boolean {
+  const abilityOk = !m.ability || m.ability === ctx.ability;
+  switch (m.target) {
+    case "attack":
+      return ctx.kind === "attack";
+    case "damage":
+      return false;
+    case "check":
+      return (ctx.kind === "check" || ctx.kind === "skill" || ctx.kind === "initiative") && abilityOk;
+    case "skill":
+      return ctx.kind === "skill" && (!m.skill || m.skill === ctx.skill);
+    case "save":
+      return (ctx.kind === "save" && abilityOk) || (ctx.kind === "deathSave" && !m.ability);
+    case "initiative":
+      return ctx.kind === "initiative";
+    case "deathSave":
+      return ctx.kind === "deathSave";
+  }
+}
+
+/** Wirkt die Fähigkeit gerade (passiv oder als aktiver Effekt)? */
+export function isActiveFeature(c: CharacterData, f: Feature) {
+  return f.activation === "passive" || c.combat.effects.some(e => e.featureId === f.id);
+}
+
+const SPONTANEOUS: Activation[] = ["free", "before", "reaction"];
+
+export type RollFeature = { feature: Feature; mods: RollMod[]; automatic: boolean; available: boolean };
+
+/**
+ * Fähigkeiten, die einen W20-Wurf ausserhalb des Angriffs-Assistenten
+ * verändern (Attribut, Fertigkeit, Rettung, Initiative, Zauberangriff).
+ */
+export function rollFeatures(c: CharacterData, ctx: RollContext): RollFeature[] {
+  const out: RollFeature[] = [];
+  for (const f of c.features) {
+    // Zauberangriff: nur Fähigkeiten für alle Angriffe oder Zauberangriffe
+    if (ctx.kind === "attack" && f.appliesTo.scope !== "all" && f.appliesTo.scope !== "spell") continue;
+    const mods = f.rollMods.filter(m => rollModMatches(m, ctx));
+    if (!mods.length) continue;
+    const automatic = isActiveFeature(c, f);
+    // Wählbar im Wurf sind nur Fähigkeiten ohne Dauer, die man spontan einsetzt.
+    // Andere (z. B. Segen) wirken, sobald sie als Effekt aktiv sind.
+    if (!automatic && (f.duration.kind !== "instant" || !SPONTANEOUS.includes(f.activation))) continue;
+    out.push({ feature: f, mods, automatic, available: automatic || isAvailable(c, f) });
+  }
+  return out.sort(
+    (x, y) => Number(y.automatic) - Number(x.automatic) || Number(y.available) - Number(x.available) || x.feature.name.localeCompare(y.feature.name)
+  );
+}
+
+export type ModSum = {
+  flat: number;
+  dice: { label: string; sign: 1 | -1; groups: DiceGroup[] }[];
+  advantage: boolean;
+  disadvantage: boolean;
+};
+
+/** Modifikatoren zusammenzählen: fester Bonus, Bonuswürfel, Vorteil/Nachteil. */
+export function sumMods(entries: { label: string; mods: RollMod[] }[]): ModSum {
+  const sum: ModSum = { flat: 0, dice: [], advantage: false, disadvantage: false };
+  for (const { label, mods } of entries) {
+    for (const m of mods) {
+      const b = parseBonus(m.bonus);
+      if (b) {
+        sum.flat += b.flat;
+        if (b.dice.length) sum.dice.push({ label, sign: b.sign, groups: b.dice });
+      }
+      if (m.mode === "advantage") sum.advantage = true;
+      if (m.mode === "disadvantage") sum.disadvantage = true;
+    }
+  }
+  return sum;
+}
+
+/** Vorteil und Nachteil heben sich auf, egal wie viele Quellen. */
+export function combineAdvantage(base: "normal" | "advantage" | "disadvantage", advantage: boolean, disadvantage: boolean) {
+  const adv = advantage || base === "advantage";
+  const dis = disadvantage || base === "disadvantage";
+  return adv && dis ? "normal" : adv ? "advantage" : dis ? "disadvantage" : "normal";
+}
+
+/** Kurzbeschreibung der Modifikatoren für Listen. */
+export function describeRollMods(mods: RollMod[]) {
+  return mods
+    .map(m => {
+      const target = ROLL_TARGETS.find(t => t.key === m.target)?.label ?? m.target;
+      const filter = m.skill ? SKILLS.find(s => s.key === m.skill)?.name : m.ability ? ABILITY_SHORT[m.ability] : "";
+      const b = parseBonus(m.bonus);
+      const parts = [b ? formatBonus(b) : "", m.mode === "advantage" ? "Vorteil" : m.mode === "disadvantage" ? "Nachteil" : ""].filter(Boolean);
+      return parts.length ? `${target}${filter ? ` (${filter})` : ""} ${parts.join(", ")}` : "";
+    })
+    .filter(Boolean)
+    .join(" · ");
 }
 
 // ── Vorschläge ──────────────────────────────────────────────────────────

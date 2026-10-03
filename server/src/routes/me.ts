@@ -27,6 +27,12 @@ async function exportData(user: User) {
       ? await sql`SELECT * FROM campaign_characters WHERE campaign_id IN ${sql(ids)} ORDER BY joined_at`
       : [],
     spells: await sql`SELECT * FROM spells WHERE user_id = ${user.id} ORDER BY created_at`,
+    libraryItems: await sql`SELECT * FROM library_items WHERE user_id = ${user.id} ORDER BY created_at`,
+    friendCode: (await sql`SELECT friend_code, library_shared FROM users WHERE id = ${user.id}`)[0] ?? null,
+    friendships: await sql`
+      SELECT requester_id, addressee_id, status, created_at, accepted_at FROM friendships
+      WHERE requester_id = ${user.id} OR addressee_id = ${user.id} ORDER BY created_at
+    `,
     attachments: await sql`
       SELECT id, campaign_id, character_id, kind, category, title, description, original_name,
         mime_type, size_bytes::int AS size_bytes, width, height, created_at, updated_at

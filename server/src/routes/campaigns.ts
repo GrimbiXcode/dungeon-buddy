@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.js";
-import { idParam, noContent, notFound, parse } from "../lib/http.js";
+import { HttpError, idParam, noContent, notFound, parse } from "../lib/http.js";
 import { assertQuota, countRows } from "../lib/abuse.js";
 import { onlyGiven } from "../lib/crud.js";
 
@@ -16,6 +16,25 @@ export const CAMPAIGN_THEMES = [
   "parchment",
 ] as const;
 
+/**
+ * Aktiver Charakter: der gewählte, solange er aktiv zugewiesen ist; sonst der
+ * einzige aktive Charakter der Kampagne (Alias der Kampagne: c).
+ */
+export const activeCharacterSql = () => sql`
+  COALESCE(
+    (SELECT cc.character_id FROM campaign_characters cc
+     WHERE cc.campaign_id = c.id AND cc.character_id = c.main_character_id AND cc.active),
+    (SELECT (array_agg(cc.character_id))[1] FROM campaign_characters cc
+     WHERE cc.campaign_id = c.id AND cc.active HAVING count(*) = 1)
+  )
+`;
+
+/** Aktueller aktiver Charakter einer Kampagne (null = keiner). */
+export async function activeCharacterOf(campaignId: string): Promise<string | null> {
+  const [row] = await sql<{ id: string | null }[]>`SELECT ${activeCharacterSql()} AS id FROM campaigns c WHERE c.id = ${campaignId}`;
+  return row?.id ?? null;
+}
+
 const campaignSchema = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().max(5000).default(""),
@@ -26,7 +45,7 @@ const campaignSchema = z.object({
 export async function campaignRoutes(app: FastifyInstance) {
   app.get("/api/campaigns", async req => {
     return sql`
-      SELECT c.*,
+      SELECT c.*, ${activeCharacterSql()} AS active_character_id,
         (SELECT count(*)::int FROM journal_entries j WHERE j.campaign_id = c.id) AS journal_count,
         (SELECT count(*)::int FROM npcs n WHERE n.campaign_id = c.id) AS npc_count,
         (SELECT count(*)::int FROM attachments a WHERE a.campaign_id = c.id) AS attachment_count,
@@ -41,9 +60,28 @@ export async function campaignRoutes(app: FastifyInstance) {
   });
 
   app.get("/api/campaigns/:campaignId", async req => {
-    const [row] = await sql`SELECT * FROM campaigns WHERE id = ${idParam(req, "campaignId")} AND user_id = ${req.user!.id}`;
+    const [row] = await sql`
+      SELECT c.*, ${activeCharacterSql()} AS active_character_id
+      FROM campaigns c WHERE c.id = ${idParam(req, "campaignId")} AND c.user_id = ${req.user!.id}
+    `;
     if (!row) throw notFound("Kampagne");
     return row;
+  });
+
+  /** Aktiven Charakter festlegen (muss der Kampagne aktiv zugewiesen sein). */
+  app.put("/api/campaigns/:campaignId/active-character", async req => {
+    const campaignId = idParam(req, "campaignId");
+    const { characterId } = parse(z.object({ characterId: z.uuid().nullable() }), req.body);
+    const [own] = await sql`SELECT id FROM campaigns WHERE id = ${campaignId} AND user_id = ${req.user!.id}`;
+    if (!own) throw notFound("Kampagne");
+    if (characterId) {
+      const [assigned] = await sql`
+        SELECT 1 FROM campaign_characters WHERE campaign_id = ${campaignId} AND character_id = ${characterId} AND active
+      `;
+      if (!assigned) throw new HttpError(400, "Charakter ist dieser Kampagne nicht zugewiesen.");
+    }
+    await sql`UPDATE campaigns SET main_character_id = ${characterId} WHERE id = ${campaignId}`;
+    return { activeCharacterId: await activeCharacterOf(campaignId) };
   });
 
   app.post("/api/campaigns", async (req, reply) => {
@@ -74,7 +112,7 @@ export async function campaignRoutes(app: FastifyInstance) {
         `
       : await sql`SELECT * FROM campaigns WHERE id = ${id} AND user_id = ${req.user!.id}`;
     if (!row) throw notFound("Kampagne");
-    return row;
+    return { ...row, activeCharacterId: await activeCharacterOf(id) };
   });
 
   app.delete("/api/campaigns/:campaignId", async (req, reply) => {

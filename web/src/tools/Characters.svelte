@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArrowLeftRight, LogOut, Plus, RotateCcw, Trash2, UserPlus, Users } from "@lucide/svelte";
+  import { ArrowLeftRight, LogOut, Plus, RotateCcw, Star, Trash2, UserPlus, Users } from "@lucide/svelte";
   import CharacterCard from "../components/CharacterCard.svelte";
   import Modal from "../components/Modal.svelte";
   import NewCharacterModal from "../components/NewCharacterModal.svelte";
-  import { campaignApi, del, get, patch, post } from "../lib/api";
+  import { campaignApi, del, get, patch, post, put } from "../lib/api";
+  import { current } from "../lib/campaign.svelte";
   import { confirmDialog } from "../lib/confirm.svelte";
   import { formatDate } from "../lib/format";
   import { navigate } from "../lib/router.svelte";
@@ -39,11 +40,28 @@
 
   async function load() {
     try {
-      [roster, mine] = await Promise.all([get<CampaignCharacter[]>(base), get<CharacterRecord[]>("/api/characters")]);
+      const [r, m, c] = await Promise.all([
+        get<CampaignCharacter[]>(base),
+        get<CharacterRecord[]>("/api/characters"),
+        get<Campaign>(`/api/campaigns/${campaign.id}`),
+      ]);
+      roster = r;
+      mine = m;
+      if (current.campaign?.id === campaign.id) current.campaign.activeCharacterId = c.activeCharacterId;
     } catch (e) {
       toastError(e);
     } finally {
       loading = false;
+    }
+  }
+
+  async function makeActive(c: CampaignCharacter) {
+    try {
+      const res = await put<{ activeCharacterId: string | null }>(`/api/campaigns/${campaign.id}/active-character`, { characterId: c.id });
+      if (current.campaign?.id === campaign.id) current.campaign.activeCharacterId = res.activeCharacterId;
+      toast(`${c.name} ist jetzt dein aktiver Charakter – „Charakterbogen“ öffnet ihn direkt.`, "success");
+    } catch (e) {
+      toastError(e);
     }
   }
 
@@ -135,7 +153,10 @@
 <div class="page-header">
   <div>
     <h1>Charaktere</h1>
-    <p class="muted">Wer in dieser Kampagne mitspielt. Werte und Zauber gehören dem Charakter und gelten in allen seinen Kampagnen.</p>
+    <p class="muted">
+      Wer in dieser Kampagne mitspielt. Werte und Zauber gehören dem Charakter und gelten in allen seinen Kampagnen. Den
+      Bogen des aktiven Charakters öffnet „Charakterbogen“ direkt.
+    </p>
   </div>
   <div class="row">
     <a class="btn" href="/charaktere"><Users size={16} /> Alle Charaktere</a>
@@ -160,10 +181,14 @@
       {#each active as c (c.id)}
         <CharacterCard character={c} href="/k/{campaign.id}/charaktere/{c.id}">
           {#snippet meta()}
+            {#if campaign.activeCharacterId === c.id}<span class="active-badge"><Star size={12} /> Aktiver Charakter · </span>{/if}
             <span class="faint">Dabei seit {formatDate(c.joinedAt)}</span>
             {#if c.ruleset !== campaign.ruleset}<span class="warn"> · {rulesetLabel(c.ruleset)} (Kampagne: {rulesetLabel(campaign.ruleset)})</span>{/if}
           {/snippet}
           {#snippet actions()}
+            {#if campaign.activeCharacterId !== c.id}
+              <button class="btn btn-sm" onclick={() => makeActive(c)} title="Öffnet sich direkt über „Charakterbogen“"><Star size={14} /> Aktiv</button>
+            {/if}
             <button class="btn btn-sm" onclick={() => openReplace(c)}><ArrowLeftRight size={14} /> Austauschen</button>
             <button class="btn btn-sm btn-ghost" onclick={() => openLeave(c)}><LogOut size={14} /> Ausscheiden</button>
           {/snippet}
@@ -288,6 +313,7 @@
 
 <style>
   .center { justify-content: center; }
+  .active-badge { display: inline-flex; align-items: center; gap: 0.2rem; color: var(--accent-text); font-weight: 650; }
   .warn { color: var(--warning); }
   .section { font-size: 1.05rem; margin: 2rem 0 0.7rem; }
   .former { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; padding: 0.7rem 0.9rem; opacity: 0.85; }

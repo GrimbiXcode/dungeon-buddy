@@ -30,7 +30,7 @@
           <span class="grow">{s.name} <span class="tiny faint">{ABILITY_SHORT[s.ability]}</span></span>
           <span class="mono bonus">{formatMod(skillBonus(c, s.key))}</span>
         {:else}
-          <button class="roll" onclick={() => ctx.rollD20(s.name, skillBonus(c, s.key), "skill", { subtitle: `Fertigkeit (${ABILITY_SHORT[s.ability]})` })}>
+          <button class="roll" onclick={() => ctx.rollD20(s.name, skillBonus(c, s.key), "skill", { subtitle: `Fertigkeit (${ABILITY_SHORT[s.ability]})`, ability: s.ability, skill: s.key })}>
             <span class="prof l{c.skills[s.key]}" title={levelLabel[c.skills[s.key]]}></span>
             <span class="grow">{s.name} <span class="tiny faint">{ABILITY_SHORT[s.ability]}</span></span>
             <span class="mono bonus">{formatMod(skillBonus(c, s.key))}</span>

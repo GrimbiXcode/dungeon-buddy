@@ -6,6 +6,7 @@ Als Web-App für Smartphone, Tablet und Desktop, installierbar als PWA.
 - **Kampagnen**: Lege die Kampagnen an, in denen du spielst, mit Name, Beschreibung, Regelversion und Farbschema. Du kannst sie bearbeiten, archivieren und löschen. Jedes Tool speichert pro Kampagne getrennt.
 - **Tagebuch**: Einträge pro Session und pro Tag im Spiel, mit Markdown und eingebetteten Anhängen. Ansicht nach Session oder als Zeitleiste nach Spieltag.
 - **Soziales Netzwerk**: NPCs mit Rolle, Fraktion, Ort, Status, Notizen und deiner Beziehung zu ihnen. Dazu die Beziehungen der NPCs untereinander, als Liste oder als interaktiver Graph.
+- **Aktiver Charakter**: Pro Kampagne gibt es einen aktiven Charakter. „Charakterbogen“ im Menü öffnet direkt seinen Bogen. Spielt nur ein Charakter mit, ist er automatisch aktiv; sonst legst du ihn in der Charakterliste oder im Bogen fest. Wird er ausgetauscht, übernimmt der Ersatz.
 - **Meine Charaktere**: Charaktere gehören dir, nicht einer Kampagne.
   - Ein Charakter kann in mehreren Kampagnen spielen. Werte, Stufe und bekannte Zauber gelten überall: Steigt er in einer Kampagne auf, hat er die Stufe auch in den anderen.
   - In der Kampagne weist du Charaktere zu. Stirbt einer, lässt du ihn ausscheiden oder tauschst ihn aus; er bleibt im Verlauf der Kampagne unter „Ehemalige“.
@@ -18,13 +19,22 @@ Als Web-App für Smartphone, Tablet und Desktop, installierbar als PWA.
     - Einsatz (vor der Aktion, Aktion, Bonusaktion, Reaktion, frei, passiv)
     - wie oft einsetzbar (pro Zug, Rast, Tagesanbruch) oder welche Ressource verbraucht wird
     - Wirkung (Buff, Fluff, Schaden, Heilung …), Ziel, Nutzen, Bedingung und Dauer
-    - Auslöser (beim Angriff, bei Treffer …) und für welche Waffen sie gilt, mit Treffer- und Schadensbonus oder Vorteil
+    - Auslöser (beim Angriff, bei Treffer …) und für welche Waffen sie gilt
+    - **Würfe verändern**: Angriffs-, Schadens-, Attributs-, Fertigkeits-, Rettungs-, Initiative- und Todesrettungswürfe, mit Zahl oder Würfel (z. B. +2, 1W4, −1W4) und Vorteil/Nachteil, optional nur für ein Attribut oder eine Fertigkeit. Passive und aktive Fähigkeiten wirken automatisch; Fähigkeiten ohne Dauer (frei, vor der Aktion, Reaktion) wählst du im Würfeldialog dazu, auch nach dem Wurf.
+    - **Abhängigkeiten**: Eine Fähigkeit kann Nutzungen einer anderen verbrauchen, beim Einsetzen oder erst „wenn es gelingt“. Beispiel: Taktisches Verständnis zeigt die Verknüpfung zu Durchschnaufen und verbraucht dessen Nutzung erst, wenn du „Gelungen“ antippst.
+    - **Rüstungsklasse**: z. B. +5 (Schild), Grund-RK + GES (Magierrüstung) oder Mindest-RK (Rindenhaut), solange die Fähigkeit wirkt.
     - Vorlagen für häufige Fähigkeiten helfen beim Einstieg.
-  - **Waffen mit Spezialitäten**: Nah- oder Fernkampf, Reichweite, Eigenschaften (Finesse, Schwer, Vielseitig …), Zusatzschaden und Meisterschaft (2024).
+  - **Waffen mit Spezialitäten**: Nah- oder Fernkampf, Reichweite, Eigenschaften (Finesse, Schwer, Vielseitig …), Zusatzschaden und Meisterschaft (2024). Angriffe erscheinen als Karten wie die Fähigkeiten; Löschen steckt in den aufgeklappten Details.
+    - Finesse: Beim Angriff wählst du STR oder GES, vorgeschlagen wird der bessere Wert.
+    - Leichte Waffen: Nach einem Angriff mit einer leichten Waffe bietet der Assistent den Zusatzangriff mit einer zweiten leichten Waffe an (Bonusaktion, 2024 mit Einkerben als Teil der Angriffsaktion), ohne positiven Attributsmodifikator beim Schaden. Mit dem Kampfstil Zwei-Waffen-Kampf zählt er doch. 2014 nur mit leichten Nahkampfwaffen.
+  - **Rüstung & Schilde**: Rüstungen (leicht, mittelschwer, schwer) und Schilde aus Vorlagen oder selbst erfasst. Die RK wird berechnet: angelegte Rüstung mit GES-Grenze, Schild, ungerüstete Verteidigung (Barbar, Mönch), sonstiger Bonus und aktive Effekte. Den Schild nimmst du im Kampf auf oder legst ihn ab. Zauber wie Magierrüstung, Schild oder Schild des Glaubens wirken nach dem Wirken auf die RK. Temporäre Boni von Mitspielern trägst du über die RK-Anzeige ein. Ältere Bögen behalten ihre feste RK, bis du auf „berechnet“ umstellst.
   - **Kampf-Assistent**:
     - verfolgt Runden, Aktion, Bonusaktion, Reaktion, Bewegung und laufende Effekte samt Dauer und Konzentration
     - schlägt Fähigkeiten, Angriffe und Zauber vor, gruppiert nach *vor der Aktion / Aktion / Bonusaktion / Reaktion / frei* und filterbar nach Kategorie und Wirkung
     - Angriff mit einer Waffe: Der Assistent schlägt passende Fähigkeiten vor (z. B. Vorteil oder Bonus vor dem Wurf, Zusatzschaden bei Treffer) und rechnet sie in Treffer- und Schadenswurf ein.
+- **Bibliothek & Freunde**: Fähigkeiten, Angriffe, Rüstungen und Zauber nimmst du per „In Bibliothek“ in deine eigene Bibliothek auf und übernimmst sie bei anderen Charakteren mit „Aus Bibliothek“. Einträge sind Kopien; Verweise auf Ressourcen, verknüpfte Fähigkeiten und bestimmte Waffen werden über den Namen wieder zugeordnet.
+  - Freunde fügst du über einen persönlichen Freundescode oder Einladungslink hinzu; die Freundschaft gilt, wenn die andere Person annimmt. Eine Suche über alle Benutzer gibt es nicht.
+  - Teilst du deine Bibliothek, können alle Freunde sie durchsuchen und Einträge mit „In eigene Bibliothek aufnehmen“ kopieren.
 - **Zauberbuch**: Zauber aus dem SRD übernehmen oder eigene anlegen. Zauber eines Charakters wandern mit ihm in jede Kampagne; Zauber ohne Charakter bleiben Notizen der Kampagne. Zauber kannst du vorbereiten und Charakteren zuordnen. Zauberangriffe, Schaden und Heilung würfelst du direkt, inklusive Hochstufen und Zaubertrick-Skalierung. Zauberplätze lassen sich direkt verbrauchen.
 - **Anhänge**: Bilder und PDFs pro Kampagne, etwa Karten, Szenenbilder, Fotos von Notizen und vom Spieltisch, Regel- und Abenteuer-PDFs. Auf dem Smartphone direkt mit der Kamera. Fotos werden beim Hochladen gedreht, verkleinert und von Metadaten (GPS, Kamera) befreit. PDFs bekommen ein Vorschaubild der ersten Seite, das der Browser mit pdf.js erzeugt (der Server rendert keine PDFs). In Tagebuch- und NPC-Texten fügt „Datei einfügen“ Bilder (`![Titel](attachment:<id>)`) und Links auf PDFs (`[Titel](attachment:<id>)`) ein. Bilder von fremden Servern werden in Texten nicht geladen. NPCs können ein Bild haben, das in Liste und Graph erscheint. Vor dem Löschen eines Anhangs warnt die App, wenn er noch verwendet wird. Braucht einen S3-Bucket, siehe [Anhänge](#anhänge-s3-speicher).
 
@@ -45,6 +55,7 @@ Gespeichert werden ausschliesslich Anwendungsdaten:
 | Deine Inhalte (Kampagnen, Tagebuch, NPCs, Bögen, Zauber) | Würfelverlauf |
 | Anhänge im S3-Bucket (Bilder ohne Metadaten, PDFs unverändert) | Dateinamen im Speicher (nur in der Datenbank) |
 | Login-Codes, maximal 5 Minuten lang | |
+| Freundescode, Freundschaften und Bibliothek (inkl. Freigabe) | Wer wessen Bibliothek angesehen hat |
 | Missbrauchs-Ereignisse, nur wenn ein Limit greift (90 Tage) | IP-Adressen auch dort nicht |
 | Sperrstatus und Entsperr-Anträge | |
 
