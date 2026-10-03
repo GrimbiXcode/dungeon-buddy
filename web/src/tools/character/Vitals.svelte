@@ -65,7 +65,7 @@
 <div class="vitals">
   {#if ctx.editing && c.acMode === "manual"}
     <div class="stat">
-      <span class="label"><Icon name="armor" size={13} /> RK (Grundwert)</span>
+      <span class="label"><Icon name="armor" size={13} /> Grund-RK</span>
       <NumberField class="input input-sm mono" aria-label="Rüstungsklasse" bind:value={c.ac} />
     </div>
   {:else}
@@ -178,8 +178,10 @@
     font: inherit;
     color: inherit;
   }
-  .stat .label { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.68rem; }
-  .stat input { width: 4.5rem; text-align: center; }
+  /* Umbruch an Wortgrenzen bzw. mit Silbentrennung, nicht mitten im Wort */
+  .stat .label { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.68rem; max-width: 100%; text-align: center; overflow-wrap: break-word; hyphens: auto; }
+  .stat :global(input) { width: 4.5rem; max-width: 100%; text-align: center; }
+  .stat .label :global(svg) { flex: none; }
   .clickable { cursor: pointer; }
   .clickable:not(:disabled):hover { border-color: var(--accent); background: var(--accent-soft); }
   .clickable:disabled { cursor: default; }
@@ -194,8 +196,10 @@
   .hp-value small { font-size: 1rem; color: var(--muted); }
   .hp-value.down { color: var(--danger); }
   .reduced { color: var(--warning); }
-  .hp-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; flex: 1; justify-content: flex-end; }
-  .hp-actions input { width: 5rem; }
+  /* Knöpfe behalten ihre Höhe; der Krit-Hinweis bei 0 TP steht in einer eigenen Zeile */
+  .hp-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; flex: 1; justify-content: flex-end; align-items: center; }
+  .hp-main .hp-actions .checkbox { flex-basis: 100%; flex-direction: row; width: auto; justify-content: flex-end; }
+  .hp-actions input[type="number"] { width: 5rem; }
   .bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
   .bar span { display: block; height: 100%; background: var(--success); transition: width 0.25s; }
   .bar span.low { background: var(--danger); }
@@ -218,7 +222,17 @@
   .exhaustion strong { min-width: 1ch; text-align: center; }
   .exhaustion-text { color: var(--danger); }
   @media (min-width: 1100px) {
-    .vitals { grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 2.4fr); }
-    .hp { grid-column: auto; grid-row: span 1; }
+    /* RK, Initiative, Bewegung, Übung als 2×2-Block neben den Trefferpunkten:
+       so sind die Kacheln so hoch wie ihr Inhalt und die TP haben Platz für ihre Knöpfe */
+    .vitals { grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2.6fr); }
+    .hp { grid-column: 3; grid-row: 1 / span 2; display: flex; flex-direction: column; justify-content: center; }
+    .stat { flex-direction: row; justify-content: space-between; padding: 0.5rem 0.9rem; }
+    .stat .label { font-size: 0.72rem; flex: 1 1 0; min-width: 0; text-align: left; }
+    /* Eingabefelder im Bearbeiten-Modus nicht zusammendrücken; lieber bricht die Bezeichnung um */
+    .stat :global(input) { flex: none; }
+  }
+  @media (max-width: 420px) {
+    /* Schmale Kacheln: Symbole weglassen, damit „Bewegung“ & Co. hineinpassen */
+    .stat .label :global(svg) { display: none; }
   }
 </style>
