@@ -184,7 +184,7 @@
   .name-btn :global(.chev.open) { transform: rotate(180deg); }
   .use { flex: none; }
   .meta { gap: 0.25rem; }
-  .meta .badge { font-size: 0.7rem; }
+  .meta .badge { font-size: 0.7rem; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
   .act-action { color: var(--accent-text); border-color: var(--accent); }
   .act-bonus { color: var(--warning); border-color: color-mix(in oklab, var(--warning) 50%, transparent); }
   .act-reaction { color: var(--success); border-color: color-mix(in oklab, var(--success) 50%, transparent); }

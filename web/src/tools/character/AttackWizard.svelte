@@ -215,6 +215,7 @@
       dice: diceString(o.expr),
       damageType: o.kind === "other" ? undefined : o.text || undefined,
       effect: o.kind === "other" ? o.text : undefined,
+      crit: o.kind !== "other" && o.feature.critWithAttack && outcome === "crit",
       canCrit: o.kind !== "other",
       physical: isPhysical(c.rollMode),
     });
@@ -228,14 +229,14 @@
   const missOptions = $derived(c.features.filter(f => f.triggers.includes("miss") && (f.appliesTo.scope === "none" || options.before.concat(options.onHit).some(o => o.feature.id === f.id))));
 </script>
 
-{#snippet optionRow(o: AttackOption, selected: string[], onToggle: (id: string) => void)}
+{#snippet optionRow(o: AttackOption, selected: string[], onToggle: (id: string) => void, locked = false)}
   {@const f = o.feature}
   {@const left = usesLeft(c, f)}
-  <label class="option" class:auto={o.automatic} class:disabled={!o.available && !o.automatic}>
+  <label class="option" class:auto={o.automatic} class:disabled={!o.available && !o.automatic} class:locked>
     <input
       type="checkbox"
       checked={o.automatic || selected.includes(f.id)}
-      disabled={o.automatic || !o.available}
+      disabled={o.automatic || !o.available || locked}
       onchange={() => onToggle(f.id)}
     />
     <span class="grow">
@@ -260,7 +261,11 @@
       </span>
       {#if f.condition}<span class="tiny faint block">Bedingung: {convertText(f.condition, unitSystem())}</span>{/if}
       {#if abilityChoices(f).length && (o.automatic || selected.includes(f.id))}
-        <AbilityPicker feature={f} bind:picks={() => picks[f.id] ?? {}, v => (picks = { ...picks, [f.id]: v })} />
+        <AbilityPicker
+          feature={f}
+          disabled={locked && !otherTargets.some(x => x.feature.id === f.id && !otherRolled.includes(f.id))}
+          bind:picks={() => picks[f.id] ?? {}, v => (picks = { ...picks, [f.id]: v })}
+        />
       {/if}
     </span>
     {#if left != null}<span class="tiny muted nowrap">{left} übrig</span>{/if}
@@ -341,10 +346,11 @@
         <p class="small">Wie ist der Angriff ausgegangen?</p>
       {/if}
       <div class="segmented" role="group" aria-label="Ergebnis">
-        <button aria-pressed={outcome === "hit"} onclick={() => (outcome = "hit")}><Icon name="hit" size={14} /> Treffer</button>
-        <button aria-pressed={outcome === "crit"} onclick={() => (outcome = "crit")}>Kritisch</button>
-        <button aria-pressed={outcome === "miss"} onclick={() => (outcome = "miss")}><X size={14} /> Verfehlt</button>
+        <button aria-pressed={outcome === "hit"} disabled={damageRolled} onclick={() => (outcome = "hit")}><Icon name="hit" size={14} /> Treffer</button>
+        <button aria-pressed={outcome === "crit"} disabled={damageRolled} onclick={() => (outcome = "crit")}>Kritisch</button>
+        <button aria-pressed={outcome === "miss"} disabled={damageRolled} onclick={() => (outcome = "miss")}><X size={14} /> Verfehlt</button>
       </div>
+      {#if damageRolled}<p class="tiny muted">Schaden gewürfelt: Ergebnis und Auswahl stehen fest.</p>{/if}
     </div>
 
     {#if outcome === "hit" || outcome === "crit"}
@@ -352,14 +358,14 @@
       {#if visible(options.onHit).length}
         <div class="options">
           {#each visible(options.onHit) as o (o.feature.id)}
-            {@render optionRow(o, selectedHit, id => (selectedHit = toggle(selectedHit, id)))}
+            {@render optionRow(o, selectedHit, id => (selectedHit = toggle(selectedHit, id)), damageRolled)}
           {/each}
         </div>
       {:else}
         <p class="small muted">Keine Fähigkeiten mit Auslöser „Bei Treffer“ für diese Waffe.</p>
       {/if}
       {#if attack.versatileDamage}
-        <label class="checkbox small"><input type="checkbox" bind:checked={twoHanded} /> Zweihändig geführt ({attack.versatileDamage})</label>
+        <label class="checkbox small"><input type="checkbox" bind:checked={twoHanded} disabled={damageRolled} /> Zweihändig geführt ({attack.versatileDamage})</label>
       {/if}
     {:else if outcome === "miss"}
       {#if missOptions.length}
@@ -460,6 +466,7 @@
   }
   .option:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
   .option.disabled { opacity: 0.55; cursor: not-allowed; }
+  .option.locked { cursor: default; }
   .option input { margin-top: 0.2rem; width: 1.05rem; height: 1.05rem; accent-color: var(--accent-strong); }
   .opt-name { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; font-weight: 650; }
   .opt-name .badge { font-size: 0.68rem; }

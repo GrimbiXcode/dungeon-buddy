@@ -274,6 +274,8 @@ describe("Schadensart wie der Angriff", () => {
     const f = normalizeFeature({ damage: "1d8", damageType: "Feuer" });
     expect(f.damageTypeFromAttack).toBe(false);
     expect(f.damageOtherTarget).toBe(false);
+    expect(f.critWithAttack).toBe(false);
+    expect(normalizeFeature({ critWithAttack: true }).critWithAttack).toBe(true);
     expect(featureDamageType(f, newAttack({ damageType: "Hieb" }))).toBe("Feuer");
     expect(normalizeFeature({ damageTypeFromAttack: true, damageOtherTarget: "ja" })).toMatchObject({ damageTypeFromAttack: true, damageOtherTarget: false });
   });
@@ -323,6 +325,6 @@ describe("Mehrere Attribute zur Wahl", () => {
     expect(diceString(featureDamageExpr(c, f)!)).toBe("1d8+4");
     expect(diceString(featureDamageExpr(c, f, { 0: "dex" })!)).toBe("1d8+2");
     expect(describeDamageAdds(c, f.damageAdds, { 0: "dex" })).toBe("GES-Mod. +1, Stufe +1");
-    expect(describeDamageAdds(c, f.damageAdds)).toBe("STR-Mod. +3, Stufe +1");
+    expect(describeDamageAdds(c, f.damageAdds)).toBe("GES/STR-Mod. +3 (STR, im Kampf wählbar), Stufe +1");
   });
 });

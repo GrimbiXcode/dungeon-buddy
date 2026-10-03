@@ -214,6 +214,8 @@ export type Feature = {
   damageTypeFromAttack: boolean;
   /** Schaden trifft ein weiteres Ziel: eigener Wurf statt Zuschlag auf den Angriffsschaden */
   damageOtherTarget: boolean;
+  /** Weiteres Ziel: Wurf ist kritisch, wenn der auslösende Angriff kritisch war */
+  critWithAttack: boolean;
   /** Sonstige Wirkung des Wurfs statt Schaden/Heilung, z. B. "vom erlittenen Schaden abziehen" */
   effectText: string;
   /** Rettungswurf der Ziele, z. B. "GES-Rettungswurf, halber Schaden" */
@@ -287,6 +289,7 @@ export function newFeature(partial: Partial<Feature> = {}): Feature {
     damageType: "",
     damageTypeFromAttack: false,
     damageOtherTarget: false,
+    critWithAttack: false,
     effectText: "",
     save: "",
     duration: { kind: "instant", amount: 1, text: "" },
@@ -379,6 +382,7 @@ export function normalizeFeature(raw: unknown): Feature {
     damageType: str(f.damageType),
     damageTypeFromAttack: f.damageTypeFromAttack === true,
     damageOtherTarget: f.damageOtherTarget === true,
+    critWithAttack: f.critWithAttack === true,
     effectText: str(f.effectText).slice(0, 200),
     save: str(f.save),
     duration: {
@@ -783,13 +787,17 @@ export function featureRollLabel(f: Feature, attack?: Pick<Attack, "damageType">
 
 /**
  * Kurztext der Zuschläge mit aktuellem Wert, z. B. "Kämpferstufe +3, KON-Mod. +2".
- * Ohne Wahl bei mehreren Attributen der höchste Modifikator.
+ * Mehrere Attribute ohne Wahl: alle nennen, gerechnet mit dem höchsten
+ * ("STR/GES-Mod. +3 (STR, im Kampf wählbar)").
  */
 export function describeDamageAdds(c: CharacterData, adds: DamageAdd[], picks: AbilityPicks = {}) {
   return adds
     .map((a, i) => {
-      const pick = isAbilityChoice(a) ? pickedAbility(c, a, picks[i]) : undefined;
-      return `${damageAddLabel(a, pick)} ${formatSigned(damageAddValue(c, a, pick))}`;
+      if (!isAbilityChoice(a)) return `${damageAddLabel(a)} ${formatSigned(damageAddValue(c, a))}`;
+      const chosen = picks[i] && a.abilities.includes(picks[i]) ? picks[i] : undefined;
+      const pick = pickedAbility(c, a, chosen);
+      const value = formatSigned(damageAddValue(c, a, pick));
+      return chosen ? `${damageAddLabel(a, pick)} ${value}` : `${damageAddLabel(a)} ${value} (${ABILITY_SHORT[pick]}, im Kampf wählbar)`;
     })
     .join(", ");
 }

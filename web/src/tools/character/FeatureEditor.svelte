@@ -277,6 +277,7 @@
         f.damageType = "";
         f.damageTypeFromAttack = false;
         f.damageOtherTarget = false;
+        f.critWithAttack = false;
         f.damageAdds = [];
         break;
       case "save":
@@ -510,6 +511,9 @@
         {@render damageAddsEditor()}
         <label class="checkbox small"><input type="checkbox" bind:checked={f.damageTypeFromAttack} /> Schadensart des auslösenden Angriffs (Waffe oder Zauber)</label>
         <label class="checkbox small"><input type="checkbox" bind:checked={f.damageOtherTarget} /> Trifft ein weiteres Ziel (eigener Schadenswurf)</label>
+        {#if f.damageOtherTarget}
+          <label class="checkbox small sub"><input type="checkbox" bind:checked={f.critWithAttack} /> Kritisch, wenn der Angriff kritisch war</label>
+        {/if}
         <p class="tiny muted">
           {#if f.damageOtherTarget}
             Im Angriffs-Assistenten würfelst du den Schaden nach dem Waffenschaden separat für das weitere Ziel, ohne Boni des Angriffs.
@@ -733,6 +737,7 @@
   .plus { color: var(--muted); font-weight: 700; width: 0.8rem; text-align: center; }
   .add-inline { align-self: flex-start; }
   .abilities { padding-left: 1.2rem; }
+  .sub { padding-left: 1.5rem; }
   .abilities .chip { min-height: 30px; padding: 0.2rem 0.6rem; }
   .uses .select { width: auto; flex: 1; }
   .num { width: 4.5rem; flex: none; }
