@@ -7,6 +7,7 @@ import {
   type SkillKey,
 } from "./dnd";
 import { uid } from "./format";
+import { convertText, formatRange, parseRangeText, type UnitSystem } from "./units";
 import { normalizeArmor, UNARMORED_DEFENSES, type ArmorItem, type UnarmoredDefense } from "./armor";
 import type { Ruleset } from "./types";
 import {
@@ -41,7 +42,11 @@ export type Attack = {
   kind: "melee" | "ranged";
   /** Waffeneigenschaften: Finesse, Leicht, Schwer … */
   properties: string[];
-  /** Reichweite, z. B. "5 ft", "1.5 m" oder "80/320 ft" */
+  /** Grundreichweite in Fuss (ohne Nachteil), z. B. 5 im Nahkampf oder 80 beim Kurzbogen */
+  rangeNormal: number | null;
+  /** Fernreichweite in Fuss (bis hier mit Nachteil), z. B. 320 beim Kurzbogen */
+  rangeLong: number | null;
+  /** Ältere Reichweite als Freitext, nur wenn sie sich nicht in Zahlen übertragen liess */
   range: string;
   /** Schaden bei zweihändiger Führung (Vielseitig) */
   versatileDamage: string;
@@ -137,6 +142,8 @@ export function newAttack(partial: Partial<Attack> = {}): Attack {
     notes: "",
     kind: "melee",
     properties: [],
+    rangeNormal: null,
+    rangeLong: null,
     range: "",
     versatileDamage: "",
     extraDamage: "",
@@ -147,6 +154,24 @@ export function newAttack(partial: Partial<Attack> = {}): Attack {
 
 export function newResource(partial: Partial<Resource> = {}): Resource {
   return { id: uid(), name: "", max: 1, used: 0, reset: "long", ...partial };
+}
+
+/** Reichweite in Zahlen (Fuss); alter Freitext wie "80/320 ft" wird übernommen. */
+function normalizeRange(o: Record<string, unknown>): Pick<Attack, "rangeNormal" | "rangeLong" | "range"> {
+  const distance = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
+  const normal = distance(o.rangeNormal);
+  const long = distance(o.rangeLong);
+  if (normal != null || long != null) return { rangeNormal: normal, rangeLong: long, range: "" };
+  const text = str(o.range).trim();
+  const parsed = text ? parseRangeText(text) : null;
+  if (parsed) return { rangeNormal: parsed.normal, rangeLong: parsed.long, range: "" };
+  return { rangeNormal: null, rangeLong: null, range: text };
+}
+
+/** Reichweite eines Angriffs für die Anzeige ("80/320 ft"); leer ohne Angabe. */
+export function attackRange(a: Attack, system: UnitSystem) {
+  if (a.rangeNormal != null) return formatRange(a.rangeNormal, a.rangeLong, system);
+  return a.range ? convertText(a.range, system) : "";
 }
 
 /** Gespeicherte Angriffsdaten in die aktuelle Form bringen. */
@@ -167,7 +192,7 @@ export function normalizeAttack(a: unknown): Attack {
     notes: str(o.notes),
     kind: o.kind === "ranged" ? "ranged" : "melee",
     properties: arr(o.properties).filter((x): x is string => typeof x === "string"),
-    range: str(o.range),
+    ...normalizeRange(o),
     versatileDamage: str(o.versatileDamage),
     extraDamage: str(o.extraDamage),
     extraDamageType: str(o.extraDamageType),

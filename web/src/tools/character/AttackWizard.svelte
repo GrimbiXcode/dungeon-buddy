@@ -6,6 +6,7 @@
   import Modal from "../../components/Modal.svelte";
   import {
     attackAbility,
+    attackRange,
     attackDamageBonus,
     attackToHit,
     isFinesse,
@@ -228,9 +229,9 @@
     <div><span class="label">Treffer</span><strong class="mono">{formatMod(toHit)}</strong>{#if toHitDice}<span class="mono small">{toHitDice}</span>{/if}{#if advantage}<span class="badge badge-accent">Vorteil</span>{/if}{#if disadvantage}<span class="badge badge-danger">Nachteil</span>{/if}</div>
     <div><span class="label">Schaden</span><strong class="mono">{formatDice(damage.expr)}</strong><span class="tiny muted">{damage.types.join(" / ")}</span></div>
   </div>
-  {#if attack.properties.length || attack.mastery || attack.range}
+  {#if attack.properties.length || attack.mastery || attackRange(attack, unitSystem())}
     <p class="tiny muted props">
-      {[attack.kind === "ranged" ? "Fernkampf" : "Nahkampf", convertText(attack.range, unitSystem()), ...attack.properties, attack.mastery ? `Meisterschaft: ${attack.mastery}` : ""].filter(Boolean).join(" · ")}
+      {[attack.kind === "ranged" ? "Fernkampf" : "Nahkampf", attackRange(attack, unitSystem()), ...attack.properties, attack.mastery ? `Meisterschaft: ${attack.mastery}` : ""].filter(Boolean).join(" · ")}
     </p>
   {/if}
 
