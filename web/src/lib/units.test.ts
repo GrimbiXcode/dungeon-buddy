@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { calcCategories, convertText, feetToInput, formatDistance, ftToM, inputToFeet, lbToKg, mToFt } from "./units";
+import { calcCategories, convertText, feetToInput, formatDistance, formatRange, ftToM, inputToFeet, lbToKg, mToFt, parseRangeText } from "./units";
+import { attackRange, normalizeAttack } from "./character";
 
 describe("Einheiten", () => {
   it("Spieltisch- und exakte Umrechnung", () => {
@@ -42,5 +43,33 @@ describe("Einheiten", () => {
   it("Rechner zeigt Felder passend zum System", () => {
     expect(calcCategories("metric").some(c => c.key === "squaresMetric")).toBe(true);
     expect(calcCategories("imperial").some(c => c.key === "squaresMetric")).toBe(false);
+  });
+});
+
+describe("Reichweiten von Waffen", () => {
+  it("liest alte Freitext-Angaben", () => {
+    expect(parseRangeText("80/320 ft")).toEqual({ normal: 80, long: 320 });
+    expect(parseRangeText("5 ft")).toEqual({ normal: 5, long: null });
+    expect(parseRangeText("24/96 m")).toEqual({ normal: 80, long: 320 });
+    expect(parseRangeText("1,5 m")).toEqual({ normal: 5, long: null });
+    expect(parseRangeText("30")).toEqual({ normal: 30, long: null });
+    expect(parseRangeText("Berührung")).toBeNull();
+  });
+
+  it("zeigt Grund- und Fernreichweite in der gewählten Einheit", () => {
+    expect(formatRange(80, 320, "imperial")).toBe("80/320 ft");
+    expect(formatRange(80, 320, "metric")).toBe("24/96 m");
+    expect(formatRange(5, null, "metric")).toBe("1.5 m");
+  });
+
+  it("überträgt alte Angriffe in die neuen Felder", () => {
+    const bow = normalizeAttack({ name: "Kurzbogen", kind: "ranged", range: "80/320 ft" });
+    expect([bow.rangeNormal, bow.rangeLong, bow.range]).toEqual([80, 320, ""]);
+    expect(attackRange(bow, "metric")).toBe("24/96 m");
+    const odd = normalizeAttack({ name: "Peitsche", range: "nur mit Weitreichend" });
+    expect([odd.rangeNormal, odd.range]).toEqual([null, "nur mit Weitreichend"]);
+    expect(attackRange(odd, "imperial")).toBe("nur mit Weitreichend");
+    const fresh = normalizeAttack({ name: "Speer", rangeNormal: 20, rangeLong: 60, range: "egal" });
+    expect([fresh.rangeNormal, fresh.rangeLong, fresh.range]).toEqual([20, 60, ""]);
   });
 });
