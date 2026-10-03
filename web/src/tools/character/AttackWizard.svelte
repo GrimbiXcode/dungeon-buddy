@@ -37,7 +37,12 @@
   import { toast } from "../../lib/toast.svelte";
   import { sheet } from "./context";
 
-  let { attack, offhand = false, onclose }: { attack: Attack; offhand?: boolean; onclose: () => void } = $props();
+  let {
+    attack,
+    offhand = false,
+    preselect,
+    onclose,
+  }: { attack: Attack; offhand?: boolean; /** Fähigkeit vorwählen (aus „Einsetzen“) */ preselect?: string; onclose: () => void } = $props();
 
   const ctx = sheet();
   const c = $derived(ctx.data);
@@ -50,8 +55,13 @@
   let step = $state<"prepare" | "result">("prepare");
   // svelte-ignore state_referenced_locally
   let economy = $state<Economy>(offhand ? "bonus" : "action");
-  let selectedBefore = $state<string[]>([]);
-  let selectedHit = $state<string[]>([]);
+  // Vorwahl nur beim Öffnen (der Assistent wird bei jedem Öffnen neu erzeugt)
+  // svelte-ignore state_referenced_locally
+  const preId = preselect;
+  // svelte-ignore state_referenced_locally
+  const pre = preId ? attackOptions(ctx.data, attack) : null;
+  let selectedBefore = $state<string[]>(preId && pre?.before.some(o => o.feature.id === preId && !o.automatic) ? [preId] : []);
+  let selectedHit = $state<string[]>(preId && pre && [...pre.onHit, ...pre.onCrit].some(o => o.feature.id === preId) ? [preId] : []);
   let categoryFilter = $state<string[]>([]);
   /** Gewählte Attribute je Fähigkeit (bei Zuschlägen mit mehreren Attributen) */
   let picks = $state<Record<string, AbilityPicks>>({});

@@ -33,7 +33,7 @@ export type SheetContext = {
    */
   useFeature(f: Feature, picks?: AbilityPicks): void;
   /** Angriffs-Assistent für eine Waffe öffnen (offhand: Zusatzangriff mit leichter Waffe) */
-  openAttack(a: Attack, opts?: { offhand?: boolean }): void;
+  openAttack(a: Attack, opts?: { offhand?: boolean; feature?: string }): void;
   /** Eintrag in die eigene Bibliothek kopieren */
   addToLibrary(kind: "feature", item: Feature): void;
   addToLibrary(kind: "attack", item: Attack): void;

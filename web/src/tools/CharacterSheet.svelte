@@ -54,6 +54,8 @@
   import Portrait from "./character/Portrait.svelte";
   import {
     abilityChoices,
+    appliesToAttack,
+    isAttackBound,
     confirmLinkSuccess,
     describeDamageAdds,
     featureDamageExpr,
@@ -87,7 +89,9 @@
   let saveState = $state<SaveState>("saved");
   let editing = $state(new URLSearchParams(route.search).has("bearbeiten"));
   let tab = $state<Tab>(readTab());
-  let attackWizard = $state<{ attack: Attack; offhand: boolean } | null>(null);
+  let attackWizard = $state<{ attack: Attack; offhand: boolean; feature?: string } | null>(null);
+  /** Fähigkeit, die im Angriff eingesetzt wird: erst die Waffe wählen */
+  let attackFor = $state<Feature | null>(null);
   /** Fähigkeit, für deren Wurf vor dem Einsetzen ein Attribut gewählt wird */
   let featureChoice = $state<{ feature: Feature; picks: AbilityPicks } | null>(null);
   let libraryKind = $state<"feature" | "attack" | "armor" | null>(null);
@@ -160,9 +164,12 @@
       });
     },
     useFeature(f: Feature, picks?: AbilityPicks) {
-      // Fähigkeiten, die an Treffer/Angriffe gebunden sind, wirken erst im Angriff
-      const attackBound = f.triggers.includes("hit") || f.triggers.includes("attack");
-      const kind = attackBound ? null : featureRollKind(f);
+      // Fähigkeiten, die an Treffer/Angriffe gebunden sind, setzt man im Angriff ein: Waffe wählen
+      if (isAttackBound(f) && f.appliesTo.scope !== "none") {
+        attackFor = f;
+        return;
+      }
+      const kind = featureRollKind(f);
       // Mehrere Attribute zur Wahl: erst fragen, dann einsetzen und würfeln
       if (kind && !picks && featureDamageExpr(data, f) && abilityChoices(f).length) {
         featureChoice = { feature: f, picks: {} };
@@ -183,7 +190,7 @@
       }
     },
     openAttack(a: Attack, opts = {}) {
-      attackWizard = { attack: a, offhand: Boolean(opts.offhand) };
+      attackWizard = { attack: a, offhand: Boolean(opts.offhand), feature: opts.feature };
     },
     addToLibrary(kind: "feature" | "attack" | "armor", item: Feature | Attack | ArmorItem) {
       const payload =
@@ -535,9 +542,35 @@
   </Modal>
 {/if}
 
+{#if attackFor}
+  {@const f = attackFor}
+  {@const weapons = data.attacks.filter(a => appliesToAttack(f, a))}
+  <Modal title="{f.name || 'Fähigkeit'}: Angriff wählen" size="sm" onclose={() => (attackFor = null)}>
+    <p class="small muted">„{f.name}“ setzt du im Angriff ein. Mit welcher Waffe greifst du an?</p>
+    {#if weapons.length}
+      <div class="stack weapon-pick">
+        {#each weapons as a (a.id)}
+          <button
+            class="btn"
+            onclick={() => {
+              attackFor = null;
+              sheetCtx.openAttack(a, { feature: f.id });
+            }}
+          >
+            <Icon name="attack" size={15} /> {a.name || "Angriff"}
+          </button>
+        {/each}
+      </div>
+    {:else}
+      <p class="small">Keine Waffe passt zu „Gilt für“ dieser Fähigkeit.</p>
+    {/if}
+    {#snippet footer()}<button class="btn" onclick={() => (attackFor = null)}>Abbrechen</button>{/snippet}
+  </Modal>
+{/if}
+
 {#if attackWizard}
   {#key attackWizard}
-    <AttackWizard attack={attackWizard.attack} offhand={attackWizard.offhand} onclose={() => (attackWizard = null)} />
+    <AttackWizard attack={attackWizard.attack} offhand={attackWizard.offhand} preselect={attackWizard.feature} onclose={() => (attackWizard = null)} />
   {/key}
 {/if}
 

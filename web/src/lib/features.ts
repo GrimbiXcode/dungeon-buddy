@@ -693,6 +693,11 @@ export function isRangedAttack(a: Attack) {
   return a.kind === "ranged";
 }
 
+/** Wird die Fähigkeit im Angriff eingesetzt (Auslöser beim Angriff oder bei Treffer)? */
+export function isAttackBound(f: Pick<Feature, "triggers">) {
+  return f.triggers.includes("hit") || f.triggers.includes("crit") || f.triggers.includes("attack");
+}
+
 /** Gilt die Fähigkeit für diesen Angriff? */
 export function appliesToAttack(f: Feature, a: Attack): boolean {
   const scope = f.appliesTo.scope;
