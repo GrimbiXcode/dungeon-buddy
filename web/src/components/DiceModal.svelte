@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { RotateCcw } from "@lucide/svelte";
   import Icon from "./Icon.svelte";
   import Modal from "./Modal.svelte";
@@ -12,6 +13,7 @@
     type D20Request,
     type DamageRequest,
     type RollOption,
+    type RollRequest,
   } from "../lib/roller.svelte";
   import { critExpr, formatDice, groupRange, parseDice, rollDie, rollGroup, type DiceExpr, type DiceGroup } from "../lib/dice";
   import { formatMod } from "../lib/dnd";
@@ -19,8 +21,8 @@
   const req = $derived(roller.request);
 
   // ── W20 ────────────────────────────────────────────────────────────────
-  /** Von Hand gewählter Modus; null = aus Anfrage und Optionen berechnet */
-  let userMode = $state<AdvMode | null>(null);
+  /** Von Hand gesetzter Vorteil/Nachteil: zählt als weitere Quelle (hebt sich mit anderen auf) */
+  let userMode = $state<AdvMode>("normal");
   let picks = $state<number[]>([]);
   let rolled = $state(false);
   /** Gewählte Optionen (automatische sind immer dabei) */
@@ -40,13 +42,26 @@
   let twiceChoice = $state<0 | 1>(0);
   let damageLogId: number | null = null;
 
+  /** Zuletzt angezeigte Anfrage (zum Aufräumen beim Schliessen/Wechseln) */
+  let shown: RollRequest | null = null;
+
+  /** Ohne Wurf geschlossen: angekreuzte Optionen zurückgeben */
+  function refundUnrolled(r: RollRequest) {
+    if (r.type !== "d20" || rolled) return;
+    for (const o of r.options ?? []) if (!o.auto && selected.includes(o.id)) o.onToggle?.(false);
+  }
+
   $effect(() => {
     // Zurücksetzen, sobald eine neue Anfrage geöffnet wird
     const r = roller.request;
+    untrack(() => {
+      if (shown && shown !== r) refundUnrolled(shown);
+      shown = r;
+    });
     if (!r) return;
     picks = [];
     rolled = false;
-    userMode = null;
+    userMode = "normal";
     selected = r.type === "d20" ? (r.options ?? []).filter(o => o.auto).map(o => o.id) : [];
     bonusRolls = {};
     successDone = [];
@@ -62,14 +77,31 @@
   const options = $derived(req?.type === "d20" ? (req.options ?? []) : []);
   const active = $derived(options.filter(o => selected.includes(o.id)));
 
-  /** Vorteil und Nachteil heben sich auf, egal aus wie vielen Quellen */
-  const computedMode = $derived.by<AdvMode>(() => {
+  /** Vorteil und Nachteil heben sich auf, egal aus wie vielen Quellen (auch der Handauswahl) */
+  const mode = $derived.by<AdvMode>(() => {
     if (req?.type !== "d20") return "normal";
-    const adv = req.mode === "advantage" || active.some(o => o.mode === "advantage");
-    const dis = req.mode === "disadvantage" || active.some(o => o.mode === "disadvantage");
+    const has = (m: AdvMode) => req.mode === m || userMode === m || (req.sources ?? []).some(s => s.mode === m) || active.some(o => o.mode === m);
+    const adv = has("advantage");
+    const dis = has("disadvantage");
     return adv && dis ? "normal" : adv ? "advantage" : dis ? "disadvantage" : "normal";
   });
-  const mode = $derived(userMode ?? computedMode);
+  /** Woher Vorteil/Nachteil kommen; nur, wenn nicht allein die Handauswahl wirkt */
+  const sourceNote = $derived.by(() => {
+    if (req?.type !== "d20") return "";
+    const from = (m: AdvMode) =>
+      [
+        req.mode === m ? "Voreinstellung" : "",
+        ...(req.sources ?? []).filter(s => s.mode === m).map(s => s.label),
+        ...active.filter(o => o.mode === m).map(o => o.label),
+      ].filter(Boolean);
+    const adv = from("advantage");
+    const dis = from("disadvantage");
+    if (!adv.length && !dis.length) return "";
+    if (userMode === "advantage") adv.push("von Hand");
+    if (userMode === "disadvantage") dis.push("von Hand");
+    const parts = [adv.length ? `Vorteil: ${adv.join(", ")}` : "", dis.length ? `Nachteil: ${dis.join(", ")}` : ""].filter(Boolean);
+    return `${parts.join(" · ")} → ${modeLabel[mode]}`;
+  });
   const needed = $derived(mode === "normal" ? 1 : 2);
 
   const optionFlat = $derived(active.reduce((s, o) => s + o.flat, 0));
@@ -86,19 +118,40 @@
     bonusRolls = next;
   }
 
+  const isAvailable = (o: RollOption) => (o.available ? o.available() : !o.disabled);
+  const optionDisabled = (o: RollOption) => o.auto || (!selected.includes(o.id) && !isAvailable(o));
+
   function toggleOption(r: D20Request, o: RollOption) {
-    if (o.auto || (o.disabled && !selected.includes(o.id))) return;
+    if (optionDisabled(o)) return;
     const on = !selected.includes(o.id);
     selected = on ? [...selected, o.id] : selected.filter(x => x !== o.id);
     o.onToggle?.(on);
-    if (o.mode) {
-      // Vorteil/Nachteil ändert den W20-Wurf selbst: neu würfeln
-      userMode = null;
-      if (rolled || picks.length) resetD20();
-    } else if (on && rolled && !r.physical && o.dice.length) {
+    if (!on) successDone = successDone.filter(x => x !== o.id);
+    if (o.mode) adjustPicks(r);
+    // Ein schon gewürfelter Bonuswürfel bleibt beim Ab- und Wiederankreuzen erhalten
+    else if (on && rolled && !r.physical && o.dice.length && bonusRolls[o.id] == null) {
       bonusRolls = { ...bonusRolls, [o.id]: rollGroups(o.dice) };
     }
     if (rolled) queueMicrotask(() => reportD20(r));
+  }
+
+  /**
+   * Vorteil/Nachteil hat sich geändert: vorhandene Würfel behalten. Braucht es
+   * einen zweiten W20, wird er digital dazugewürfelt bzw. physisch abgefragt;
+   * braucht es nur noch einen, zählt der erste.
+   */
+  function adjustPicks(r: D20Request) {
+    if (!picks.length) return;
+    if (picks.length > needed) picks = picks.slice(0, needed);
+    if (picks.length < needed) {
+      if (r.physical) {
+        rolled = false;
+        return;
+      }
+      picks = [...picks, ...Array.from({ length: needed - picks.length }, () => rollDie(20))];
+    }
+    if (!rolled) finishD20(r, picks);
+    else queueMicrotask(() => reportD20(r));
   }
 
   function optionText(o: RollOption) {
@@ -149,35 +202,39 @@
   function rollD20Digital(r: D20Request) {
     picks = Array.from({ length: needed }, () => rollDie(20));
     bonusRolls = {};
+    successDone = [];
     rollMissingBonus();
     logId = null;
     finishD20(r, picks);
   }
 
-  function setBonus(r: D20Request, id: string, value: number) {
-    bonusRolls = { ...bonusRolls, [id]: Number.isFinite(value) ? value : null };
+  function setBonus(r: D20Request, o: RollOption, raw: string) {
+    const value = raw.trim() === "" ? NaN : Number(raw);
+    const min = o.dice.reduce((s, g) => s + groupRange(g).min, 0);
+    const max = o.dice.reduce((s, g) => s + groupRange(g).max, 0);
+    const ok = Number.isInteger(value) && value >= min && value <= max;
+    bonusRolls = { ...bonusRolls, [o.id]: ok ? value : null };
     if (rolled) queueMicrotask(() => reportD20(r));
   }
 
   function pick(r: D20Request, n: number) {
-    if (rolled) {
-      picks = [];
-      rolled = false;
-      logId = null;
-    }
+    if (rolled) resetD20();
     picks = [...picks, n];
     if (picks.length >= needed) finishD20(r, picks);
   }
 
-  function setMode(m: AdvMode) {
+  function setMode(r: D20Request, m: AdvMode) {
     userMode = m;
-    resetD20();
+    adjustPicks(r);
   }
 
+  /** Neuer Wurf (physisch „Nochmal“): alles vom letzten Wurf verwerfen */
   function resetD20() {
     picks = [];
     rolled = false;
     logId = null;
+    bonusRolls = {};
+    successDone = [];
   }
 
   function toDamage(r: D20Request) {
@@ -249,7 +306,10 @@
 
   function logDamage(r: DamageRequest) {
     if (!expr || damageTotal == null) return;
-    damageLogId = logRoll({ title: r.title, detail: damageDetail(r), total: damageTotal });
+    const entry = { title: r.title, detail: damageDetail(r), total: damageTotal };
+    // Korrekturen am selben Wurf aktualisieren den Eintrag statt einen neuen anzulegen
+    if (damageLogId != null) updateLog(damageLogId, entry);
+    else damageLogId = logRoll(entry);
   }
 
   function chooseTwice(r: DamageRequest, choice: 0 | 1) {
@@ -257,8 +317,11 @@
     if (damageLogId != null && damageTotal != null) updateLog(damageLogId, { detail: damageDetail(r), total: damageTotal });
   }
 
-  function setManual(r: DamageRequest, index: number, value: number) {
-    manualSums[index] = value;
+  function setManual(r: DamageRequest, index: number, value: number | null) {
+    const group = expr?.groups[index];
+    const range = group ? groupRange(group) : null;
+    // Nur ganze Zahlen im möglichen Bereich zählen; leer = noch nicht eingetragen
+    manualSums[index] = value != null && range && Number.isInteger(value) && value >= range.min && value <= range.max ? value : null;
     if (manualSums.filter(v => v != null).length === expr?.groups.length) {
       queueMicrotask(() => logDamage(r));
     }
@@ -269,6 +332,7 @@
     groupResults = [];
     manualSums = [];
     twiceRolls = [];
+    damageLogId = null;
   }
 
   const modeLabel: Record<AdvMode, string> = { normal: "Normal", advantage: "Vorteil", disadvantage: "Nachteil" };
@@ -280,15 +344,16 @@
 
     {#if req.type === "d20"}
       <div class="row-between head">
-        <div class="segmented" role="group" aria-label="Vorteil / Nachteil">
+        <div class="segmented" role="group" aria-label="Vorteil / Nachteil von Hand">
           {#each ["normal", "advantage", "disadvantage"] as const as m (m)}
-            <button aria-pressed={mode === m} onclick={() => setMode(m)}>{modeLabel[m]}</button>
+            <button aria-pressed={userMode === m} onclick={() => setMode(req, m)}>{modeLabel[m]}</button>
           {/each}
         </div>
         <span class="badge badge-accent mono">
           W20 {formatMod(req.modifier + optionFlat)}{#if req.penalty}&nbsp;{formatMod(req.penalty)}{/if}{#each diceOptions as o (o.id)}&nbsp;{o.sign < 0 ? "−" : "+"}{diceLabel(o.dice)}{/each}
         </span>
       </div>
+      {#if sourceNote}<p class="tiny muted mode-note">{sourceNote}</p>{/if}
       {#each req.notes ?? [] as note (note)}
         <p class="note small">{note}</p>
       {/each}
@@ -296,8 +361,8 @@
       {#if options.length}
         <div class="options">
           {#each options as o (o.id)}
-            <label class="option" class:auto={o.auto} class:disabled={o.disabled && !selected.includes(o.id)}>
-              <input type="checkbox" checked={selected.includes(o.id)} disabled={o.auto || (o.disabled && !selected.includes(o.id))} onchange={() => toggleOption(req, o)} />
+            <label class="option" class:auto={o.auto} class:disabled={!o.auto && optionDisabled(o)}>
+              <input type="checkbox" checked={selected.includes(o.id)} disabled={optionDisabled(o)} onchange={() => toggleOption(req, o)} />
               <span class="grow">
                 <strong>{o.label}</strong>
                 <span class="mono small">{optionText(o)}</span>
@@ -346,7 +411,7 @@
                 max={range.max}
                 placeholder="{range.min}–{range.max}"
                 value={bonusRolls[o.id] ?? ""}
-                onchange={e => setBonus(req, o.id, Number((e.currentTarget as HTMLInputElement).value))}
+                onchange={e => setBonus(req, o, (e.currentTarget as HTMLInputElement).value)}
               />
             </label>
           {/each}
@@ -370,7 +435,7 @@
             <div class="flag">{total >= req.target ? "Erfolg" : "Misserfolg"} (Ziel {req.target})</div>
           {/if}
         </div>
-        {#each active.filter(o => o.onSuccess) as o (o.id)}
+        {#each req.target != null && total < req.target ? [] : active.filter(o => o.onSuccess) as o (o.id)}
           {#if successDone.includes(o.id)}
             <p class="small muted center">✓ {o.onSuccess!.label}</p>
           {:else}
@@ -426,7 +491,11 @@
                   min={range.min}
                   max={range.max}
                   placeholder="{range.min}–{range.max}"
-                  onchange={e => setManual(req, i, Number((e.currentTarget as HTMLInputElement).value))}
+                  value={manualSums[i] ?? ""}
+                  onchange={e => {
+                    const v = (e.currentTarget as HTMLInputElement).value;
+                    setManual(req, i, v.trim() === "" ? null : Number(v));
+                  }}
                 />
               {/if}
             </div>
@@ -481,6 +550,7 @@
   .twice .segmented button { flex: 1; }
   .twice-note { margin: 0 0 0.6rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-sm); background: var(--accent-soft); }
   .head { margin-bottom: 0.75rem; }
+  .mode-note { margin: 0.1rem 0 0.4rem; }
   .note {
     margin: 0 0 0.6rem;
     padding: 0.4rem 0.6rem;

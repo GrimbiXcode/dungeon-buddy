@@ -5,6 +5,7 @@ import type { RollModeSetting } from "./character";
 import type { DiceGroup } from "./dice";
 
 export type AdvMode = "normal" | "advantage" | "disadvantage";
+export type AdvSource = { label: string; mode: "advantage" | "disadvantage" };
 
 export type DamageRequest = {
   type: "damage";
@@ -43,6 +44,8 @@ export type RollOption = {
   auto: boolean;
   /** Keine Nutzungen mehr übrig */
   disabled?: boolean;
+  /** Aktuell einsetzbar? (live, z. B. wenn eine andere Option dieselbe Ressource verbraucht hat) */
+  available?: () => boolean;
   /** Beim An-/Abwählen, z. B. Nutzung verbrauchen bzw. zurückgeben */
   onToggle?: (on: boolean) => void;
   /** Nach dem Wurf: Verbrauch erst bestätigen, wenn der Wurf gelingt */
@@ -56,8 +59,10 @@ export type D20Request = {
   modifier: number;
   kind: RollKind;
   physical: boolean;
-  /** Voreinstellung für Vorteil/Nachteil */
+  /** Voreinstellung für Vorteil/Nachteil (ältere Aufrufer; besser `sources`) */
   mode?: AdvMode;
+  /** Quellen für Vorteil/Nachteil (Erschöpfung, Zustände, Fähigkeiten); heben sich nach Regel auf */
+  sources?: AdvSource[];
   /** Pauschaler Abzug, z. B. Erschöpfung (2024) */
   penalty?: number;
   notes?: string[];
@@ -131,6 +136,7 @@ export function d20Request(opts: {
   onResult?: D20Request["onResult"];
   options?: RollOption[];
   notes?: string[];
+  sources?: AdvSource[];
 }): D20Request {
   const ex = exhaustionEffect(opts.ruleset, opts.exhaustion, opts.kind);
   return {
@@ -140,7 +146,8 @@ export function d20Request(opts: {
     modifier: opts.modifier,
     kind: opts.kind,
     physical: isPhysical(opts.rollMode),
-    mode: ex.disadvantage ? "disadvantage" : "normal",
+    mode: "normal",
+    sources: [...(ex.disadvantage ? [{ label: "Erschöpfung", mode: "disadvantage" as const }] : []), ...(opts.sources ?? [])],
     penalty: ex.penalty,
     notes: [...(ex.note ? [ex.note] : []), ...(opts.notes ?? [])],
     target: opts.target,

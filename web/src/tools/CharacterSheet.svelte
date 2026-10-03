@@ -60,7 +60,8 @@
     featureDamageType,
     featureRollKind,
     linkedFeatures,
-    refundFeature,
+    isAvailable,
+    trackUsage,
     rollFeatures,
     sumMods,
     useFeature,
@@ -229,6 +230,9 @@
   function rollOptions(roll: RollContext): RollOption[] {
     const options: RollOption[] = rollFeatures(data, roll).map(rf => {
       const f = rf.feature;
+      // Rückgängig machen gibt nur zurück, was wirklich verbraucht wurde
+      let undoUse: (() => void) | null = null;
+      let undoSuccess: (() => void) | null = null;
       const sum = sumMods([{ label: f.name, mods: rf.mods }]);
       const onSuccess = linkedFeatures(data, f).filter(x => x.link.when === "success");
       return {
@@ -241,14 +245,24 @@
         mode: sum.advantage && !sum.disadvantage ? "advantage" : sum.disadvantage && !sum.advantage ? "disadvantage" : null,
         auto: rf.automatic,
         disabled: !rf.available,
+        available: () => rf.automatic || isAvailable(data, f),
         onToggle: on => {
-          if (on) for (const note of useFeature(data, f, { markEconomy: f.activation === "reaction" })) toast(note);
-          else refundFeature(data, f);
+          if (on) {
+            const t = trackUsage(data, () => useFeature(data, f, { markEconomy: f.activation === "reaction" }));
+            for (const note of t.result) toast(note);
+            undoUse = t.undo;
+          } else {
+            undoSuccess?.();
+            undoUse?.();
+            undoSuccess = undoUse = null;
+          }
         },
         onSuccess: onSuccess.length
           ? {
               label: onSuccess.map(x => `${x.feature.name} verbrauchen`).join(", "),
-              run: () => onSuccess.forEach(x => confirmLinkSuccess(data, f, x.feature.id)),
+              run: () => {
+                undoSuccess = trackUsage(data, () => onSuccess.forEach(x => confirmLinkSuccess(data, f, x.feature.id))).undo;
+              },
             }
           : undefined,
       };

@@ -164,6 +164,12 @@
       ruleset: ctx.ruleset,
       exhaustion: c.exhaustion,
       rollMode: c.rollMode,
+      // Vorteil/Nachteil aus Fähigkeiten; gegensätzliche Quellen heben sich im Dialog auf
+      sources: activeBefore.flatMap(o =>
+        o.feature.rollMods
+          .filter(m => m.target === "attack" && m.mode !== "none")
+          .map(m => ({ label: o.feature.name, mode: m.mode as "advantage" | "disadvantage" }))
+      ),
       options: attackMods.dice.map((d, i) => ({
         id: `dice-${i}`,
         label: d.label,
@@ -178,9 +184,6 @@
         outcome = kept === 20 ? "crit" : kept === 1 ? "miss" : outcome;
       },
     });
-    // Vorteil/Nachteil aus Fähigkeiten; gegensätzliche Quellen heben sich auf
-    if (advantage) request.mode = request.mode === "disadvantage" ? "normal" : "advantage";
-    if (disadvantage) request.mode = request.mode === "advantage" ? "normal" : "disadvantage";
     openRoll(request);
     step = "result";
   }
