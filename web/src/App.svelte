@@ -20,6 +20,7 @@
   import CharacterPage from "./pages/CharacterPage.svelte";
   import Blocked from "./pages/Blocked.svelte";
   import Admin from "./pages/Admin.svelte";
+  import Library from "./pages/Library.svelte";
 
   onMount(() => {
     applyColorMode(storedColorMode());
@@ -45,6 +46,7 @@
     if (session.user?.settings.colorMode) applyColorMode(session.user.settings.colorMode);
   });
 
+  const friendLibraryParams = $derived(match("/bibliothek/freunde/:id", route.path));
   const characterParams = $derived(
     match("/charaktere/:id", route.path) ?? match("/charaktere/:id/zauber", route.path)
   );
@@ -85,6 +87,14 @@
   <Profile />
 {:else if route.path === "/charaktere"}
   <MyCharacters />
+{:else if route.path === "/bibliothek" || route.path === "/bibliothek/freunde"}
+  {#key route.path}
+    <Library section={route.path === "/bibliothek" ? "eigene" : "freunde"} />
+  {/key}
+{:else if friendLibraryParams}
+  {#key route.path}
+    <Library section="freunde" friendId={friendLibraryParams.id} />
+  {/key}
 {:else if characterParams}
   {#key route.path}
     <CharacterPage characterId={characterParams.id} section={route.path.endsWith("/zauber") ? "zauber" : "bogen"} />

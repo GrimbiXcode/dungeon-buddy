@@ -15,7 +15,12 @@
     <li>Deine <strong>Telegram-ID</strong> (Zahl), um dich bei der nächsten Anmeldung wiederzuerkennen.</li>
     <li>Dein <strong>Anzeigename</strong> (bei der ersten Anmeldung aus Telegram übernommen, jederzeit änderbar).</li>
     <li>Deine <strong>Einstellungen</strong> (Farbschema, Würfelmodus, Einheiten, zuletzt geöffnete Kampagne).</li>
-    <li>Die <strong>Inhalte</strong>, die du selbst anlegst: Kampagnen, Tagebucheinträge, NPCs, Charakterbögen, Zauber.</li>
+    <li>Die <strong>Inhalte</strong>, die du selbst anlegst: Kampagnen, Tagebucheinträge, NPCs, Charakterbögen, Zauber, Bibliothek.</li>
+    <li>
+      Dein <strong>Freundescode</strong>, deine <strong>Freundschaften</strong> (inkl. offener Anfragen) und ob du deine
+      Bibliothek teilst. Freunde sehen deinen Anzeigenamen und, wenn du sie teilst, deine Bibliothek. Wer sie wann
+      angesehen hat, wird nicht gespeichert.
+    </li>
     {#if session.info?.attachments}
       <li>
         <strong>Anhänge</strong> (Bilder, PDFs) in einem Object Storage, den der Betreiber dieser Instanz wählt. Fotos

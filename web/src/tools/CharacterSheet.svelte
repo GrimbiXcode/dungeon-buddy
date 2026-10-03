@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import { ArrowLeft, Check, CloudOff, GitFork, Moon, Pencil, Play, RefreshCw, Skull, Sunrise } from "@lucide/svelte";
+  import { ArrowLeft, Check, CloudOff, GitFork, Moon, Pencil, Play, RefreshCw, Skull, Star, Sunrise } from "@lucide/svelte";
+  import { current } from "../lib/campaign.svelte";
   import { ApiError, get, post, put } from "../lib/api";
   import {
     classSummary,
@@ -171,6 +172,20 @@
       libraryKind = kind;
     },
   });
+
+  const inCampaign = $derived(Boolean(campaign && record?.campaigns?.some(x => x.campaignId === campaign.id && x.active)));
+  const isActiveCharacter = $derived(Boolean(campaign && campaign.activeCharacterId === characterId));
+
+  async function makeActive() {
+    if (!campaign) return;
+    try {
+      const res = await put<{ activeCharacterId: string | null }>(`/api/campaigns/${campaign.id}/active-character`, { characterId });
+      if (current.campaign?.id === campaign.id) current.campaign.activeCharacterId = res.activeCharacterId;
+      toast("Aktiver Charakter dieser Kampagne.", "success");
+    } catch (e) {
+      toastError(e);
+    }
+  }
 
   function pickFromLibrary(item: LibraryItem) {
     const kind = libraryKind;
@@ -362,6 +377,11 @@
         {#if record.status === "dead"}<span class="badge badge-danger"><Skull size={12} /> Verstorben</span>{/if}
         {#if record.status === "retired"}<span class="badge">Im Ruhestand</span>{/if}
         {#if record.forkedFromName}<span class="badge"><GitFork size={12} /> Kopie von {record.forkedFromName}</span>{/if}
+        {#if isActiveCharacter}
+          <span class="badge badge-accent"><Star size={12} /> Aktiver Charakter</span>
+        {:else if inCampaign}
+          <button class="badge make-active" onclick={makeActive} title="„Charakterbogen“ öffnet dann direkt diesen Bogen"><Star size={12} /> Als aktiven Charakter festlegen</button>
+        {/if}
         {#each (record.campaigns ?? []).filter(c => c.active) as c (c.campaignId)}
           <a class="badge campaign-link" href="/k/{c.campaignId}/charaktere/{record.id}">{c.name}</a>
         {/each}
@@ -476,6 +496,8 @@
   .meta { margin-top: 0.35rem; gap: 0.3rem; }
   .meta .badge { font-size: 0.7rem; }
   .campaign-link { color: var(--accent-text); }
+  .make-active { cursor: pointer; font: inherit; font-size: 0.7rem; background: transparent; }
+  .make-active:hover { border-color: var(--accent); color: var(--accent-text); }
   .warn-text { color: var(--warning); margin-top: 0.3rem !important; }
   .actions { gap: 0.4rem; }
   .segmented button { display: inline-flex; align-items: center; gap: 0.3rem; }

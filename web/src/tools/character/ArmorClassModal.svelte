@@ -98,5 +98,6 @@
   .effects { display: flex; flex-direction: column; gap: 0.25rem; }
   .effect { display: flex; align-items: center; gap: 0.4rem; }
   .temp { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .temp .grow { min-width: 12rem; }
   .amt { width: 5rem; }
 </style>

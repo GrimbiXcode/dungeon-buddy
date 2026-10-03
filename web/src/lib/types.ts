@@ -59,6 +59,8 @@ export type Campaign = {
   theme: string;
   ruleset: Ruleset;
   archivedAt: string | null;
+  /** Aktiver Charakter: „Charakterbogen“ öffnet direkt seinen Bogen */
+  activeCharacterId: string | null;
   createdAt: string;
   updatedAt: string;
   journalCount?: number;

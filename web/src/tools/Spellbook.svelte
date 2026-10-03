@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { BookPlus, ExternalLink, PenLine, Search, Star, Wand, X } from "@lucide/svelte";
+  import { BookPlus, ExternalLink, PenLine, Search, Star, Wand, X, LibraryBig } from "@lucide/svelte";
   import { ApiError, campaignApi, del, get, patch, post, put } from "../lib/api";
   import {
     classSummary,
@@ -18,6 +18,8 @@
   import SpellEditor from "./spellbook/SpellEditor.svelte";
   import SpellRow from "./spellbook/SpellRow.svelte";
   import SrdBrowser from "./spellbook/SrdBrowser.svelte";
+  import LibraryPicker from "../components/LibraryPicker.svelte";
+  import { spellFromLibrary, spellToLibrary, type LibraryItem } from "../lib/library";
   import { applySpellEffect, isPrepared, schoolName, srdAcMod, type RollChar } from "./spellbook/spells";
 
   /**
@@ -180,6 +182,29 @@
     toast(isNew ? `„${saved.name}“ angelegt.` : "Gespeichert.", "success");
   }
 
+  let libraryOpen = $state(false);
+
+  async function addSpellToLibrary(spell: Spell) {
+    try {
+      await post("/api/library", { kind: "spell", name: spell.name, ruleset, data: spellToLibrary(spell) });
+      toast(`„${spell.name}“ in die Bibliothek aufgenommen.`, "success");
+    } catch (e) {
+      toastError(e);
+    }
+  }
+
+  async function addFromLibrary(item: LibraryItem) {
+    libraryOpen = false;
+    try {
+      const created = await post<Spell>(spellUrl, { ...spellFromLibrary(item), characterId: selectedChar?.record.id ?? null });
+      spells.push(created);
+      sortSpells(spells);
+      toast(`„${item.name}“ übernommen.`, "success");
+    } catch (e) {
+      toastError(e);
+    }
+  }
+
   async function addFromSrd(s: SrdSpell) {
     const { key, name, level, ...rest } = s;
     const data = { ...rest, acMod: srdAcMod(key, ruleset) };
@@ -324,6 +349,7 @@
       <BookPlus size={16} /> Aus SRD hinzufügen
     </button>
     <button class="btn" onclick={() => (editing = "new")} disabled={!loaded}><PenLine size={16} /> Eigener Zauber</button>
+    <button class="btn" onclick={() => (libraryOpen = true)} disabled={!loaded}><LibraryBig size={16} /> Aus Bibliothek</button>
   </div>
 </div>
 
@@ -474,12 +500,17 @@
               onedit={() => (editing = spell)}
               ondelete={() => removeSpell(spell)}
               oncast={slot => rc && cast(spell, rc, slot)}
+              onlibrary={() => addSpellToLibrary(spell)}
             />
           {/each}
         </div>
       </section>
     {/each}
   {/if}
+{/if}
+
+{#if libraryOpen}
+  <LibraryPicker kind="spell" {ruleset} onpick={addFromLibrary} onclose={() => (libraryOpen = false)} />
 {/if}
 
 {#if srdOpen}
