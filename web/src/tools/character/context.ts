@@ -1,7 +1,7 @@
 import { getContext, setContext } from "svelte";
 import type { Attack, CharacterData } from "../../lib/character";
 import type { ArmorItem } from "../../lib/armor";
-import type { Feature } from "../../lib/features";
+import type { AbilityPicks, Feature } from "../../lib/features";
 import type { Ability, RollKind, SkillKey } from "../../lib/dnd";
 import type { Ruleset } from "../../lib/types";
 
@@ -18,9 +18,12 @@ export type SheetContext = {
     kind: RollKind,
     opts?: { subtitle?: string; target?: number; damage?: DamageSpec; ability?: Ability | null; skill?: SkillKey | null }
   ): void;
-  rollDamage(title: string, dice: string, opts?: { damageType?: string; heal?: boolean; subtitle?: string }): void;
-  /** Fähigkeit einsetzen (Nutzung, Aktionsart, Effekt, ggf. Würfelwurf) */
-  useFeature(f: Feature): void;
+  rollDamage(title: string, dice: string, opts?: { damageType?: string; heal?: boolean; effect?: string; subtitle?: string }): void;
+  /**
+   * Fähigkeit einsetzen (Nutzung, Aktionsart, Effekt, ggf. Würfelwurf).
+   * Ohne picks fragt der Bogen nach, wenn mehrere Attribute zur Wahl stehen.
+   */
+  useFeature(f: Feature, picks?: AbilityPicks): void;
   /** Angriffs-Assistent für eine Waffe öffnen (offhand: Zusatzangriff mit leichter Waffe) */
   openAttack(a: Attack, opts?: { offhand?: boolean }): void;
   /** Eintrag in die eigene Bibliothek kopieren */

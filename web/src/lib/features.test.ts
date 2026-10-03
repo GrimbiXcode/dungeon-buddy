@@ -13,6 +13,10 @@ import {
   economySpent,
   featureDamageExpr,
   featureDamageType,
+  featureRollKind,
+  featureRollLabel,
+  abilityChoices,
+  pickedAbility,
   endCombat,
   isAvailable,
   isDamageTwice,
@@ -225,8 +229,8 @@ describe("Zuschläge auf Schaden und Heilung", () => {
       damage: "1d10",
       damageAdds: [
         newDamageAdd({ kind: "classLevel", className: "kämpfer" }),
-        newDamageAdd({ kind: "ability", ability: "con" }),
-        newDamageAdd({ kind: "ability", ability: "wis" }),
+        newDamageAdd({ kind: "ability", abilities: ["con"] }),
+        newDamageAdd({ kind: "ability", abilities: ["wis"] }),
         newDamageAdd({ kind: "level" }),
         newDamageAdd({ kind: "proficiency" }),
       ],
@@ -282,5 +286,43 @@ describe("Schadensart wie der Angriff", () => {
     c.features = [buildPreset("sweeping", "2014", "Volk")];
     expect(attackOptions(c, sword).onHit.map(o => o.feature.name)).toEqual(["Weit ausholender Angriff"]);
     expect(attackOptions(c, bow).onHit).toEqual([]);
+  });
+});
+
+describe("Sonstige Wirkung", () => {
+  it("würfelt mit Freitext statt Schadensart", () => {
+    const c = normalizeCharacter({ classes: [{ name: "Mönch", level: 3, hitDie: 8 }], abilities: { dex: 16 } });
+    const deflect = normalizeFeature({
+      name: "Geschosse abwehren",
+      damage: "1d10",
+      damageAdds: [{ kind: "ability", ability: "dex" }, { kind: "classLevel", className: "Mönch" }],
+      effectText: "vom erlittenen Schaden abziehen",
+      effectType: "defense",
+    });
+    expect(featureRollKind(deflect)).toBe("other");
+    expect(featureRollLabel(deflect)).toBe("vom erlittenen Schaden abziehen");
+    expect(diceString(featureDamageExpr(c, deflect)!)).toBe("1d10+6");
+    expect(deriveEffectType({ ...deflect, effectText: "x" })).toBe("utility");
+    expect(featureRollKind(newFeature({ effectType: "damage", damage: "1d6" }))).toBe("damage");
+    expect(featureRollKind(newFeature({ effectType: "buff" }))).toBeNull();
+  });
+});
+
+describe("Mehrere Attribute zur Wahl", () => {
+  const c = normalizeCharacter({ abilities: { str: 16, dex: 12, wis: 14 } });
+  const f = newFeature({ damage: "1d8", damageAdds: [newDamageAdd({ kind: "ability", abilities: ["dex", "str"] }), newDamageAdd({ kind: "level" })] });
+
+  it("alte Daten mit einem Attribut bleiben gültig", () => {
+    expect(normalizeFeature({ damageAdds: [{ kind: "ability", ability: "wis" }] }).damageAdds[0]!.abilities).toEqual(["wis"]);
+    expect(normalizeFeature({ damageAdds: [{ kind: "ability", abilities: ["cha", "xyz", "str"] }] }).damageAdds[0]!.abilities).toEqual(["str", "cha"]);
+  });
+
+  it("schlägt den höchsten Modifikator vor und rechnet mit der Wahl", () => {
+    expect(abilityChoices(f).map(x => x.index)).toEqual([0]);
+    expect(pickedAbility(c, f.damageAdds[0]!)).toBe("str");
+    expect(diceString(featureDamageExpr(c, f)!)).toBe("1d8+4");
+    expect(diceString(featureDamageExpr(c, f, { 0: "dex" })!)).toBe("1d8+2");
+    expect(describeDamageAdds(c, f.damageAdds, { 0: "dex" })).toBe("GES-Mod. +1, Stufe +1");
+    expect(describeDamageAdds(c, f.damageAdds)).toBe("STR-Mod. +3, Stufe +1");
   });
 });

@@ -5,7 +5,7 @@
   import TagInput from "../../components/TagInput.svelte";
   import { Plus, Trash2, X } from "@lucide/svelte";
   import { formatDice, parseBonus, parseDice } from "../../lib/dice";
-  import { ABILITIES, ABILITY_NAMES, ABILITY_SHORT, SKILLS, rulesTerms } from "../../lib/dnd";
+  import { ABILITIES, ABILITY_NAMES, ABILITY_SHORT, SKILLS, rulesTerms, type Ability } from "../../lib/dnd";
   import {
     AC_MODES,
     ACTIVATIONS,
@@ -27,6 +27,7 @@
     label,
     newRollMod,
     normalizeFeature,
+    type DamageAdd,
     type Feature,
     type RollMod,
     type Trigger,
@@ -59,6 +60,7 @@
     | "scope"
     | "damage"
     | "healing"
+    | "other"
     | "save"
     | "target"
     | "duration"
@@ -81,6 +83,7 @@
     { key: "scope", group: "Würfe und Werte", title: "Nur bei bestimmten Angriffen", hint: "Nahkampf, Fernkampf, eine Waffe …" },
     { key: "damage", group: "Wirkung", title: "Schaden würfeln", hint: "Würfel und Schadensart, z. B. 2d6 Feuer" },
     { key: "healing", group: "Wirkung", title: "Heilung würfeln", hint: "z. B. 1d10+5" },
+    { key: "other", group: "Wirkung", title: "Sonstige Wirkung", hint: "Würfel und Wirkung als Text, z. B. 1d10 vom Schaden abziehen" },
     { key: "save", group: "Wirkung", title: "Rettungswurf der Ziele", hint: "z. B. GES, halber Schaden bei Erfolg" },
     { key: "target", group: "Wirkung", title: "Ziel und Reichweite", hint: "Wen trifft es, wie weit?" },
     { key: "duration", group: "Wirkung", title: "Dauer", hint: "Runden, Minuten, bis zur Rast …" },
@@ -102,14 +105,17 @@
   let advMods = $state<RollMod[]>(f.rollMods.filter(m => m.mode !== "none" && m.target !== "damage").map(m => ({ ...m, bonus: "" })));
 
   // svelte-ignore state_referenced_locally
-  const startHealing = f.effectType === "healing";
+  const startOther = Boolean(f.effectText.trim());
+  // svelte-ignore state_referenced_locally
+  const startHealing = f.effectType === "healing" && !startOther;
   // svelte-ignore state_referenced_locally
   let on = $state<Record<Single, boolean>>({
     twice: f.rollMods.some(isDamageTwice),
     ac: f.acMod.mode !== "none",
     scope: f.appliesTo.scope !== "none",
-    damage: Boolean(f.damage.trim() || f.damageType.trim() || f.damageTypeFromAttack || f.damageAdds.length) && !startHealing,
+    damage: Boolean(f.damage.trim() || f.damageType.trim() || f.damageTypeFromAttack || f.damageAdds.length) && !startHealing && !startOther,
     healing: Boolean(f.damage.trim() || f.damageAdds.length) && startHealing,
+    other: startOther,
     save: Boolean(f.save.trim()),
     target: f.target !== "self" || Boolean(f.targetText.trim()),
     duration: f.duration.kind !== "instant",
@@ -139,7 +145,10 @@
     ];
   }
   const derivedType = $derived(
-    deriveEffectType({ damage: f.damage, damageAdds: f.damageAdds, acMod: f.acMod, rollMods: composedMods() }, on.healing)
+    deriveEffectType(
+      { damage: f.damage, damageAdds: f.damageAdds, effectText: on.other ? f.effectText || "…" : "", acMod: f.acMod, rollMods: composedMods() },
+      on.healing
+    )
   );
 
   /** Würfel mit Zuschlägen, wie sie für diesen Charakter gerade gewürfelt würden */
@@ -162,6 +171,15 @@
     f.triggers = f.triggers.includes(t) ? f.triggers.filter(x => x !== t) : [...f.triggers, t];
   }
 
+  /** Attribut eines Zuschlags an-/abwählen; mindestens eines bleibt */
+  function toggleAddAbility(add: DamageAdd, ab: Ability) {
+    if (add.abilities.includes(ab)) {
+      if (add.abilities.length > 1) add.abilities = add.abilities.filter(x => x !== ab);
+    } else {
+      add.abilities = ABILITIES.filter(x => x === ab || add.abilities.includes(x));
+    }
+  }
+
   function toggleAttack(id: string) {
     const ids = f.appliesTo.attackIds;
     f.appliesTo.attackIds = ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id];
@@ -179,8 +197,8 @@
 
   /** Warum ein Baustein gerade nicht geht (sonst null) */
   function blocked(key: BlockKey): string | null {
-    if (key === "damage" && on.healing) return "Nur Schaden oder Heilung";
-    if (key === "healing" && on.damage) return "Nur Schaden oder Heilung";
+    const rolls = (["damage", "healing", "other"] as const).filter(k => k !== key && on[k]);
+    if ((key === "damage" || key === "healing" || key === "other") && rolls.length) return "Nur ein Wurf: Schaden, Heilung oder sonstige Wirkung";
     if (key === "resource" && !c.resources.length) return "Noch keine Ressourcen im Bogen";
     if (key === "link" && !linkable.length) return "Noch keine andere Fähigkeit";
     if (key === "link" && f.links.length >= linkable.length) return "Alle verknüpft";
@@ -253,6 +271,8 @@
         break;
       case "damage":
       case "healing":
+      case "other":
+        f.effectText = "";
         f.damage = "";
         f.damageType = "";
         f.damageTypeFromAttack = false;
@@ -307,6 +327,11 @@
       error = `Ungültiger Würfelausdruck „${f.damage}“ (Beispiel: 2d6+3).`;
       return;
     }
+    if (on.other && !f.effectText.trim()) {
+      error = "Bitte bei „Sonstige Wirkung“ eintragen, was der Wurf bewirkt.";
+      return;
+    }
+    if (!on.other) f.effectText = "";
     if (f.damageAdds.some(a => a.kind === "classLevel" && !a.className.trim())) {
       error = "Bitte bei „Klassenstufe“ die Klasse angeben (z. B. Kämpfer).";
       return;
@@ -339,15 +364,19 @@
       <select class="select kind" bind:value={a.kind} aria-label="Zuschlag">
         {#each DAMAGE_ADDS as d (d.key)}<option value={d.key}>{d.label}</option>{/each}
       </select>
-      {#if a.kind === "ability"}
-        <select class="select" bind:value={a.ability} aria-label="Attribut">
-          {#each ABILITIES as ab (ab)}<option value={ab}>{ABILITY_SHORT[ab]}</option>{/each}
-        </select>
-      {:else if a.kind === "classLevel"}
+      {#if a.kind === "classLevel"}
         <input class="input" list="feature-classes" bind:value={a.className} placeholder="Klasse, z. B. Kämpfer" aria-label="Klasse" />
       {/if}
       <button type="button" class="btn btn-sm btn-icon btn-ghost" aria-label="Zuschlag entfernen" onclick={() => (f.damageAdds = f.damageAdds.filter((_, j) => j !== i))}><Trash2 size={15} /></button>
     </div>
+    {#if a.kind === "ability"}
+      <div class="chip-row abilities" role="group" aria-label="Attribute">
+        {#each ABILITIES as ab (ab)}
+          <button type="button" class="chip" aria-pressed={a.abilities.includes(ab)} onclick={() => toggleAddAbility(a, ab)}>{ABILITY_SHORT[ab]}</button>
+        {/each}
+      </div>
+      {#if a.abilities.length > 1}<p class="tiny muted">Mehrere Attribute: Im Kampf wählst du, welches zählt.</p>{/if}
+    {/if}
   {/each}
   <datalist id="feature-classes">{#each classNames as n (n)}<option value={n}></option>{/each}</datalist>
   <button
@@ -495,6 +524,17 @@
         {@render blockHead("healing", () => remove("healing"))}
         <input class="input mono" bind:value={f.damage} placeholder="1d10" aria-label="Heilungswürfel" />
         {@render damageAddsEditor()}
+      </div>
+    {/if}
+    {#if on.other}
+      <div class="block" id="feature-block-other">
+        {@render blockHead("other", () => remove("other"))}
+        <div class="grid-2">
+          <input class="input mono" bind:value={f.damage} placeholder="1d10" aria-label="Würfel" />
+          <input class="input" bind:value={f.effectText} maxlength="200" placeholder="vom erlittenen Schaden abziehen" aria-label="Wirkung" />
+        </div>
+        {@render damageAddsEditor()}
+        <p class="tiny muted">Nach dem Wurf siehst du das Ergebnis mit diesem Text, z. B. „12 · vom erlittenen Schaden abziehen“.</p>
       </div>
     {/if}
     {#if on.save}
@@ -692,6 +732,8 @@
   .add-row > :global(.kind) { flex-grow: 1.25; }
   .plus { color: var(--muted); font-weight: 700; width: 0.8rem; text-align: center; }
   .add-inline { align-self: flex-start; }
+  .abilities { padding-left: 1.2rem; }
+  .abilities .chip { min-height: 30px; padding: 0.2rem 0.6rem; }
   .uses .select { width: auto; flex: 1; }
   .num { width: 4.5rem; flex: none; }
 

@@ -14,6 +14,8 @@ export type DamageRequest = {
   dice: string;
   damageType?: string;
   heal?: boolean;
+  /** Sonstige Wirkung statt Schaden/Heilung, z. B. "vom erlittenen Schaden abziehen" */
+  effect?: string;
   crit?: boolean;
   /** Kritische Treffer ermöglichen (bei Heilung sinnlos) */
   canCrit?: boolean;

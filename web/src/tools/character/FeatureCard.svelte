@@ -12,7 +12,7 @@
     describeRollMods,
     economySpent,
     featureDamageExpr,
-    featureDamageType,
+    featureRollLabel,
     isAvailable,
     label,
     linkedFeatures,
@@ -81,7 +81,7 @@
     {#each compact ? feature.categories.slice(1) : feature.categories as cat (cat)}<span class="badge">{cat}</span>{/each}
     {#if feature.target !== "self" || feature.targetText}<span class="badge">{convertText(feature.targetText, unitSystem()) || label.target(feature.target)}</span>{/if}
     {#if feature.duration.kind !== "instant"}<span class="badge">{label.duration(feature)}</span>{/if}
-    {#if dice}<span class="badge mono">{formatDice(dice)}{featureDamageType(feature) ? ` ${featureDamageType(feature)}` : ""}{feature.damageOtherTarget ? " · weiteres Ziel" : ""}</span>{/if}
+    {#if dice}<span class="badge mono">{formatDice(dice)}{featureRollLabel(feature) ? ` ${featureRollLabel(feature)}` : ""}{feature.damageOtherTarget ? " · weiteres Ziel" : ""}</span>{/if}
     {#each feature.tags as t (t)}<span class="badge tag">#{t}</span>{/each}
   </div>
 
