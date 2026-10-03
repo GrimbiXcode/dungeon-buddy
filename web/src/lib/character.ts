@@ -191,7 +191,10 @@ export function normalizeAttack(a: unknown): Attack {
     mastery: str(o.mastery),
     notes: str(o.notes),
     kind: o.kind === "ranged" ? "ranged" : "melee",
-    properties: sortProperties(arr(o.properties).filter((x): x is string => typeof x === "string")),
+    // „Munition“ heisst jetzt „Geschosse“
+    properties: sortProperties([
+      ...new Set(arr(o.properties).filter((x): x is string => typeof x === "string").map(x => (x === "Munition" ? "Geschosse" : x))),
+    ]),
     ...normalizeRange(o),
     versatileDamage: str(o.versatileDamage),
     extraDamage: str(o.extraDamage),

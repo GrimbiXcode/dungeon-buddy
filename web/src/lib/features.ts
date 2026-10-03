@@ -151,10 +151,10 @@ export function baseCategories(speciesLabel: string) {
 /** Alphabetisch sortiert */
 export const WEAPON_PROPERTIES = [
   "Finesse",
+  "Geschosse",
   "Laden",
   "Leicht",
   "Magisch",
-  "Munition",
   "Schwer",
   "Versilbert",
   "Vielseitig",

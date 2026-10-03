@@ -262,4 +262,10 @@ describe("Waffeneigenschaften", () => {
     expect([...WEAPON_PROPERTIES]).toEqual(sortProperties([...WEAPON_PROPERTIES]));
     expect(normalizeAttack({ properties: ["Zweihändig", "Schwer", "Eigene", "Finesse"] }).properties).toEqual(["Eigene", "Finesse", "Schwer", "Zweihändig"]);
   });
+
+  it("alte Eigenschaft „Munition“ heisst jetzt „Geschosse“", () => {
+    expect(normalizeAttack({ properties: ["Munition", "Zweihändig"] }).properties).toEqual(["Geschosse", "Zweihändig"]);
+    expect(WEAPON_PROPERTIES).toContain("Geschosse");
+    expect(WEAPON_PROPERTIES).not.toContain("Munition");
+  });
 });
