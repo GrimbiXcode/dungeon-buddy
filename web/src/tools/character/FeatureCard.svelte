@@ -1,7 +1,8 @@
 <script lang="ts">
   import { unitSystem } from "../../lib/session.svelte";
   import { convertText } from "../../lib/units";
-  import { Check, ChevronDown, Link2, LibraryBig, Pencil, Play, Trash2 } from "@lucide/svelte";
+  import { Check, ChevronDown, Link2, Play, Trash2 } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import Markdown from "../../components/Markdown.svelte";
   import { formatDice, parseDice } from "../../lib/dice";
   import {
@@ -142,8 +143,8 @@
       {#if feature.description}<Markdown source={convertText(feature.description, unitSystem())} />{/if}
       {#if onedit || ondelete || onlibrary}
         <div class="row actions">
-          {#if onedit}<button class="btn btn-sm" onclick={onedit}><Pencil size={13} /> Bearbeiten</button>{/if}
-          {#if onlibrary}<button class="btn btn-sm" onclick={onlibrary}><LibraryBig size={13} /> In Bibliothek</button>{/if}
+          {#if onedit}<button class="btn btn-sm" onclick={onedit}><Icon name="edit" size={13} /> Bearbeiten</button>{/if}
+          {#if onlibrary}<button class="btn btn-sm" onclick={onlibrary}><Icon name="library" size={13} /> In Bibliothek</button>{/if}
           {#if ondelete}<button class="btn btn-sm btn-danger" onclick={ondelete}><Trash2 size={13} /> Löschen</button>{/if}
         </div>
       {/if}

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { unitSystem } from "../../lib/session.svelte";
   import { convertText } from "../../lib/units";
-  import { ChevronDown, Dices, LibraryBig, Pencil, Trash2 } from "@lucide/svelte";
+  import { ChevronDown, Trash2 } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import { attackAbility, attackDamageBonus, attackToHit, isFinesse, offhandWeapons, type Attack } from "../../lib/character";
   import { formatDice, parseDice } from "../../lib/dice";
   import { ABILITY_SHORT, formatMod, type Ability } from "../../lib/dnd";
@@ -48,7 +49,7 @@
       <ChevronDown size={14} class="chev {open ? 'open' : ''}" />
     </button>
     <button class="btn btn-sm hit mono" onclick={() => ctx.openAttack(attack)} aria-label="Angriff mit {attack.name}">
-      <Dices size={14} /> {formatMod(attackToHit(c, attack))}
+      <Icon name="roll" size={14} /> {formatMod(attackToHit(c, attack))}
     </button>
     {#if damageDice(attack)}
       <button class="btn btn-sm btn-ghost mono dmg" onclick={() => ctx.rollDamage(`${attack.name} – Schaden`, damageDice(attack), { damageType: attack.damageType })}>
@@ -75,8 +76,8 @@
       {#if matching.length}<p><strong>Fähigkeiten:</strong> {matching.map(f => f.name).join(", ")}</p>{/if}
       {#if offhand.length}<p><strong>Zusatzangriff möglich mit:</strong> {offhand.map(a => a.name).join(", ")}</p>{/if}
       <div class="row actions">
-        {#if onedit}<button class="btn btn-sm" onclick={onedit}><Pencil size={13} /> Bearbeiten</button>{/if}
-        {#if onlibrary}<button class="btn btn-sm" onclick={onlibrary}><LibraryBig size={13} /> In Bibliothek</button>{/if}
+        {#if onedit}<button class="btn btn-sm" onclick={onedit}><Icon name="edit" size={13} /> Bearbeiten</button>{/if}
+        {#if onlibrary}<button class="btn btn-sm" onclick={onlibrary}><Icon name="library" size={13} /> In Bibliothek</button>{/if}
         {#if ondelete}<button class="btn btn-sm btn-danger" onclick={ondelete}><Trash2 size={13} /> Löschen</button>{/if}
       </div>
     </div>

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { unitSystem } from "../../lib/session.svelte";
   import { convertText } from "../../lib/units";
-  import { Crosshair, Dices, Swords, X } from "@lucide/svelte";
+  import { X } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import Modal from "../../components/Modal.svelte";
   import {
     attackAbility,
@@ -280,7 +281,7 @@
         <p class="small">Wie ist der Angriff ausgegangen?</p>
       {/if}
       <div class="segmented" role="group" aria-label="Ergebnis">
-        <button aria-pressed={outcome === "hit"} onclick={() => (outcome = "hit")}><Crosshair size={14} /> Treffer</button>
+        <button aria-pressed={outcome === "hit"} onclick={() => (outcome = "hit")}><Icon name="hit" size={14} /> Treffer</button>
         <button aria-pressed={outcome === "crit"} onclick={() => (outcome = "crit")}>Kritisch</button>
         <button aria-pressed={outcome === "miss"} onclick={() => (outcome = "miss")}><X size={14} /> Verfehlt</button>
       </div>
@@ -322,7 +323,7 @@
       <div class="row">
         {#each offhandChoices as w (w.id)}
           <button class="btn btn-sm" onclick={() => startOffhand(w)}>
-            <Swords size={14} /> Zusatzangriff: {w.name || "Waffe"}
+            <Icon name="attack" size={14} /> Zusatzangriff: {w.name || "Waffe"}
             <span class="tiny muted">({offhandIsNick(w, ctx.ruleset) ? "Angriffsaktion" : "Bonusaktion"})</span>
           </button>
         {/each}
@@ -333,11 +334,11 @@
   {#snippet footer()}
     {#if step === "prepare"}
       <button class="btn" onclick={onclose}>Abbrechen</button>
-      <button class="btn btn-primary" onclick={rollAttack}><Dices size={16} /> Angriff würfeln ({formatMod(toHit)})</button>
+      <button class="btn btn-primary" onclick={rollAttack}><Icon name="roll" size={16} /> Angriff würfeln ({formatMod(toHit)})</button>
     {:else if (outcome === "hit" || outcome === "crit") && !damageRolled}
       <button class="btn" onclick={onclose}>Schliessen</button>
       <button class="btn btn-primary" onclick={rollDamage}>
-        <Swords size={16} /> {outcome === "crit" ? "Kritischen Schaden würfeln" : "Schaden würfeln"} ({formatDice(damage.expr)})
+        <Icon name="attack" size={16} /> {outcome === "crit" ? "Kritischen Schaden würfeln" : "Schaden würfeln"} ({formatDice(damage.expr)})
       </button>
     {:else}
       <button class="btn" onclick={onclose}>Schliessen</button>

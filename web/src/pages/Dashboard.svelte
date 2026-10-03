@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArchiveRestore, Users, ChevronDown, LibraryBig, Plus, Trash2, UserPen } from "@lucide/svelte";
+  import { ArchiveRestore, ChevronDown, Plus, Trash2, UserPen } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import AppShell from "../components/AppShell.svelte";
   import CampaignForm from "../components/CampaignForm.svelte";
   import Modal from "../components/Modal.svelte";
@@ -81,8 +82,8 @@
       <p class="muted">Wähle ein Werkzeug oder eine Kampagne.</p>
     </div>
     <div class="row">
-      <a class="btn" href="/charaktere"><Users size={16} /> Meine Charaktere</a>
-      <a class="btn" href="/bibliothek"><LibraryBig size={16} /> Bibliothek</a>
+      <a class="btn" href="/charaktere"><Icon name="characters" size={16} /> Meine Charaktere</a>
+      <a class="btn" href="/bibliothek"><Icon name="library" size={16} /> Bibliothek</a>
       <a class="btn" href="/profil"><UserPen size={16} /> Profil bearbeiten</a>
     </div>
   </div>
@@ -92,7 +93,7 @@
     <div class="tools">
       {#each availableTools() as tool (tool.slug)}
         <button class="card card-link tool" onclick={() => openTool(tool.slug)}>
-          <span class="tool-icon"><tool.icon size={22} /></span>
+          <span class="tool-icon"><Icon name={tool.icon} size={22} /></span>
           <span>
             <strong>{tool.name}</strong>
             <span class="muted small block">{tool.description}</span>

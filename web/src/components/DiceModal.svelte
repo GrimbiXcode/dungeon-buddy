@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Dices, RotateCcw, Swords } from "@lucide/svelte";
+  import { RotateCcw } from "@lucide/svelte";
+  import Icon from "./Icon.svelte";
   import Modal from "./Modal.svelte";
   import {
     closeRoll,
@@ -277,7 +278,7 @@
         </div>
       {:else if !rolled}
         <button class="btn btn-primary big-roll" onclick={() => rollD20Digital(req)}>
-          <Dices size={22} /> Würfeln
+          <Icon name="roll" size={22} /> Würfeln
         </button>
       {/if}
 
@@ -334,7 +335,7 @@
           </button>
           {#if req.followUp}
             <button class="btn btn-primary" onclick={() => toDamage(req)}>
-              <Swords size={16} /> {kept === 20 ? "Kritischen Schaden würfeln" : "Schaden würfeln"}
+              <Icon name="attack" size={16} /> {kept === 20 ? "Kritischen Schaden würfeln" : "Schaden würfeln"}
             </button>
           {/if}
         </div>
@@ -376,7 +377,7 @@
           {/each}
         {:else if !groupResults.length}
           <button class="btn btn-primary big-roll" onclick={() => rollDamageDigital(req)}>
-            <Dices size={22} /> {req.heal ? "Heilung würfeln" : "Schaden würfeln"}
+            <Icon name="roll" size={22} /> {req.heal ? "Heilung würfeln" : "Schaden würfeln"}
           </button>
         {/if}
 

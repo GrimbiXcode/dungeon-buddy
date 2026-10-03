@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { LibraryBig, Pencil, Plus, Shield, Trash2 } from "@lucide/svelte";
+  import { Plus, Trash2 } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import { ARMOR_TYPES, UNARMORED_DEFENSES, armorClass, newArmor, setEquipped, type ArmorItem } from "../../lib/armor";
   import { confirmDialog } from "../../lib/confirm.svelte";
   import { formatMod } from "../../lib/dnd";
@@ -40,9 +41,9 @@
 
 <section class="card">
   <div class="row-between head">
-    <h3><Shield size={17} /> Rüstung &amp; Schilde</h3>
+    <h3><Icon name="armor" size={17} /> Rüstung &amp; Schilde</h3>
     <div class="row">
-      <button class="btn btn-sm" onclick={() => ctx.openLibrary("armor")}><LibraryBig size={14} /> Aus Bibliothek</button>
+      <button class="btn btn-sm" onclick={() => ctx.openLibrary("armor")}><Icon name="library" size={14} /> Aus Bibliothek</button>
       <button class="btn btn-sm btn-primary" onclick={() => (editing = newArmor())}><Plus size={14} /> Rüstung</button>
     </div>
   </div>
@@ -70,8 +71,8 @@
               {#if a.stealthDisadvantage} · Nachteil Heimlichkeit{/if}{#if a.strength} · STR {a.strength}{/if}{#if a.notes} · {a.notes}{/if}
             </span>
           </span>
-          <button class="btn btn-sm btn-icon btn-ghost" aria-label="{a.name} bearbeiten" onclick={() => (editing = a)}><Pencil size={14} /></button>
-          <button class="btn btn-sm btn-icon btn-ghost" aria-label="{a.name} in Bibliothek" title="In Bibliothek" onclick={() => ctx.addToLibrary("armor", a)}><LibraryBig size={14} /></button>
+          <button class="btn btn-sm btn-icon btn-ghost" aria-label="{a.name} bearbeiten" onclick={() => (editing = a)}><Icon name="edit" size={14} /></button>
+          <button class="btn btn-sm btn-icon btn-ghost" aria-label="{a.name} in Bibliothek" title="In Bibliothek" onclick={() => ctx.addToLibrary("armor", a)}><Icon name="library" size={14} /></button>
           {#if ctx.editing}
             <button class="btn btn-sm btn-icon btn-danger" aria-label="{a.name} entfernen" onclick={() => remove(a)}><Trash2 size={14} /></button>
           {/if}

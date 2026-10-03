@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Plus, Skull, Trash2, Heart } from "@lucide/svelte";
+  import { Plus, Trash2 } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import Modal from "../../components/Modal.svelte";
   import { hitDiceSummary, mod, newResource, totalLevel } from "../../lib/character";
   import { CONDITIONS } from "../../lib/dnd";
@@ -49,7 +50,7 @@
   </section>
 
   <section class="card">
-    <h3><Skull size={16} /> Todesrettungswürfe</h3>
+    <h3><Icon name="death" size={16} /> Todesrettungswürfe</h3>
     <div class="death">
       <div class="row">
         <span class="small muted w">Erfolge</span>
@@ -70,7 +71,7 @@
   </section>
 
   <section class="card">
-    <h3><Heart size={16} /> Trefferwürfel</h3>
+    <h3><Icon name="hp" size={16} /> Trefferwürfel</h3>
     <p class="small"><strong>{Math.max(0, totalLevel(c) - c.hitDiceUsed)}</strong> von {hitDiceSummary(c) || totalLevel(c)} übrig</p>
     {#if ctx.editing}
       <label class="tiny muted">Verbraucht <input class="input input-sm mono used" type="number" min="0" max={totalLevel(c)} bind:value={c.hitDiceUsed} /></label>

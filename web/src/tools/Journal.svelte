@@ -1,7 +1,8 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
-  import { ArrowDownWideNarrow, ArrowUpNarrowWide, CalendarPlus, Plus, ScrollText, Search, X } from "@lucide/svelte";
+  import { ArrowDownWideNarrow, ArrowUpNarrowWide, CalendarPlus, Plus, X } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import { campaignApi, del, get, patch, post } from "../lib/api";
   import { confirmDialog } from "../lib/confirm.svelte";
   import { formatDate, todayIso, uid } from "../lib/format";
@@ -267,7 +268,7 @@
   </div>
 {:else if entries.length === 0}
   <div class="empty intro">
-    <span class="intro-icon"><ScrollText size={28} /></span>
+    <span class="intro-icon"><Icon name="journal" size={28} /></span>
     <h3>Noch keine Einträge</h3>
     <p>
       Halte nach jeder Spielsitzung fest, was passiert ist: Begegnungen, Hinweise, Beute, offene Fragen.
@@ -282,7 +283,7 @@
   <div class="toolbar">
     <label class="search">
       <span class="sr-only">Tagebuch durchsuchen</span>
-      <Search size={16} />
+      <Icon name="search" size={16} />
       <input
         class="input"
         type="search"

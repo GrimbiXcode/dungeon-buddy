@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Camera, ExternalLink, FileText, Images, Pencil, Trash2, Upload, X } from "@lucide/svelte";
+  import { Camera, ExternalLink, FileText, Trash2, Upload, X } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import Modal from "../components/Modal.svelte";
   import { campaignApi, del, get, patch, upload } from "../lib/api";
   import { confirmDialog } from "../lib/confirm.svelte";
@@ -248,7 +249,7 @@
   <div class="empty"><h3>Anhänge nicht verfügbar</h3><p>{loadError}</p></div>
 {:else if items.length === 0}
   <button class="empty dropzone" onclick={() => fileInput?.click()}>
-    <Images size={32} class="faint" />
+    <Icon name="attachments" size={32} class="faint" />
     <h3>Noch keine Anhänge</h3>
     <p>Dateien hierher ziehen oder auswählen: JPEG, PNG, WebP, GIF (bis 25 MB) und PDF (bis 100 MB).</p>
   </button>
@@ -276,7 +277,7 @@
           <span class="tiny muted">{categoryLabel(a.category)} · {formatBytes(a.sizeBytes)} · {formatDate(a.createdAt)}</span>
         </div>
         <div class="actions">
-          <button class="btn btn-sm btn-ghost btn-icon" aria-label="{label(a)} bearbeiten" onclick={() => startEdit(a)}><Pencil size={14} /></button>
+          <button class="btn btn-sm btn-ghost btn-icon" aria-label="{label(a)} bearbeiten" onclick={() => startEdit(a)}><Icon name="edit" size={14} /></button>
           <button class="btn btn-sm btn-ghost btn-icon" aria-label="{label(a)} löschen" onclick={() => remove(a)}><Trash2 size={14} /></button>
         </div>
       </article>
@@ -306,7 +307,7 @@
     {#snippet footer()}
       <button class="btn btn-danger" onclick={() => remove(a)}><Trash2 size={16} /> Löschen</button>
       <a class="btn" href={contentUrl(a)} target="_blank" rel="noopener"><ExternalLink size={16} /> In neuem Tab</a>
-      <button class="btn" onclick={() => startEdit(a)}><Pencil size={16} /> Bearbeiten</button>
+      <button class="btn" onclick={() => startEdit(a)}><Icon name="edit" size={16} /> Bearbeiten</button>
     {/snippet}
   </Modal>
 {/if}

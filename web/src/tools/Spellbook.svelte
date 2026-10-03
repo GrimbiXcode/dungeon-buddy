@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { BookPlus, ExternalLink, PenLine, Search, Star, Wand, X, LibraryBig } from "@lucide/svelte";
+  import { BookPlus, ExternalLink, PenLine, Star, X } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import { ApiError, campaignApi, del, get, patch, post, put } from "../lib/api";
   import {
     classSummary,
@@ -349,7 +350,7 @@
       <BookPlus size={16} /> Aus SRD hinzufügen
     </button>
     <button class="btn" onclick={() => (editing = "new")} disabled={!loaded}><PenLine size={16} /> Eigener Zauber</button>
-    <button class="btn" onclick={() => (libraryOpen = true)} disabled={!loaded}><LibraryBig size={16} /> Aus Bibliothek</button>
+    <button class="btn" onclick={() => (libraryOpen = true)} disabled={!loaded}><Icon name="library" size={16} /> Aus Bibliothek</button>
   </div>
 </div>
 
@@ -425,7 +426,7 @@
     <div class="filters">
       <label class="search">
         <span class="sr-only">Zauber suchen</span>
-        <Search size={16} />
+        <Icon name="search" size={16} />
         <input class="input" type="search" placeholder="Zauber suchen …" bind:value={query} />
       </label>
       <div class="chip-row levels" role="group" aria-label="Grad filtern">
@@ -438,7 +439,7 @@
       </div>
       <div class="row toggles">
         <button class="chip" aria-pressed={onlyPrepared} onclick={() => (onlyPrepared = !onlyPrepared)}>
-          <Wand size={14} /> Nur vorbereitete
+          <Icon name="spellbook" size={14} /> Nur vorbereitete
         </button>
         <button class="chip" aria-pressed={onlyFavorites} onclick={() => (onlyFavorites = !onlyFavorites)}>
           <Star size={14} /> Nur Favoriten
@@ -452,7 +453,7 @@
 
   {#if !scoped.length}
     <div class="empty">
-      <div class="empty-icon"><Wand size={30} /></div>
+      <div class="empty-icon"><Icon name="spellbook" size={30} /></div>
       {#if !spells.length}
         <h3>Dein Zauberbuch ist noch leer</h3>
         <p>Übernimm Zauber aus dem SRD ({ruleset === "2024" ? "5e 2024" : "5e 2014"}) oder lege eigene an.</p>

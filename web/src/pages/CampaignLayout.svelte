@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArrowLeft, CircleUser, LibraryBig, Users } from "@lucide/svelte";
+  import { ArrowLeft } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import Logo from "../components/Logo.svelte";
   import { get, patch } from "../lib/api";
   import { current } from "../lib/campaign.svelte";
@@ -85,22 +86,22 @@
       <nav aria-label="Werkzeuge">
         {#each campaignNav() as item (item.slug)}
           <a href={toolHref(campaign, item.slug)} class:active={isActive(item.slug)} aria-current={isActive(item.slug) ? "page" : undefined}>
-            <item.icon size={18} />
+            <Icon name={item.icon} size={18} />
             <span>{item.name}</span>
           </a>
         {/each}
       </nav>
       <div class="sidebar-foot">
-        <a href="/charaktere" class="profile small"><Users size={17} /> Meine Charaktere</a>
-        <a href="/bibliothek" class="profile small"><LibraryBig size={17} /> Bibliothek</a>
-        <a href="/profil" class="profile small"><CircleUser size={17} /> {session.user?.displayName}</a>
+        <a href="/charaktere" class="profile small"><Icon name="characters" size={17} /> Meine Charaktere</a>
+        <a href="/bibliothek" class="profile small"><Icon name="library" size={17} /> Bibliothek</a>
+        <a href="/profil" class="profile small"><Icon name="profile" size={17} /> {session.user?.displayName}</a>
       </div>
     </aside>
 
     <header class="mobile-top">
       <a href="/" class="btn btn-ghost btn-icon" aria-label="Alle Kampagnen"><ArrowLeft size={18} /></a>
       <strong class="truncate grow">{campaign.name}</strong>
-      <a href="/profil" class="btn btn-ghost btn-icon" aria-label="Profil"><CircleUser size={18} /></a>
+      <a href="/profil" class="btn btn-ghost btn-icon" aria-label="Profil"><Icon name="profile" size={18} /></a>
     </header>
 
     <main class="content">
@@ -137,7 +138,7 @@
     <nav class="bottom-nav" aria-label="Werkzeuge">
       {#each campaignNav().filter(i => i.slug !== "einstellungen") as item (item.slug)}
         <a href={toolHref(campaign, item.slug)} class:active={isActive(item.slug)}>
-          <item.icon size={20} />
+          <Icon name={item.icon} size={20} />
           <span>{item.short}</span>
         </a>
       {/each}

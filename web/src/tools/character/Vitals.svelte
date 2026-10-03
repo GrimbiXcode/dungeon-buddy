@@ -1,7 +1,8 @@
 <script lang="ts">
   import { unitSystem } from "../../lib/session.svelte";
   import { convertText, distanceUnit, feetToInput, formatDistance, inputToFeet } from "../../lib/units";
-  import { Heart, Minus, Plus, Shield, Sparkles, Zap, Footprints, Award } from "@lucide/svelte";
+  import { Minus, Plus } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import { applyDamage, applyHealing, initiative, profBonus } from "../../lib/character";
   import { formatMod, rulesTerms } from "../../lib/dnd";
   import { armorClass } from "../../lib/armor";
@@ -46,21 +47,21 @@
 <div class="vitals">
   {#if ctx.editing && c.acMode === "manual"}
     <div class="stat">
-      <span class="label"><Shield size={13} /> RK (Grundwert)</span>
+      <span class="label"><Icon name="armor" size={13} /> RK (Grundwert)</span>
       <input class="input input-sm mono" type="number" bind:value={c.ac} aria-label="Rüstungsklasse" />
     </div>
   {:else}
     <button class="stat clickable" onclick={() => (showAc = true)} title={ac.parts.map(p => `${p.label} ${p.value}`).join(", ")}>
-      <span class="label"><Shield size={13} /> RK</span>
+      <span class="label"><Icon name="armor" size={13} /> RK</span>
       <span class="value mono" class:boosted={acBoosted}>{ac.total}</span>
     </button>
   {/if}
   <button class="stat clickable" disabled={ctx.editing} onclick={() => ctx.rollD20("Initiative", initiative(c), "initiative", { ability: "dex" })}>
-    <span class="label"><Zap size={13} /> Initiative</span>
+    <span class="label"><Icon name="initiative" size={13} /> Initiative</span>
     <span class="value mono">{formatMod(initiative(c))}</span>
   </button>
   <div class="stat">
-    <span class="label"><Footprints size={13} /> Bewegung</span>
+    <span class="label"><Icon name="speed" size={13} /> Bewegung</span>
     {#if ctx.editing}
       <input
         class="input input-sm mono"
@@ -75,13 +76,13 @@
     {/if}
   </div>
   <div class="stat">
-    <span class="label"><Award size={13} /> Übung</span>
+    <span class="label"><Icon name="proficiency" size={13} /> Übung</span>
     <span class="value mono">{formatMod(profBonus(c))}</span>
   </div>
 
   <div class="hp card">
     <div class="row-between">
-      <span class="label"><Heart size={13} /> Trefferpunkte</span>
+      <span class="label"><Icon name="hp" size={13} /> Trefferpunkte</span>
       {#if c.hp.temp > 0}<span class="badge badge-accent">+{c.hp.temp} temporär</span>{/if}
     </div>
     <div class="hp-main">
@@ -104,7 +105,7 @@
 
   <div class="extras">
     <button class="toggle" class:on={c.inspiration} onclick={() => (c.inspiration = !c.inspiration)} aria-pressed={c.inspiration}>
-      <Sparkles size={15} /> {terms.inspiration}
+      <Icon name="inspiration" size={15} /> {terms.inspiration}
     </button>
     <div class="exhaustion" title={exhaustionText}>
       <span class="small">Erschöpfung</span>

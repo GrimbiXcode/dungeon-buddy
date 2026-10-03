@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { BookOpen, KeyRound, ScrollText, Send, ShieldCheck, Sparkles, Users, Wand } from "@lucide/svelte";
+  import { KeyRound, Send, ShieldCheck, Sparkles } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import Logo from "../components/Logo.svelte";
   import { post } from "../lib/api";
   import { session } from "../lib/session.svelte";
+  import type { IconName } from "../lib/icons";
   import { isDarkMode } from "../lib/themes";
   import { toastError } from "../lib/toast.svelte";
   import type { User } from "../lib/types";
@@ -73,10 +75,10 @@
   });
 
   const tools = [
-    { icon: ScrollText, title: "Tagebuch", text: "Halte fest, was in jeder Session und an jedem Tag im Spiel passiert ist." },
-    { icon: Users, title: "Soziales Netzwerk", text: "NPCs, Fraktionen und wer mit wem – inklusive Beziehungsgraph." },
-    { icon: BookOpen, title: "Charakterbogen", text: "Komplett digital oder als Würfelhilfe: Tippe dein Würfelergebnis, die App rechnet." },
-    { icon: Wand, title: "Zauberbuch", text: "Zauber aus dem SRD 5.1 & 5.2 übernehmen, vorbereiten und direkt würfeln." },
+    { icon: "journal" as IconName, title: "Tagebuch", text: "Halte fest, was in jeder Session und an jedem Tag im Spiel passiert ist." },
+    { icon: "network" as IconName, title: "Soziales Netzwerk", text: "NPCs, Fraktionen und wer mit wem – inklusive Beziehungsgraph." },
+    { icon: "characterSheet" as IconName, title: "Charakterbogen", text: "Komplett digital oder als Würfelhilfe: Tippe dein Würfelergebnis, die App rechnet." },
+    { icon: "spellbook" as IconName, title: "Zauberbuch", text: "Zauber aus dem SRD 5.1 & 5.2 übernehmen, vorbereiten und direkt würfeln." },
   ];
 
   function devLogin() {
@@ -166,7 +168,7 @@
   <section class="tools">
     {#each tools as tool (tool.title)}
       <div class="card tool">
-        <tool.icon size={22} />
+        <Icon name={tool.icon} size={22} />
         <h3>{tool.title}</h3>
         <p class="muted small">{tool.text}</p>
       </div>
@@ -175,7 +177,9 @@
 
   <footer class="tiny faint center">
     Enthält Material aus dem System Reference Document 5.1 und 5.2 von Wizards of the Coast LLC, lizenziert unter
-    CC-BY-4.0. Dungeon Buddy ist ein Fanprojekt und steht in keiner Verbindung zu Wizards of the Coast.
+    CC-BY-4.0. Dungeon Buddy ist ein Fanprojekt und steht in keiner Verbindung zu Wizards of the Coast. Icons im
+    Adventurer-Modus von Lorc, Delapouite und weiteren auf
+    <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, lizenziert unter CC BY 3.0.
   </footer>
 </div>
 

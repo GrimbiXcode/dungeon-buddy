@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Flag, Link2, List, MapPin, Network as NetworkIcon, Plus, Search, Users, X } from "@lucide/svelte";
+  import { Link2, List, Network as NetworkIcon, Plus, X } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import { campaignApi, get } from "../lib/api";
   import { attachmentUrl } from "../lib/markdown";
   import { route } from "../lib/router.svelte";
@@ -202,7 +203,7 @@
     </div>
   {:else if !npcs.length}
     <div class="empty">
-      <div class="empty-icon"><Users size={30} /></div>
+      <div class="empty-icon"><Icon name="network" size={30} /></div>
       <h3>Noch keine NPCs</h3>
       <p>
         Halte fest, wem ihr begegnet seid: Rolle, Fraktion, wo man sie findet, wie sie zu euch stehen
@@ -216,7 +217,7 @@
     <div class="filters">
       <label class="search">
         <span class="sr-only">Suchen</span>
-        <Search size={16} />
+        <Icon name="search" size={16} />
         <input class="input" type="search" bind:value={query} placeholder="Name, Rolle, Ort, Schlagwort …" />
       </label>
       <div class="selects">
@@ -282,8 +283,8 @@
             </div>
             {#if n.faction || n.location}
               <div class="where small muted">
-                {#if n.faction}<span class="iconed"><Flag size={13} /> <span class="truncate">{n.faction}</span></span>{/if}
-                {#if n.location}<span class="iconed"><MapPin size={13} /> <span class="truncate">{n.location}</span></span>{/if}
+                {#if n.faction}<span class="iconed"><Icon name="faction" size={13} /> <span class="truncate">{n.faction}</span></span>{/if}
+                {#if n.location}<span class="iconed"><Icon name="location" size={13} /> <span class="truncate">{n.location}</span></span>{/if}
               </div>
             {/if}
             {#if n.relation}

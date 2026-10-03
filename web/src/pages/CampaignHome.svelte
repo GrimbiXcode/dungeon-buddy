@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { ArrowRight } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import Markdown from "../components/Markdown.svelte";
   import { campaignApi, get } from "../lib/api";
   import { formatDate } from "../lib/format";
@@ -55,7 +56,7 @@
 <div class="tools">
   {#each availableTools() as tool (tool.slug)}
     <a class="card card-link tool" href={toolHref(campaign, tool.slug)}>
-      <span class="icon"><tool.icon size={22} /></span>
+      <span class="icon"><Icon name={tool.icon} size={22} /></span>
       <span class="grow">
         <strong>{tool.name}</strong>
         <span class="block small muted">{counts[tool.slug] ?? "–"} {countLabel[tool.slug]}</span>

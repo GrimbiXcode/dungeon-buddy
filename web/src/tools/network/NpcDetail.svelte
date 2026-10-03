@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ArrowLeft, ArrowRight, Flag, ImagePlus, MapPin, Pencil, Plus, Trash2, UserRound, X } from "@lucide/svelte";
+  import { ArrowLeft, ArrowRight, ImagePlus, Plus, Trash2, X } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import Modal from "../../components/Modal.svelte";
   import Markdown from "../../components/Markdown.svelte";
   import { campaignApi, del, patch, post, upload } from "../../lib/api";
@@ -203,8 +204,8 @@
           {#if npc.status !== "alive"}
             <span class="badge" class:badge-danger={npc.status === "dead"}>{statusLabel(npc.status)}</span>
           {/if}
-          {#if npc.faction}<span class="small muted iconed"><Flag size={14} /> {npc.faction}</span>{/if}
-          {#if npc.location}<span class="small muted iconed"><MapPin size={14} /> {npc.location}</span>{/if}
+          {#if npc.faction}<span class="small muted iconed"><Icon name="faction" size={14} /> {npc.faction}</span>{/if}
+          {#if npc.location}<span class="small muted iconed"><Icon name="location" size={14} /> {npc.location}</span>{/if}
         </div>
         {#if npc.tags.length}
           <div class="chip-row tags">
@@ -215,7 +216,7 @@
     </div>
 
     <section class="you">
-      <h3 class="label"><UserRound size={14} /> Beziehung zu dir / zur Gruppe</h3>
+      <h3 class="label"><Icon name="relationship" size={14} /> Beziehung zu dir / zur Gruppe</h3>
       <div class="row">
         <AttitudePill value={npc.attitude} />
         {#if npc.relation}
@@ -276,7 +277,7 @@
                 </button>
                 <div class="rel-actions">
                   <button class="btn btn-ghost btn-sm btn-icon" aria-label="Beziehung bearbeiten" onclick={() => editRelation(rv.relation)}>
-                    <Pencil size={14} />
+                    <Icon name="edit" size={14} />
                   </button>
                   <button class="btn btn-ghost btn-sm btn-icon btn-danger" aria-label="Beziehung löschen" onclick={() => deleteRelation(rv.relation)}>
                     <Trash2 size={14} />
@@ -297,7 +298,7 @@
   {#snippet footer()}
     <button class="btn btn-ghost btn-danger left" onclick={deleteNpc}><Trash2 size={16} /> Löschen</button>
     <button class="btn close-btn" onclick={onclose}>Schliessen</button>
-    <button class="btn btn-primary" onclick={onedit}><Pencil size={16} /> Bearbeiten</button>
+    <button class="btn btn-primary" onclick={onedit}><Icon name="edit" size={16} /> Bearbeiten</button>
   {/snippet}
 </Modal>
 

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { CalendarDays, ChevronDown, Pencil, Sun, Trash2 } from "@lucide/svelte";
+  import { CalendarDays, ChevronDown, Sun, Trash2 } from "@lucide/svelte";
+  import Icon from "../../components/Icon.svelte";
   import Markdown from "../../components/Markdown.svelte";
   import { formatDate } from "../../lib/format";
   import type { JournalEntry } from "../../lib/types";
@@ -53,7 +54,7 @@
     </div>
     <div class="actions">
       <button class="btn btn-ghost btn-sm btn-icon" onclick={onedit} disabled={pending} aria-label="Eintrag bearbeiten" title="Bearbeiten">
-        <Pencil size={15} />
+        <Icon name="edit" size={15} />
       </button>
       <button class="btn btn-ghost btn-sm btn-icon btn-danger" onclick={ondelete} disabled={pending} aria-label="Eintrag löschen" title="Löschen">
         <Trash2 size={15} />
