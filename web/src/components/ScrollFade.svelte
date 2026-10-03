@@ -62,7 +62,8 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    width: 1.8rem;
+    /* Gut tippbar; Hintergrund verdeckt den ausgeblendeten Text unter dem Pfeil */
+    width: 2.75rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -72,6 +73,6 @@
     color: var(--accent-text);
     cursor: pointer;
   }
-  .edge.left { left: 0; }
-  .edge.right { right: 0; }
+  .edge.left { left: 0; justify-content: flex-start; background: linear-gradient(to right, var(--bg) 45%, transparent); }
+  .edge.right { right: 0; justify-content: flex-end; background: linear-gradient(to left, var(--bg) 45%, transparent); }
 </style>
