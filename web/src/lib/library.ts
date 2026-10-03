@@ -2,7 +2,7 @@
  * Eigene Bibliothek: Fähigkeiten, Angriffe, Rüstungen und Zauber, die du
  * bei anderen Charakteren wiederverwenden und mit Freunden teilen kannst.
  *
- * Einträge sind Kopien. Verweise innerhalb eines Bogens (Ressourcen,
+ * Einträge sind Kopien. Verweise innerhalb eines Bogens (Ressourcen, Gegenstände,
  * verknüpfte Fähigkeiten, bestimmte Waffen) werden über Namen gespeichert
  * und beim Übernehmen in einen Bogen wieder aufgelöst.
  */
@@ -10,6 +10,7 @@ import { normalizeArmor, type ArmorItem } from "./armor";
 import { newResource, normalizeAttack, type Attack, type CharacterData } from "./character";
 import { linkedFeatures, normalizeFeature, type Feature, type LinkWhen } from "./features";
 import { uid } from "./format";
+import { itemById, newInventoryItem, type AmmoType, type InventoryItem, type Recovery } from "./inventory";
 import type { Ruleset, Spell, SpellData } from "./types";
 
 export const LIBRARY_KINDS = [
@@ -41,13 +42,22 @@ export type LibraryInput = Pick<LibraryItem, "kind" | "name" | "ruleset" | "data
 const plain = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const norm = (s: string) => s.trim().toLowerCase();
 
+/** Verweis auf einen Gegenstand im Inventar, über Namen und Geschosstyp */
+type ItemRef = { name: string; ammo: AmmoType | null; recover: Recovery };
+
 type FeatureRefs = {
   resourceRef?: { name: string; max: number; reset: string } | null;
+  itemRef?: ItemRef | null;
   linkRefs?: { name: string; cost: number; when: LinkWhen }[];
   attackRefs?: string[];
 };
 
 // ── Bogen → Bibliothek ───────────────────────────────────────────────────
+
+function itemRef(c: CharacterData, id: string | null | undefined): ItemRef | null {
+  const item = itemById(c, id);
+  return item ? { name: item.name, ammo: item.ammo, recover: item.recover } : null;
+}
 
 export function featureToLibrary(c: CharacterData, f: Feature): LibraryInput["data"] {
   const copy = plain(f) as Partial<Feature> & FeatureRefs;
@@ -57,15 +67,20 @@ export function featureToLibrary(c: CharacterData, f: Feature): LibraryInput["da
   copy.attackRefs = f.appliesTo.scope === "specific" ? c.attacks.filter(a => f.appliesTo.attackIds.includes(a.id)).map(a => a.name) : [];
   delete copy.id;
   copy.resourceId = null;
+  copy.itemRef = itemRef(c, f.itemId);
+  copy.itemId = null;
   copy.links = [];
   copy.appliesTo = { scope: f.appliesTo.scope, attackIds: [] };
   copy.uses = { ...f.uses, used: 0 };
   return copy as Record<string, unknown>;
 }
 
-export function attackToLibrary(a: Attack): LibraryInput["data"] {
-  const copy = plain(a) as Partial<Attack>;
+export function attackToLibrary(c: CharacterData, a: Attack): LibraryInput["data"] {
+  const copy = plain(a) as Partial<Attack> & { consumesRef?: (ItemRef & { amount: number }) | null };
   delete copy.id;
+  const ref = itemRef(c, a.consumes?.itemId);
+  copy.consumesRef = ref && a.consumes ? { ...ref, amount: a.consumes.amount } : null;
+  copy.consumes = null;
   return copy as Record<string, unknown>;
 }
 
@@ -81,6 +96,20 @@ export function spellToLibrary(s: Spell): LibraryInput["data"] {
 }
 
 // ── Bibliothek → Bogen ───────────────────────────────────────────────────
+
+/**
+ * Gegenstand im Ziel-Bogen finden (gleicher Name, sonst gleicher Geschosstyp)
+ * oder mit Menge 0 anlegen, damit die Verknüpfung erhalten bleibt.
+ */
+function resolveItem(c: CharacterData, ref: ItemRef | null | undefined): InventoryItem | null {
+  if (!ref?.name) return null;
+  const found =
+    c.inventory.find(i => norm(i.name) === norm(ref.name)) ?? (ref.ammo ? c.inventory.find(i => i.ammo === ref.ammo) : undefined);
+  if (found) return found;
+  const item = newInventoryItem({ name: ref.name, quantity: 0, ammo: ref.ammo ?? null, recover: ref.recover ?? "none" });
+  c.inventory.push(item);
+  return item;
+}
 
 /** Fähigkeit in einen Bogen übernehmen; fehlende Ressourcen werden angelegt. */
 export function featureFromLibrary(c: CharacterData, data: Record<string, unknown>): Feature {
@@ -101,6 +130,7 @@ export function featureFromLibrary(c: CharacterData, data: Record<string, unknow
     }
     f.resourceId = r.id;
   }
+  f.itemId = resolveItem(c, refs.itemRef)?.id ?? null;
   f.links = (refs.linkRefs ?? []).flatMap(l => {
     const target = c.features.find(x => norm(x.name) === norm(l.name));
     return target ? [{ featureId: target.id, cost: l.cost, when: l.when }] : [];
@@ -115,8 +145,12 @@ export function unresolvedLinks(c: CharacterData, data: Record<string, unknown>)
   return (refs.linkRefs ?? []).filter(l => !c.features.some(x => norm(x.name) === norm(l.name))).map(l => l.name);
 }
 
-export function attackFromLibrary(data: Record<string, unknown>): Attack {
-  return normalizeAttack({ ...data, id: uid() });
+export function attackFromLibrary(c: CharacterData, data: Record<string, unknown>): Attack {
+  const a = normalizeAttack({ ...data, id: uid(), consumes: null });
+  const ref = (data as { consumesRef?: (ItemRef & { amount?: number }) | null }).consumesRef;
+  const item = resolveItem(c, ref);
+  if (item) a.consumes = { itemId: item.id, amount: Math.max(1, Number(ref?.amount) || 1) };
+  return a;
 }
 
 export function armorFromLibrary(data: Record<string, unknown>): ArmorItem {

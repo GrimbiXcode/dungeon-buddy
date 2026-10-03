@@ -67,6 +67,7 @@
     | "benefit"
     | "uses"
     | "resource"
+    | "item"
     | "triggers"
     | "condition"
     | "effect"
@@ -90,6 +91,7 @@
     { key: "benefit", group: "Wirkung", title: "Kurz-Nutzen für die Karte", hint: "Eine Zeile, z. B. +2 RK" },
     { key: "uses", group: "Einsatz", title: "Begrenzte Nutzungen", hint: "z. B. 2× pro lange Rast" },
     { key: "resource", group: "Einsatz", title: "Verbraucht eine Ressource", hint: "Ki-Punkte, Göttliche Macht …" },
+    { key: "item", group: "Einsatz", title: "Verbraucht einen Gegenstand", hint: "Aus dem Inventar, z. B. Heiltrank, Weihwasser" },
     { key: "link", group: "Einsatz", title: "Nutzt eine andere Fähigkeit", hint: "Verbraucht deren Nutzungen", multi: true },
     { key: "triggers", group: "Einsatz", title: "Auslöser im Kampf", hint: "Für Vorschläge im Kampf-Assistenten" },
     { key: "condition", group: "Einsatz", title: "Bedingung", hint: "z. B. nur mit Finesse-Waffe" },
@@ -122,6 +124,7 @@
     benefit: Boolean(f.benefit.trim()),
     uses: f.uses.max != null,
     resource: f.resourceId != null,
+    item: f.itemId != null,
     triggers: f.triggers.length > 0,
     condition: Boolean(f.condition.trim()),
     effect: f.effectType !== deriveEffectType(f, startHealing),
@@ -200,6 +203,7 @@
     const rolls = (["damage", "healing", "other"] as const).filter(k => k !== key && on[k]);
     if ((key === "damage" || key === "healing" || key === "other") && rolls.length) return "Nur ein Wurf: Schaden, Heilung oder sonstige Wirkung";
     if (key === "resource" && !c.resources.length) return "Noch keine Ressourcen im Bogen";
+    if (key === "item" && !c.inventory.length) return "Noch keine Gegenstände im Inventar";
     if (key === "link" && !linkable.length) return "Noch keine andere Fähigkeit";
     if (key === "link" && f.links.length >= linkable.length) return "Alle verknüpft";
     return null;
@@ -245,6 +249,10 @@
       case "resource":
         on.resource = true;
         f.resourceId ??= c.resources[0]?.id ?? null;
+        break;
+      case "item":
+        on.item = true;
+        f.itemId ??= c.inventory[0]?.id ?? null;
         break;
       case "effect":
         on.effect = true;
@@ -297,6 +305,10 @@
         break;
       case "resource":
         f.resourceId = null;
+        break;
+      case "item":
+        f.itemId = null;
+        f.itemCost = 1;
         break;
       case "triggers":
         f.triggers = [];
@@ -603,6 +615,18 @@
           </select>
           <input class="input mono num" type="number" min="0" bind:value={f.resourceCost} aria-label="Kosten" title="Kosten" />
         </div>
+      </div>
+    {/if}
+    {#if on.item}
+      <div class="block" id="feature-block-item">
+        {@render blockHead("item", () => remove("item"))}
+        <div class="row uses">
+          <select class="select grow" bind:value={f.itemId} aria-label="Gegenstand">
+            {#each c.inventory as i (i.id)}<option value={i.id}>{i.name} ({i.quantity})</option>{/each}
+          </select>
+          <input class="input mono num" type="number" min="1" bind:value={f.itemCost} aria-label="Menge pro Einsatz" title="Menge pro Einsatz" />
+        </div>
+        <p class="tiny muted">Wird beim Einsetzen aus dem Inventar abgezogen. Ohne Vorrat ist die Fähigkeit nicht verfügbar.</p>
       </div>
     {/if}
     {#each f.links as link, i (i)}
