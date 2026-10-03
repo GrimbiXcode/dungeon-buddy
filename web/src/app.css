@@ -112,6 +112,17 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  /* Nichts darf seitlich herausragen: kein Wischen nach links/rechts, kein Herauszoomen.
+     clip statt hidden, damit position: sticky weiter funktioniert. */
+  overflow-x: clip;
+}
+
+/* App-Gefühl auf dem Handy: kein Zoomen, kein seitliches Nachfedern */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: pan-x pan-y; /* kein Pinch- und Doppeltipp-Zoom */
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -195,6 +206,9 @@ textarea {
   font-weight: 550;
   cursor: pointer;
   white-space: nowrap;
+  max-width: 100%;
+  -webkit-user-select: none;
+  user-select: none;
   transition: background 0.15s, border-color 0.15s, opacity 0.15s;
   text-decoration: none !important;
 }
@@ -243,6 +257,12 @@ textarea {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
+}
+
+/* Auf schmalen Handys dürfen lange Button-Texte im Inhalt umbrechen, statt die Seite zu verbreitern
+   (Kopfzeile und Navigation bleiben einzeilig) */
+@media (max-width: 420px) {
+  main .btn { white-space: normal; text-align: center; }
 }
 
 .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }

@@ -46,9 +46,17 @@
     margin: 0 auto;
     padding: 1.5rem 1rem 3rem;
   }
-  .nav { gap: 0.2rem; }
+  .home { flex: none; }
+  /* Kopfzeile bleibt einzeilig: zur Not wird der Name gekürzt bzw. auf kleinsten Handys ausgeblendet */
+  .nav { gap: 0.2rem; flex-wrap: nowrap; min-width: 0; }
+  .profile { min-width: 0; }
+  .nav :global(svg) { flex: none; }
+  .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @media (max-width: 480px) {
     .label-text { display: none; }
-    .name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
+    .name { max-width: 9rem; }
+  }
+  @media (max-width: 360px) {
+    .name { display: none; }
   }
 </style>
