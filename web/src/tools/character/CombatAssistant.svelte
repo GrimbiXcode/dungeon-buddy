@@ -30,6 +30,19 @@
   import type { Spell } from "../../lib/types";
   import { applySpellEffect, isPrepared, spellDice } from "../spellbook/spells";
   import { formatDice } from "../../lib/dice";
+  import Stepper from "../../components/Stepper.svelte";
+  import { parseDice } from "../../lib/dice";
+  import {
+    applyRecovery,
+    attackConsumption,
+    consumeItem,
+    countLabel,
+    hasStock,
+    healingDiceFor,
+    itemById,
+    recoveryLabel,
+    type RecoveryRow,
+  } from "../../lib/inventory";
   import { sheet } from "./context";
 
   const ctx = sheet();
@@ -77,7 +90,65 @@
     { key: "free", title: "Freie Optionen" },
   ];
 
-  const STANDARD_ACTIONS = ["Spurt", "Ausweichen", "Rückzug", "Helfen", "Verstecken", "Suchen", "Gegenstand benutzen", "Vorbereiten"];
+  const STANDARD_ACTIONS = ["Spurt", "Ausweichen", "Rückzug", "Helfen", "Verstecken", "Suchen", "Vorbereiten"];
+
+  // ── Gegenstand verwenden (Heiltrank trinken, Öl werfen …) ──
+  type UseEconomy = "action" | "bonus" | "free";
+  let usingItem = $state(false);
+  let useItemId = $state("");
+  let useEconomy = $state<UseEconomy>("action");
+  let useAmount = $state(1);
+  let useHeal = $state("");
+  const usable = $derived(c.inventory.filter(i => i.quantity > 0).sort((a, b) => Number(Boolean(a.ammo)) - Number(Boolean(b.ammo)) || a.name.localeCompare(b.name, "de")));
+  const useItem = $derived(itemById(c, useItemId));
+
+  function openUse() {
+    const first = usable[0];
+    useItemId = first?.id ?? "";
+    useHeal = first ? healingDiceFor(first.name) : "";
+    useAmount = 1;
+    useEconomy = c.combat.used.action && !c.combat.used.bonus ? "bonus" : "action";
+    usingItem = true;
+  }
+
+  function pickUseItem(id: string) {
+    useItemId = id;
+    const item = itemById(c, id);
+    useHeal = item ? healingDiceFor(item.name) : "";
+    useAmount = 1;
+  }
+
+  function confirmUse(e: SubmitEvent) {
+    e.preventDefault();
+    const item = useItem;
+    if (!item || item.quantity <= 0) return;
+    if (useHeal.trim() && !parseDice(useHeal)) {
+      toast(`Ungültiger Würfelausdruck: „${useHeal}“ (Beispiel: 2d4+2).`, "error");
+      return;
+    }
+    const n = consumeItem(c, item, useAmount);
+    if (useEconomy !== "free") c.combat.used[useEconomy] = true;
+    const how = useEconomy === "action" ? "Aktion" : useEconomy === "bonus" ? "Bonusaktion" : "frei";
+    toast(`${countLabel(item, n)} verwendet (${how}), noch ${item.quantity}.`);
+    if (useHeal.trim()) ctx.rollDamage(item.name, useHeal.trim(), { heal: true });
+    usingItem = false;
+  }
+
+  // ── Nach dem Kampf: Geschosse und Wurfwaffen bergen ──
+  let recovering = $state<RecoveryRow[] | null>(null);
+
+  function finishCombat() {
+    const rows = endCombat(c);
+    if (rows.length) recovering = rows;
+  }
+
+  function takeRecovery() {
+    if (!recovering) return;
+    applyRecovery(c, recovering);
+    const back = recovering.filter(r => r.back > 0).map(r => `${r.back} ${r.name}`);
+    toast(back.length ? `Geborgen: ${back.join(", ")}.` : "Nichts geborgen.", back.length ? "success" : "info");
+    recovering = null;
+  }
 
   const categories = $derived([...new Set([...c.features.flatMap(f => f.categories), ...(spells.length ? ["Zauber"] : [])])]);
   const effectTypes = $derived(EFFECT_TYPES.filter(e => c.features.some(f => f.effectType === e.key)));
@@ -210,12 +281,18 @@
 {/snippet}
 
 {#snippet attackRow(a: Attack)}
-  <div class="sugg">
+  {@const use = attackConsumption(c, a)}
+  {@const ok = hasStock(c, a)}
+  <div class="sugg" class:off={!ok}>
     <div class="grow">
-      <div class="sugg-name"><Icon name="attack" size={14} /> <strong>{a.name || "Angriff"}</strong> <span class="badge mono">{formatMod(attackToHit(c, a))}</span></div>
+      <div class="sugg-name">
+        <Icon name="attack" size={14} /> <strong>{a.name || "Angriff"}</strong> <span class="badge mono">{formatMod(attackToHit(c, a))}</span>
+        {#if use}<span class="badge" class:badge-danger={!ok}>{use.item.quantity} {use.item.name}</span>{/if}
+      </div>
       <span class="tiny muted">{a.kind === "ranged" ? "Fernkampf" : "Nahkampf"}{attackRange(a, unitSystem()) ? ` ${attackRange(a, unitSystem())}` : ""} · {a.damage} {a.damageType}</span>
+      {#if !ok && use}<span class="tiny block danger-text">Keine {use.item.name} mehr. Angriff nicht möglich.</span>{/if}
     </div>
-    <button class="btn btn-sm btn-primary" onclick={() => ctx.openAttack(a)}>Angreifen</button>
+    <button class="btn btn-sm btn-primary" disabled={!ok} onclick={() => ctx.openAttack(a)}>Angreifen</button>
   </div>
 {/snippet}
 
@@ -283,7 +360,7 @@
       <h3><Icon name="round" size={17} /> Runde {c.combat.round}</h3>
       <div class="row">
         <button class="btn btn-primary btn-sm" onclick={turn}><Icon name="nextTurn" size={14} /> Nächster Zug</button>
-        <button class="btn btn-sm" onclick={() => endCombat(c)}><Icon name="endCombat" size={14} /> Kampf beenden</button>
+        <button class="btn btn-sm" onclick={finishCombat}><Icon name="endCombat" size={14} /> Kampf beenden</button>
       </div>
     </div>
 
@@ -367,6 +444,7 @@
               {#each STANDARD_ACTIONS as name (name)}
                 <button class="chip" onclick={() => standardAction(name)}>{name}</button>
               {/each}
+              <button class="chip" onclick={openUse} disabled={!usable.length} title={usable.length ? "Aus dem Inventar, als Aktion, Bonusaktion oder frei" : "Inventar ist leer"}>Gegenstand verwenden</button>
             </div>
           {/if}
           {#if !feats.length && !sp.length && !(section.key === "action") && !(section.key === "bonus" && offhand.length)}
@@ -380,6 +458,66 @@
     {/if}
   {/if}
 </section>
+
+{#if usingItem}
+  <Modal title="Gegenstand verwenden" size="sm" onclose={() => (usingItem = false)}>
+    <form id="use-item-form" onsubmit={confirmUse}>
+      <label class="field">
+        <span class="label">Gegenstand</span>
+        <select class="select" value={useItemId} onchange={e => pickUseItem(e.currentTarget.value)}>
+          {#each usable as i (i.id)}<option value={i.id}>{i.name} ({i.quantity})</option>{/each}
+        </select>
+      </label>
+      <div class="field">
+        <span class="label">Als</span>
+        <div class="segmented" role="group" aria-label="Aktionsart">
+          <button type="button" aria-pressed={useEconomy === "action"} onclick={() => (useEconomy = "action")}>Aktion</button>
+          <button type="button" aria-pressed={useEconomy === "bonus"} onclick={() => (useEconomy = "bonus")}>Bonusaktion</button>
+          <button type="button" aria-pressed={useEconomy === "free"} onclick={() => (useEconomy = "free")}>Frei</button>
+        </div>
+        {#if useEconomy !== "free" && c.combat.used[useEconomy]}<span class="tiny warn-text">{useEconomy === "action" ? "Aktion" : "Bonusaktion"} ist schon verbraucht.</span>{/if}
+      </div>
+      {#if useItem && useItem.quantity > 1}
+        <div class="field">
+          <span class="label">Menge</span>
+          <span><Stepper bind:value={useAmount} min={1} max={useItem.quantity} label="Menge" /></span>
+        </div>
+      {/if}
+      <label class="field">
+        <span class="label">Heilung würfeln (optional)</span>
+        <input class="input mono" bind:value={useHeal} placeholder="z. B. 2d4+2" />
+        <span class="tiny muted">Bei Heiltränken vorausgefüllt. Leer lassen, wenn nichts gewürfelt wird.</span>
+      </label>
+    </form>
+    {#snippet footer()}
+      <button class="btn" onclick={() => (usingItem = false)}>Abbrechen</button>
+      <button class="btn btn-primary" type="submit" form="use-item-form" disabled={!useItem}>Verwenden</button>
+    {/snippet}
+  </Modal>
+{/if}
+
+{#if recovering}
+  <Modal title="Nach dem Kampf" size="sm" onclose={() => (recovering = null)}>
+    <p class="small muted">
+      Eine Minute Suche: Geschosse findest du zur Hälfte (abgerundet) wieder, geworfene Waffen ganz. Passe die Zahlen an, wenn die Spielleitung anders entscheidet.
+    </p>
+    <div class="recover-list">
+      {#each recovering as row (row.itemId)}
+        <div class="recover">
+          <span class="grow">
+            <strong>{row.name}</strong> <span class="badge">{recoveryLabel(row.recover)}</span>
+            <span class="tiny muted block">{row.spent} verbraucht · {row.back} zurück · {row.spent - row.back} verloren</span>
+          </span>
+          <Stepper bind:value={row.back} max={row.spent} label="{row.name} geborgen" />
+        </div>
+      {/each}
+    </div>
+    {#snippet footer()}
+      <button class="btn" onclick={() => (recovering = null)}>Nichts bergen</button>
+      <button class="btn btn-primary" onclick={takeRecovery}>Übernehmen</button>
+    {/snippet}
+  </Modal>
+{/if}
 
 {#if addingEffect}
   <Modal title="Effekt hinzufügen" size="sm" onclose={() => (addingEffect = false)}>
@@ -476,6 +614,11 @@
   .sugg-name { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
   .sugg-name .badge { font-size: 0.66rem; }
   .block { display: block; }
+  .danger-text { color: var(--danger); }
+  .warn-text { color: var(--warning); }
+  .recover-list { display: flex; flex-direction: column; }
+  .recover { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0; border-bottom: 1px solid var(--border); }
+  .recover:last-child { border-bottom: 0; }
   .std { margin-top: 0.2rem; }
   @media (max-width: 520px) {
     .move { margin-left: 0; }

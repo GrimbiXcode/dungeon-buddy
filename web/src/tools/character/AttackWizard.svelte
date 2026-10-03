@@ -35,6 +35,7 @@
   import AbilityPicker from "./AbilityPicker.svelte";
   import { d20Request, isPhysical, openRoll } from "../../lib/roller.svelte";
   import { toast } from "../../lib/toast.svelte";
+  import { LOW_STOCK, asksThrow, attackConsumption, consumeItem, countLabel, itemById, refundItem, type InventoryItem } from "../../lib/inventory";
   import { sheet } from "./context";
 
   let { attack, offhand = false, onclose }: { attack: Attack; offhand?: boolean; onclose: () => void } = $props();
@@ -127,6 +128,32 @@
   );
   let otherRolled = $state<string[]>([]);
 
+  // ── Verbrauchsgut (Pfeile, Wurfdolch …) ──
+  const consumption = $derived(attackConsumption(c, attack));
+  // svelte-ignore state_referenced_locally
+  const throwChoice = asksThrow(attack);
+  /** Wurfwaffe im Nahkampf: wird geworfen? Nur dann wird verbraucht */
+  let thrown = $state(false);
+  /** Geschoss-Stapel zur Wahl (Pfeile, Pfeile +1 …) */
+  const stacks = $derived(
+    consumption?.item.ammo ? c.inventory.filter(i => i.ammo === consumption.item.ammo) : consumption ? [consumption.item] : []
+  );
+  // Leerer Stapel: auf einen gleichartigen mit Vorrat ausweichen
+  // svelte-ignore state_referenced_locally
+  let stackId = $state((stacks.find(i => i.id === attack.consumes?.itemId && i.quantity >= (attack.consumes?.amount ?? 1)) ?? stacks.find(i => i.quantity >= (attack.consumes?.amount ?? 1)))?.id ?? attack.consumes?.itemId ?? "");
+  const stack = $derived(itemById(c, stackId) ?? consumption?.item);
+  const consumesNow = $derived(Boolean(consumption && stack && (!throwChoice || thrown)));
+  const outOfStock = $derived(consumesNow && stack!.quantity < consumption!.amount);
+  /** Beim Würfeln abgezogen (für „Rückgängig“) */
+  let spentNow = $state<{ item: InventoryItem; amount: number } | null>(null);
+
+  function undoSpent() {
+    if (!spentNow) return;
+    refundItem(c, spentNow.item, spentNow.amount);
+    toast(`${countLabel(spentNow.item, spentNow.amount)} zurück ins Inventar.`);
+    spentNow = null;
+  }
+
   const economySpentNow = $derived(c.combat.active && !(offhand && nick) && c.combat.used[economy]);
 
   /** Zusatzangriff mit einer zweiten leichten Waffe anbieten */
@@ -146,6 +173,11 @@
   }
 
   function rollAttack() {
+    if (outOfStock) return;
+    if (consumesNow && stack && consumption) {
+      const n = consumeItem(c, stack, consumption.amount);
+      spentNow = n ? { item: stack, amount: n } : null;
+    }
     consume(activeBefore);
     if (c.combat.active) {
       if (offhand) {
@@ -316,6 +348,34 @@
       </div>
     {/if}
 
+    {#if throwChoice}
+      <div class="row economy">
+        <span class="small muted">Wurfwaffe:</span>
+        <div class="segmented" role="group" aria-label="Nahkampf oder Werfen">
+          <button aria-pressed={!thrown} onclick={() => (thrown = false)}>Nahkampf</button>
+          <button aria-pressed={thrown} onclick={() => (thrown = true)}>Werfen</button>
+        </div>
+      </div>
+    {/if}
+    {#if consumption && stack && (!throwChoice || thrown)}
+      <div class="row economy stock" class:out={outOfStock}>
+        {#if stacks.length > 1}
+          <label class="small muted" for="attack-stack">Verbraucht aus</label>
+          <select id="attack-stack" class="select input-sm" bind:value={stackId}>
+            {#each stacks as s (s.id)}<option value={s.id}>{s.name} ({s.quantity})</option>{/each}
+          </select>
+        {/if}
+        {#if outOfStock}
+          <span class="small">Keine {stack.name || "Gegenstände"} mehr ({stack.quantity}/{consumption.amount}). Angriff nicht möglich.</span>
+        {:else}
+          <span class="small muted">
+            Verbraucht {countLabel(stack, consumption.amount)} · noch
+            <strong class:low={stack.quantity - consumption.amount <= LOW_STOCK}>{stack.quantity}</strong>
+          </span>
+        {/if}
+      </div>
+    {/if}
+
     <h4 class="label">Vor dem Angriff</h4>
     {#if visible(options.before).length}
       <div class="options">
@@ -334,6 +394,12 @@
       <label class="checkbox small"><input type="checkbox" bind:checked={twoHanded} /> Zweihändig führen ({attack.versatileDamage})</label>
     {/if}
   {:else}
+    {#if spentNow}
+      <p class="tiny muted spent">
+        {countLabel(spentNow.item, spentNow.amount)} verbraucht, noch {spentNow.item.quantity}.
+        <button class="link-btn" onclick={undoSpent}>Rückgängig</button>
+      </p>
+    {/if}
     <div class="outcome">
       {#if rolled}
         <p class="small">Wurf: <strong class="mono">{rolled.total}</strong> (W20: {rolled.kept}). Wie ist der Angriff ausgegangen?</p>
@@ -407,7 +473,7 @@
   {#snippet footer()}
     {#if step === "prepare"}
       <button class="btn" onclick={onclose}>Abbrechen</button>
-      <button class="btn btn-primary" onclick={rollAttack}><Icon name="roll" size={16} /> Angriff würfeln ({formatMod(toHit)})</button>
+      <button class="btn btn-primary" onclick={rollAttack} disabled={outOfStock}><Icon name="roll" size={16} /> Angriff würfeln ({formatMod(toHit)})</button>
     {:else if (outcome === "hit" || outcome === "crit") && !damageRolled}
       <button class="btn" onclick={onclose}>Schliessen</button>
       <button class="btn btn-primary" onclick={rollDamage}>
@@ -467,6 +533,10 @@
   .outcome { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.6rem; }
   .outcome p { margin: 0; }
   .segmented button { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .stock.out { color: var(--danger); font-weight: 600; }
+  .stock .low { color: var(--danger); }
+  .spent { margin: 0 0 0.5rem; }
+  .link-btn { border: 0; background: transparent; padding: 0; font: inherit; font-weight: 700; color: var(--accent-text); cursor: pointer; text-decoration: underline; }
   .offhand { margin-top: 0.8rem; padding-top: 0.6rem; border-top: 1px dashed var(--border); }
   .offhand h4 { margin-top: 0; }
   .offhand-hint { margin: 0 0 0.6rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent-text); }

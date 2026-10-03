@@ -9,6 +9,7 @@ import {
 import { uid } from "./format";
 import { convertText, formatRange, parseRangeText, type UnitSystem } from "./units";
 import { normalizeArmor, UNARMORED_DEFENSES, type ArmorItem, type UnarmoredDefense } from "./armor";
+import { normalizeConsumption, normalizeInventoryItem, type Consumption, type InventoryItem } from "./inventory";
 import type { Ruleset } from "./types";
 import {
   normalizeCombat,
@@ -53,6 +54,8 @@ export type Attack = {
   /** Zusätzlicher Schaden der Waffe selbst, z. B. Flammenzunge 2d6 Feuer */
   extraDamage: string;
   extraDamageType: string;
+  /** Verbrauchsgut aus dem Inventar pro Angriff (Pfeile, Wurfdolch …); null = keins */
+  consumes: Consumption | null;
 };
 
 export type Resource = {
@@ -111,6 +114,9 @@ export type CharacterData = {
   languages: string;
   /** Weitere Merkmale als Freitext */
   featureNotes: string;
+  /** Gegenstände mit Mengen */
+  inventory: InventoryItem[];
+  /** Weitere Ausrüstung als Freitext (früher die ganze Ausrüstung) */
   equipment: string;
   currency: { cp: number; sp: number; ep: number; gp: number; pp: number };
   appearance: string;
@@ -148,6 +154,7 @@ export function newAttack(partial: Partial<Attack> = {}): Attack {
     versatileDamage: "",
     extraDamage: "",
     extraDamageType: "",
+    consumes: null,
     ...partial,
   };
 }
@@ -199,6 +206,7 @@ export function normalizeAttack(a: unknown): Attack {
     versatileDamage: str(o.versatileDamage),
     extraDamage: str(o.extraDamage),
     extraDamageType: str(o.extraDamageType),
+    consumes: normalizeConsumption(o.consumes),
   });
 }
 
@@ -289,6 +297,7 @@ export function normalizeCharacter(raw: unknown): CharacterData {
     languages: str(d.languages),
     // früher hiess der Freitext "features"
     featureNotes: str(d.featureNotes) || (typeof d.features === "string" ? d.features : ""),
+    inventory: arr(d.inventory).map(normalizeInventoryItem),
     equipment: str(d.equipment),
     currency: {
       cp: num(currency.cp, 0),
