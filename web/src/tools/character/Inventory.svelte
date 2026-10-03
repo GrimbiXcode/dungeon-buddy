@@ -26,7 +26,8 @@
 
   /** Wer verbraucht den Gegenstand? (Angriffe und Fähigkeiten) */
   function users(i: InventoryItem) {
-    return [...c.attacks.filter(a => a.consumes?.itemId === i.id), ...c.features.filter(f => f.itemId === i.id)].map(x => x.name || "Ohne Namen");
+    // Gleichnamige Nutzer nur einmal (sonst doppelte Schlüssel in der Liste)
+    return [...new Set([...c.attacks.filter(a => a.consumes?.itemId === i.id), ...c.features.filter(f => f.itemId === i.id)].map(x => x.name || "Ohne Namen"))];
   }
 
   const ammo = $derived(c.inventory.filter(i => i.ammo));

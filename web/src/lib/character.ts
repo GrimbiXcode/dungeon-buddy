@@ -219,6 +219,16 @@ export function normalizeAttack(a: unknown): Attack {
  * Bringt beliebige gespeicherte Daten in die aktuelle Form. Fehlende Felder
  * bekommen Standardwerte – so bleiben alte Bögen nach Erweiterungen lesbar.
  */
+/** Doppelte IDs (kopierte Daten) neu vergeben, damit Listen eindeutige Schlüssel haben */
+function uniqueIds<T extends { id: string }>(list: T[]): T[] {
+  const seen = new Set<string>();
+  for (const x of list) {
+    if (seen.has(x.id)) x.id = uid();
+    seen.add(x.id);
+  }
+  return list;
+}
+
 /** Verbrauchte Plätze/Nutzungen zwischen 0 und dem Maximum */
 export function clampUsed(used: number, max: number) {
   return Math.min(Math.max(0, max), Math.max(0, used));
@@ -320,7 +330,7 @@ export function normalizeCharacter(raw: unknown): CharacterData {
     languages: str(d.languages),
     // früher hiess der Freitext "features"
     featureNotes: str(d.featureNotes) || (typeof d.features === "string" ? d.features : ""),
-    inventory: arr(d.inventory).map(normalizeInventoryItem),
+    inventory: uniqueIds(arr(d.inventory).map(normalizeInventoryItem)),
     equipment: str(d.equipment),
     currency: {
       cp: num(currency.cp, 0),

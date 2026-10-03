@@ -174,6 +174,13 @@ export async function buildApp() {
       if (req.method !== "GET" || req.url.startsWith("/api/")) {
         return reply.code(404).send({ error: "Nicht gefunden." });
       }
+      // Fehlende Dateien (z. B. /assets/index-<alter Hash>.js nach einem Deploy) nicht mit
+      // index.html beantworten: Der Service Worker würde HTML als Skript zwischenspeichern
+      // und die App bliebe leer. Ein echtes 404 lässt ihn die Installation abbrechen.
+      const pathname = req.url.split("?")[0] ?? "";
+      if (/\.[a-z0-9]+$/i.test(pathname.slice(pathname.lastIndexOf("/") + 1))) {
+        return reply.code(404).header("Cache-Control", "no-store").send("Nicht gefunden.");
+      }
       reply.header("Cache-Control", "no-cache");
       return reply.sendFile("index.html");
     });
