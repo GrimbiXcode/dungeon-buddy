@@ -108,6 +108,11 @@
         {/each}
       </div>
       <p class="tiny muted">Die Akzentfarbe legst du pro Kampagne fest.</p>
+      <p class="tiny muted">
+        Icons im Adventurer-Modus von Lorc, Delapouite und weiteren auf
+        <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, lizenziert unter
+        <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>.
+      </p>
     </section>
 
     <section class="card">

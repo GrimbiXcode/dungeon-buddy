@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import { ArrowLeft, Check, CloudOff, GitFork, Moon, Pencil, Play, RefreshCw, Skull, Star, Sunrise } from "@lucide/svelte";
+  import { ArrowLeft, Check, CloudOff, GitFork, Moon, Play, RefreshCw, Star } from "@lucide/svelte";
+  import Icon from "../components/Icon.svelte";
   import { current } from "../lib/campaign.svelte";
   import { ApiError, get, post, put } from "../lib/api";
   import {
@@ -374,7 +375,7 @@
       </p>
       <div class="chip-row meta">
         <span class="badge">{rulesetLabel(ruleset)}</span>
-        {#if record.status === "dead"}<span class="badge badge-danger"><Skull size={12} /> Verstorben</span>{/if}
+        {#if record.status === "dead"}<span class="badge badge-danger"><Icon name="death" size={12} /> Verstorben</span>{/if}
         {#if record.status === "retired"}<span class="badge">Im Ruhestand</span>{/if}
         {#if record.forkedFromName}<span class="badge"><GitFork size={12} /> Kopie von {record.forkedFromName}</span>{/if}
         {#if isActiveCharacter}
@@ -399,9 +400,9 @@
     <div class="row actions">
       <div class="segmented" role="group" aria-label="Modus">
         <button aria-pressed={!editing} onclick={() => (editing = false)}><Play size={14} /> Spielen</button>
-        <button aria-pressed={editing} onclick={() => (editing = true)}><Pencil size={14} /> Bearbeiten</button>
+        <button aria-pressed={editing} onclick={() => (editing = true)}><Icon name="edit" size={14} /> Bearbeiten</button>
       </div>
-      <button class="btn btn-sm" onclick={() => rest("short")}><Sunrise size={15} /> Kurze Rast</button>
+      <button class="btn btn-sm" onclick={() => rest("short")}><Icon name="shortRest" size={15} /> Kurze Rast</button>
       <button class="btn btn-sm" onclick={() => rest("long")}><Moon size={15} /> Lange Rast</button>
     </div>
   </div>

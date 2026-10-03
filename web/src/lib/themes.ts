@@ -1,3 +1,4 @@
+import { appearance } from "./appearance.svelte";
 import type { ColorMode } from "./types";
 
 export const CAMPAIGN_THEMES = [
@@ -40,6 +41,7 @@ export function applyColorMode(mode: ColorMode = "system") {
         : "light"
       : mode;
   document.documentElement.dataset.mode = resolved;
+  appearance.mode = resolved;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLORS[resolved]);
 }
 

@@ -1,38 +1,38 @@
-import { BookOpen, Images, LayoutDashboard, ScrollText, Settings, Users, Wand } from "@lucide/svelte";
+import type { IconName } from "./icons";
 import { session } from "./session.svelte";
 
 export const TOOLS = [
   {
     slug: "tagebuch",
     name: "Tagebuch",
-    icon: ScrollText,
+    icon: "journal" as IconName,
     description: "Einträge pro Session und Tag im Spiel.",
   },
   {
     slug: "netzwerk",
     name: "Soziales Netzwerk",
     short: "Netzwerk",
-    icon: Users,
+    icon: "network" as IconName,
     description: "NPCs, ihre Beziehungen zu dir und untereinander.",
   },
   {
     slug: "charaktere",
     name: "Charakterbogen",
     short: "Charakter",
-    icon: BookOpen,
+    icon: "characterSheet" as IconName,
     description: "Digital oder als Würfelhilfe für echte Würfel.",
   },
   {
     slug: "zauberbuch",
     name: "Zauberbuch",
     short: "Zauber",
-    icon: Wand,
+    icon: "spellbook" as IconName,
     description: "Zauber aus dem SRD übernehmen, vorbereiten, würfeln.",
   },
   {
     slug: "anhaenge",
     name: "Anhänge",
-    icon: Images,
+    icon: "attachments" as IconName,
     description: "Karten, Szenenbilder, Fotos und PDFs zur Kampagne.",
   },
 ] as const;
@@ -52,8 +52,8 @@ export function toolHref(campaign: { id: string; activeCharacterId?: string | nu
 
 export function campaignNav() {
   return [
-    { slug: "", name: "Übersicht", short: "Übersicht", icon: LayoutDashboard },
+    { slug: "", name: "Übersicht", short: "Übersicht", icon: "overview" as IconName },
     ...availableTools().map(t => ({ slug: t.slug, name: t.name, short: "short" in t ? t.short : t.name, icon: t.icon })),
-    { slug: "einstellungen", name: "Kampagne bearbeiten", short: "Kampagne", icon: Settings },
+    { slug: "einstellungen", name: "Kampagne bearbeiten", short: "Kampagne", icon: "campaignSettings" as IconName },
   ];
 }

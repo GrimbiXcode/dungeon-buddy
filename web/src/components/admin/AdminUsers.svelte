@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Ban, Search, ShieldCheck, Unlock } from "@lucide/svelte";
+  import { Ban, Unlock } from "@lucide/svelte";
+  import Icon from "../Icon.svelte";
   import Modal from "../Modal.svelte";
   import { get, post } from "../../lib/api";
   import { confirmDialog } from "../../lib/confirm.svelte";
@@ -71,7 +72,7 @@
 <section class="card stack">
   <div class="row-between">
     <label class="search row grow">
-      <Search size={16} />
+      <Icon name="search" size={16} />
       <input class="input grow" placeholder="Nach Namen suchen" bind:value={search} oninput={reload} />
     </label>
     {#if data}
@@ -101,7 +102,7 @@
             <tr>
               <td>
                 {u.displayName}
-                {#if u.role === "admin"}<span class="badge badge-accent"><ShieldCheck size={12} /> Admin</span>{/if}
+                {#if u.role === "admin"}<span class="badge badge-accent"><Icon name="admin" size={12} /> Admin</span>{/if}
               </td>
               <td class="num">{u.campaigns}</td>
               <td class="num">{u.characters}</td>

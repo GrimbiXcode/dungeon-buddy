@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { GitFork, Heart, Shield, Skull } from "@lucide/svelte";
+  import { GitFork } from "@lucide/svelte";
+  import Icon from "./Icon.svelte";
   import { classSummary, normalizeCharacter, totalLevel } from "../lib/character";
   import { armorClass } from "../lib/armor";
   import { session } from "../lib/session.svelte";
@@ -30,11 +31,11 @@
     {#if portrait}
       <span class="level portrait">
         <img src="/api/attachments/{portrait}/content?variant=thumb" alt="" loading="lazy" decoding="async" />
-        <span class="level-badge" title="Stufe">{#if character.status === "dead"}<Skull size={11} />{:else}{totalLevel(d)}{/if}</span>
+        <span class="level-badge" title="Stufe">{#if character.status === "dead"}<Icon name="death" size={11} />{:else}{totalLevel(d)}{/if}</span>
       </span>
     {:else}
       <span class="level" title="Stufe">
-        {#if character.status === "dead"}<Skull size={20} />{:else}{totalLevel(d)}{/if}
+        {#if character.status === "dead"}<Icon name="death" size={20} />{:else}{totalLevel(d)}{/if}
       </span>
     {/if}
     <span class="grow info">
@@ -49,8 +50,8 @@
     {#if character.forkedFrom || character.forkedFromName}
       <span class="badge" title="Eigenständige Kopie"><GitFork size={11} /> {character.forkedFromName ? `Kopie von ${character.forkedFromName}` : "Kopie"}</span>
     {/if}
-    <span class="badge"><Heart size={11} /> {d.hp.current}/{d.hp.max}</span>
-    <span class="badge"><Shield size={11} /> {armorClass(d).total}</span>
+    <span class="badge"><Icon name="hp" size={11} /> {d.hp.current}/{d.hp.max}</span>
+    <span class="badge"><Icon name="armor" size={11} /> {armorClass(d).total}</span>
   </div>
   {#if meta}<div class="meta">{@render meta()}</div>{/if}
   {#if actions}<div class="row actions">{@render actions()}</div>{/if}
