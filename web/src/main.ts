@@ -19,6 +19,22 @@ document.addEventListener(
 // Keine Passwortmanager bei Feldern wie „Name“ (die App hat keine Passwörter)
 preventPasswordManagers();
 
+declare global {
+  interface Window {
+    __dbBooted?: () => void;
+    __dbRecover?: (manual: boolean, afterBoot?: boolean) => void;
+  }
+}
+
 const app = mount(App, { target: document.getElementById("app")! });
+// Start geglückt: Selbstreparatur aus public/boot-guard.js abschalten
+window.__dbBooted?.();
+
+// Nachgeladene Teile (z. B. Anhänge) passen nicht mehr zur Version auf dem Server: Zwischenspeicher leeren, neu laden
+window.addEventListener("vite:preloadError", e => {
+  if (!window.__dbRecover) return;
+  e.preventDefault();
+  window.__dbRecover(false, true);
+});
 
 export default app;
