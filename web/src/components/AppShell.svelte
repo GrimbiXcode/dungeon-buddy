@@ -11,8 +11,6 @@
   <header class="topbar">
     <a href="/" class="home" aria-label="Zur Übersicht"><Logo /></a>
     <nav class="row nav">
-      <a href="/charaktere" class="btn btn-ghost"><Icon name="characters" size={18} /><span class="label-text">Charaktere</span></a>
-      <a href="/bibliothek" class="btn btn-ghost"><Icon name="library" size={18} /><span class="label-text">Bibliothek</span></a>
       {#if session.user?.role === "admin"}
         <a href="/verwaltung" class="btn btn-ghost"><Icon name="admin" size={18} /><span class="label-text">Verwaltung</span></a>
       {/if}
