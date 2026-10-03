@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArchiveRestore, ChevronDown, Plus, Trash2, UserPen } from "@lucide/svelte";
+  import { ArchiveRestore, ChevronDown, Plus, Trash2 } from "@lucide/svelte";
   import Icon from "../components/Icon.svelte";
   import AppShell from "../components/AppShell.svelte";
   import CampaignForm from "../components/CampaignForm.svelte";
@@ -84,7 +84,6 @@
     <div class="row">
       <a class="btn" href="/charaktere"><Icon name="characters" size={16} /> Meine Charaktere</a>
       <a class="btn" href="/bibliothek"><Icon name="library" size={16} /> Bibliothek</a>
-      <a class="btn" href="/profil"><UserPen size={16} /> Profil bearbeiten</a>
     </div>
   </div>
 
