@@ -3,19 +3,31 @@ import { issueLoginCode } from "./login-codes.js";
 
 type TelegramUser = { id: number; first_name?: string; last_name?: string; username?: string };
 type TelegramUpdate = { update_id: number; message?: { from?: TelegramUser; text?: string } };
+/** Formatierung per Offset statt parse_mode, damit nichts maskiert werden muss. Offsets in UTF-16-Einheiten. */
+export type MessageEntity = { type: "code"; offset: number; length: number };
 
-export async function sendMessage(chatId: number | string, text: string) {
+export async function sendMessage(chatId: number | string, text: string, entities?: MessageEntity[]) {
   if (!env.telegramBotToken) return;
   try {
     const resp = await fetch(`https://api.telegram.org/bot${env.telegramBotToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text }),
+      body: JSON.stringify({ chat_id: chatId, text, entities }),
     });
     if (!resp.ok) console.warn(`[telegram] sendMessage ${resp.status}`);
   } catch (e) {
     console.warn("[telegram] sendMessage fehlgeschlagen:", (e as Error).message);
   }
+}
+
+/** Login-Nachricht mit dem Code als Monospace – in Telegram mit einem Tippen kopierbar. */
+export function loginCodeMessage(code: string): { text: string; entities: MessageEntity[] } {
+  const head = `🎲 ${env.appName} – Login-Code / login code:\n\n`;
+  const text =
+    `${head}${code}\n\n` +
+    `Der Code ist 5 Minuten gültig. Tippe ihn an, um ihn zu kopieren, und gib ihn auf der Website ein.\n` +
+    `Valid for 5 minutes. Tap it to copy, then enter it on the website to sign in.`;
+  return { text, entities: [{ type: "code", offset: head.length, length: code.length }] };
 }
 
 function nameOf(user: TelegramUser): string | null {
@@ -29,12 +41,8 @@ async function handleUpdate(update: TelegramUpdate) {
 
   if (text === "/start" || text.startsWith("/login") || text === "/code") {
     const code = await issueLoginCode(from.id, nameOf(from));
-    await sendMessage(
-      from.id,
-      `🎲 ${env.appName} – Login-Code / login code:\n\n${code}\n\n` +
-        `Der Code ist 5 Minuten gültig. Gib ihn auf der Website ein.\n` +
-        `Valid for 5 minutes. Enter it on the website to sign in.`
-    );
+    const msg = loginCodeMessage(code);
+    await sendMessage(from.id, msg.text, msg.entities);
   } else if (text === "/id") {
     await sendMessage(from.id, `Deine Telegram-ID / your Telegram ID: ${from.id}`);
   } else {
