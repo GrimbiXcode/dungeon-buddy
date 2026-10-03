@@ -5,9 +5,11 @@ import {
   attackDamageBonus,
   attackToHit,
   newAttack,
+  normalizeAttack,
   normalizeCharacter,
   offhandIsNick,
   offhandWeapons,
+  sortProperties,
 } from "./character";
 import { parseBonus } from "./dice";
 import { buildPreset } from "./feature-presets";
@@ -24,6 +26,7 @@ import {
   sumMods,
   useFeature,
   usesLeft,
+  WEAPON_PROPERTIES,
 } from "./features";
 import { featureFromLibrary, featureToLibrary } from "./library";
 
@@ -251,5 +254,18 @@ describe("Bibliothek", () => {
     expect(target.resources.map(r => [r.name, r.max, r.reset])).toEqual([["Fokus", 4, "short"]]);
     expect(copy.resourceId).toBe(target.resources[0]!.id);
     expect(copy.links).toEqual([{ featureId: otherWind.id, cost: 1, when: "success" }]);
+  });
+});
+
+describe("Waffeneigenschaften", () => {
+  it("sind alphabetisch sortiert, auch gespeicherte und eigene", () => {
+    expect([...WEAPON_PROPERTIES]).toEqual(sortProperties([...WEAPON_PROPERTIES]));
+    expect(normalizeAttack({ properties: ["Zweihändig", "Schwer", "Eigene", "Finesse"] }).properties).toEqual(["Eigene", "Finesse", "Schwer", "Zweihändig"]);
+  });
+
+  it("alte Eigenschaft „Munition“ heisst jetzt „Geschosse“", () => {
+    expect(normalizeAttack({ properties: ["Munition", "Zweihändig"] }).properties).toEqual(["Geschosse", "Zweihändig"]);
+    expect(WEAPON_PROPERTIES).toContain("Geschosse");
+    expect(WEAPON_PROPERTIES).not.toContain("Munition");
   });
 });

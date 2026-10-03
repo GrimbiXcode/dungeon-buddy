@@ -15,6 +15,7 @@
     addEffect,
     endCombat,
     featureDamageExpr,
+    featureRollLabel,
     isAvailable,
     label,
     matchesFilter,
@@ -200,7 +201,7 @@
         {#if left != null}<span class="badge" class:badge-danger={left === 0}>{left}×</span>{/if}
       </div>
       <span class="tiny muted">
-        {convertText([label.effect(f.effectType), f.benefit, featureDamageExpr(c, f) ? `${formatDice(featureDamageExpr(c, f)!)} ${f.damageType}`.trim() : "", f.duration.kind !== "instant" ? label.duration(f) : ""].filter(Boolean).join(" · "), unitSystem())}
+        {convertText([label.effect(f.effectType), f.benefit, featureDamageExpr(c, f) ? `${formatDice(featureDamageExpr(c, f)!)} ${featureRollLabel(f)}`.trim() : "", f.duration.kind !== "instant" ? label.duration(f) : ""].filter(Boolean).join(" · "), unitSystem())}
       </span>
       {#if f.condition}<span class="tiny faint block">{convertText(f.condition, unitSystem())}</span>{/if}
     </div>

@@ -128,6 +128,27 @@ export const FEATURE_PRESETS: Preset[] = [
     }),
   },
   {
+    key: "sweeping",
+    group: "Kämpfer",
+    build: () => ({
+      name: "Weit ausholender Angriff",
+      categories: ["Unterklasse"],
+      tags: ["Kampfmeister", "Manöver"],
+      activation: "free",
+      effectType: "damage",
+      target: "enemy",
+      targetText: "Eine zweite Kreatur in 1,5 m Umkreis des Ziels und in deiner Reichweite",
+      benefit: "Überlegenheitswürfel als Schaden gegen eine zweite Kreatur, mit der Schadensart des Angriffs",
+      condition: "Nahkampfangriff, der auch die zweite Kreatur getroffen hätte",
+      damage: "1d8",
+      damageTypeFromAttack: true,
+      damageOtherTarget: true,
+      uses: { max: 4, used: 0, reset: "short" },
+      triggers: ["hit"],
+      appliesTo: { scope: "melee", attackIds: [] },
+    }),
+  },
+  {
     key: "smite",
     group: "Paladin",
     build: r => ({

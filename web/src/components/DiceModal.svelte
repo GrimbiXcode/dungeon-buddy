@@ -244,7 +244,7 @@
 
   function damageDetail(r: DamageRequest) {
     const twice = r.twice && twiceSets ? ` · ${r.twice.label}: Wurf ${twiceChoice + 1}` : "";
-    return `${formatDice(expr!)}${crit ? " (kritisch)" : ""}${r.damageType ? ` ${r.damageType}` : ""}${twice}`;
+    return `${formatDice(expr!)}${crit ? " (kritisch)" : ""}${r.damageType ? ` ${r.damageType}` : ""}${r.effect ? ` · ${r.effect}` : ""}${twice}`;
   }
 
   function logDamage(r: DamageRequest) {
@@ -396,7 +396,7 @@
       {:else}
         <div class="row-between head">
           <span class="badge badge-accent mono">{formatDice(expr)}{req.damageType ? ` · ${req.damageType}` : ""}</span>
-          {#if req.canCrit !== false && !req.heal}
+          {#if req.canCrit !== false && !req.heal && !req.effect}
             <label class="checkbox small"><input type="checkbox" checked={crit} onchange={toggleCrit} /> Kritischer Treffer</label>
           {/if}
         </div>
@@ -433,7 +433,7 @@
           {/each}
         {:else if !groupResults.length}
           <button class="btn btn-primary big-roll" onclick={() => rollDamageDigital(req)}>
-            <Icon name="roll" size={22} /> {req.heal ? "Heilung würfeln" : "Schaden würfeln"}
+            <Icon name="roll" size={22} /> {req.heal ? "Heilung würfeln" : req.effect ? "Würfeln" : "Schaden würfeln"}
           </button>
         {/if}
 
@@ -450,7 +450,7 @@
               {/if}
               {#if expr.bonus}&nbsp;{formatMod(expr.bonus)}{/if}
             </div>
-            <div class="flag">{req.heal ? "Trefferpunkte geheilt" : `Schaden${req.damageType ? ` (${req.damageType})` : ""}`}</div>
+            <div class="flag">{req.heal ? "Trefferpunkte geheilt" : req.effect ? req.effect : `Schaden${req.damageType ? ` (${req.damageType})` : ""}`}</div>
           </div>
           {#if req.twice && twiceSets && !req.physical}
             <div class="twice">

@@ -127,11 +127,15 @@ export const DAMAGE_ADDS = [
   { key: "proficiency", label: "Übungsbonus" },
 ] as const;
 export type DamageAddKind = (typeof DAMAGE_ADDS)[number]["key"];
-export type DamageAdd = { kind: DamageAddKind; ability: Ability; className: string };
+/** abilities: mehrere Attribute = im Kampf wählen (vorgeschlagen wird der höchste Modifikator) */
+export type DamageAdd = { kind: DamageAddKind; abilities: Ability[]; className: string };
 
 export function newDamageAdd(partial: Partial<DamageAdd> = {}): DamageAdd {
-  return { kind: "ability", ability: "con", className: "", ...partial };
+  return { kind: "ability", abilities: ["con"], className: "", ...partial };
 }
+
+/** Gewähltes Attribut je Zuschlag (Index in `damageAdds`), falls mehrere zur Wahl stehen */
+export type AbilityPicks = Partial<Record<number, Ability>>;
 
 export const LINK_WHEN = [
   { key: "use", label: "beim Einsetzen" },
@@ -144,18 +148,19 @@ export function baseCategories(speciesLabel: string) {
   return ["Klasse", "Unterklasse", speciesLabel, "Hintergrund", "Talent", "Ausrüstung", "Magischer Gegenstand", "Sonstiges"];
 }
 
+/** Alphabetisch sortiert */
 export const WEAPON_PROPERTIES = [
   "Finesse",
+  "Geschosse",
+  "Laden",
   "Leicht",
+  "Magisch",
   "Schwer",
-  "Zweihändig",
+  "Versilbert",
   "Vielseitig",
   "Weitreichend",
   "Wurfwaffe",
-  "Munition",
-  "Laden",
-  "Magisch",
-  "Versilbert",
+  "Zweihändig",
 ] as const;
 
 // ── Typen ───────────────────────────────────────────────────────────────
@@ -205,6 +210,12 @@ export type Feature = {
   /** Zum Würfelergebnis addiert: Attributsmodifikator, Stufe, Klassenstufe, Übungsbonus */
   damageAdds: DamageAdd[];
   damageType: string;
+  /** Schadensart des auslösenden Angriffs übernehmen (Weit ausholender Angriff) statt `damageType` */
+  damageTypeFromAttack: boolean;
+  /** Schaden trifft ein weiteres Ziel: eigener Wurf statt Zuschlag auf den Angriffsschaden */
+  damageOtherTarget: boolean;
+  /** Sonstige Wirkung des Wurfs statt Schaden/Heilung, z. B. "vom erlittenen Schaden abziehen" */
+  effectText: string;
   /** Rettungswurf der Ziele, z. B. "GES-Rettungswurf, halber Schaden" */
   save: string;
   duration: { kind: DurationKind; amount: number; text: string };
@@ -274,6 +285,9 @@ export function newFeature(partial: Partial<Feature> = {}): Feature {
     damage: "",
     damageAdds: [],
     damageType: "",
+    damageTypeFromAttack: false,
+    damageOtherTarget: false,
+    effectText: "",
     save: "",
     duration: { kind: "instant", amount: 1, text: "" },
     uses: { max: null, used: 0, reset: "long" },
@@ -353,13 +367,19 @@ export function normalizeFeature(raw: unknown): Feature {
     damage: str(f.damage),
     damageAdds: (Array.isArray(f.damageAdds) ? f.damageAdds : []).map(raw => {
       const a = obj(raw);
+      // Ältere Daten haben genau ein Attribut
+      const list = Array.isArray(a.abilities) ? a.abilities : [a.ability];
+      const abilities = ABILITIES.filter(ab => list.includes(ab));
       return newDamageAdd({
         kind: oneOf(DAMAGE_ADDS, a.kind, "ability"),
-        ability: (ABILITIES as readonly string[]).includes(a.ability as string) ? (a.ability as Ability) : "con",
+        abilities: abilities.length ? abilities : ["con"],
         className: str(a.className).slice(0, 60),
       });
     }),
     damageType: str(f.damageType),
+    damageTypeFromAttack: f.damageTypeFromAttack === true,
+    damageOtherTarget: f.damageOtherTarget === true,
+    effectText: str(f.effectText).slice(0, 200),
     save: str(f.save),
     duration: {
       kind: oneOf(DURATIONS, duration.kind, "instant"),
@@ -684,11 +704,27 @@ function classLevel(c: CharacterData, name: string) {
   return c.classes.filter(k => k.name.trim().toLocaleLowerCase("de") === n).reduce((sum, k) => sum + (k.level || 0), 0);
 }
 
-export function damageAddValue(c: CharacterData, add: DamageAdd): number {
+/** Muss im Kampf ein Attribut gewählt werden? */
+export function isAbilityChoice(add: DamageAdd) {
+  return add.kind === "ability" && add.abilities.length > 1;
+}
+
+/** Zuschläge, bei denen im Kampf ein Attribut gewählt wird (mit Index in `damageAdds`) */
+export function abilityChoices(f: Pick<Feature, "damageAdds">) {
+  return f.damageAdds.flatMap((add, index) => (isAbilityChoice(add) ? [{ add, index }] : []));
+}
+
+/** Gewähltes Attribut des Zuschlags; ohne gültige Wahl das mit dem höchsten Modifikator */
+export function pickedAbility(c: CharacterData, add: DamageAdd, pick?: Ability): Ability {
+  if (pick && add.abilities.includes(pick)) return pick;
+  return add.abilities.reduce((best, ab) => (abilityMod(c.abilities[ab]) > abilityMod(c.abilities[best]) ? ab : best), add.abilities[0] ?? "con");
+}
+
+export function damageAddValue(c: CharacterData, add: DamageAdd, pick?: Ability): number {
   const level = Math.max(1, c.classes.reduce((sum, k) => sum + (k.level || 0), 0));
   switch (add.kind) {
     case "ability":
-      return abilityMod(c.abilities[add.ability]);
+      return abilityMod(c.abilities[pickedAbility(c, add, pick)]);
     case "level":
       return level;
     case "classLevel":
@@ -698,10 +734,10 @@ export function damageAddValue(c: CharacterData, add: DamageAdd): number {
   }
 }
 
-export function damageAddLabel(add: DamageAdd): string {
+export function damageAddLabel(add: DamageAdd, pick?: Ability): string {
   switch (add.kind) {
     case "ability":
-      return `${ABILITY_SHORT[add.ability]}-Mod.`;
+      return `${pick && add.abilities.includes(pick) ? ABILITY_SHORT[pick] : add.abilities.map(ab => ABILITY_SHORT[ab]).join("/")}-Mod.`;
     case "level":
       return "Stufe";
     case "classLevel": {
@@ -714,16 +750,48 @@ export function damageAddLabel(add: DamageAdd): string {
 }
 
 /** Würfel der Fähigkeit inklusive Zuschläge; null ohne Würfel und ohne Zuschläge */
-export function featureDamageExpr(c: CharacterData, f: Pick<Feature, "damage" | "damageAdds">): DiceExpr | null {
+export function featureDamageExpr(c: CharacterData, f: Pick<Feature, "damage" | "damageAdds">, picks: AbilityPicks = {}): DiceExpr | null {
   const base = f.damage.trim() ? parseDice(f.damage) : { groups: [], bonus: 0 };
   if (!base || (!base.groups.length && !base.bonus && !f.damageAdds.length)) return null;
-  const bonus = f.damageAdds.reduce((sum, a) => sum + damageAddValue(c, a), 0);
+  const bonus = f.damageAdds.reduce((sum, a, i) => sum + damageAddValue(c, a, picks[i]), 0);
   return addExpr(base, { groups: [], bonus });
 }
 
-/** Kurztext der Zuschläge mit aktuellem Wert, z. B. "Kämpferstufe +3, KON-Mod. +2" */
-export function describeDamageAdds(c: CharacterData, adds: DamageAdd[]) {
-  return adds.map(a => `${damageAddLabel(a)} ${formatSigned(damageAddValue(c, a))}`).join(", ");
+/**
+ * Schadensart der Fähigkeit; mit „wie der Angriff“ die Art des auslösenden
+ * Angriffs, ohne Angriff ein Platzhalter für Listen.
+ */
+export function featureDamageType(f: Pick<Feature, "damageType" | "damageTypeFromAttack">, attack?: Pick<Attack, "damageType">): string {
+  if (!f.damageTypeFromAttack) return f.damageType.trim();
+  return attack ? attack.damageType.trim() : "wie Angriff";
+}
+
+/**
+ * Was der Wurf der Fähigkeit bewirkt: Schaden, Heilung oder eine sonstige
+ * Wirkung als Text; null ohne Wurf.
+ */
+export function featureRollKind(f: Pick<Feature, "effectType" | "effectText">): "damage" | "healing" | "other" | null {
+  if (f.effectText.trim()) return "other";
+  if (f.effectType === "damage" || f.effectType === "healing") return f.effectType;
+  return null;
+}
+
+/** Text hinter den Würfeln: Schadensart oder sonstige Wirkung */
+export function featureRollLabel(f: Feature, attack?: Pick<Attack, "damageType">): string {
+  return featureRollKind(f) === "other" ? f.effectText.trim() : featureDamageType(f, attack);
+}
+
+/**
+ * Kurztext der Zuschläge mit aktuellem Wert, z. B. "Kämpferstufe +3, KON-Mod. +2".
+ * Ohne Wahl bei mehreren Attributen der höchste Modifikator.
+ */
+export function describeDamageAdds(c: CharacterData, adds: DamageAdd[], picks: AbilityPicks = {}) {
+  return adds
+    .map((a, i) => {
+      const pick = isAbilityChoice(a) ? pickedAbility(c, a, picks[i]) : undefined;
+      return `${damageAddLabel(a, pick)} ${formatSigned(damageAddValue(c, a, pick))}`;
+    })
+    .join(", ");
 }
 
 function formatSigned(n: number) {
@@ -744,8 +812,12 @@ export function isDamageTwice(m: RollMod) {
  * Art der Fähigkeit aus ihren Bausteinen ableiten (für Filter und das
  * Würfeln von Schaden/Heilung), solange sie nicht ausdrücklich gesetzt ist.
  */
-export function deriveEffectType(f: Pick<Feature, "damage" | "acMod" | "rollMods"> & { damageAdds?: DamageAdd[] }, healing = false): EffectType {
-  if (f.damage.trim() || f.damageAdds?.length) return healing ? "healing" : "damage";
+export function deriveEffectType(
+  f: Pick<Feature, "damage" | "acMod" | "rollMods"> & { damageAdds?: DamageAdd[]; effectText?: string },
+  healing = false
+): EffectType {
+  // Sonstige Wirkung: kein Schaden und keine Heilung
+  if ((f.damage.trim() || f.damageAdds?.length) && !f.effectText?.trim()) return healing ? "healing" : "damage";
   if (f.acMod.mode !== "none") return "defense";
   if (f.rollMods.some(m => m.bonus.trim() || m.mode !== "none")) return "buff";
   return "utility";

@@ -14,19 +14,25 @@
     offhandWeapons,
     type Attack,
   } from "../../lib/character";
+  import type { Feature } from "../../lib/features";
   import { addExpr, diceString, formatDice, parseDice, type DiceExpr } from "../../lib/dice";
   import { ABILITY_SHORT, formatMod, type Ability } from "../../lib/dnd";
   import {
     attackOptions,
     describeRollMods,
+    abilityChoices,
     featureDamageExpr,
+    featureDamageType,
+    featureRollKind,
     isDamageTwice,
     label,
     sumMods,
     useFeature,
     usesLeft,
+    type AbilityPicks,
     type AttackOption,
   } from "../../lib/features";
+  import AbilityPicker from "./AbilityPicker.svelte";
   import { d20Request, isPhysical, openRoll } from "../../lib/roller.svelte";
   import { toast } from "../../lib/toast.svelte";
   import { sheet } from "./context";
@@ -47,6 +53,9 @@
   let selectedBefore = $state<string[]>([]);
   let selectedHit = $state<string[]>([]);
   let categoryFilter = $state<string[]>([]);
+  /** Gewählte Attribute je Fähigkeit (bei Zuschlägen mit mehreren Attributen) */
+  let picks = $state<Record<string, AbilityPicks>>({});
+  const exprOf = (f: Feature) => featureDamageExpr(c, f, picks[f.id]);
   let rolled = $state<{ kept: number; total: number } | null>(null);
   let outcome = $state<Outcome | null>(null);
   let twoHanded = $state(false);
@@ -92,14 +101,31 @@
       types.push(attack.extraDamageType);
     }
     for (const o of [...activeBefore, ...activeHit]) {
-      const d = o.feature.effectType === "damage" ? featureDamageExpr(c, o.feature) : null;
+      if (o.feature.damageOtherTarget) continue;
+      const d = featureRollKind(o.feature) === "damage" ? exprOf(o.feature) : null;
       if (d) {
         expr = addExpr(expr, d);
-        types.push(o.feature.damageType);
+        types.push(featureDamageType(o.feature, attack));
       }
     }
     return { expr, types: [...new Set(types.filter(Boolean))] };
   });
+
+  /**
+   * Eigene Würfe nach dem Waffenschaden: Schaden gegen weitere Ziele (Weit
+   * ausholender Angriff) und sonstige Wirkungen
+   */
+  const otherTargets = $derived(
+    [...activeBefore, ...activeHit].flatMap(o => {
+      const kind = featureRollKind(o.feature);
+      const separate = kind === "other" || (kind === "damage" && o.feature.damageOtherTarget);
+      const d = separate ? exprOf(o.feature) : null;
+      if (!d) return [];
+      const text = kind === "other" ? o.feature.effectText.trim() : featureDamageType(o.feature, attack);
+      return [{ feature: o.feature, expr: d, kind, text }];
+    })
+  );
+  let otherRolled = $state<string[]>([]);
 
   const economySpentNow = $derived(c.combat.active && !(offhand && nick) && c.combat.used[economy]);
 
@@ -161,10 +187,12 @@
 
   function rollDamage() {
     consume(activeHit);
+    const separate = new Set(otherTargets.map(o => o.feature.id));
+    const included = [...activeBefore, ...activeHit].filter(o => !separate.has(o.feature.id)).map(o => o.feature.name);
     openRoll({
       type: "damage",
       title: `${attack.name || "Angriff"} – Schaden`,
-      subtitle: activeHit.length || activeBefore.length ? `Inklusive ${[...activeBefore, ...activeHit].map(o => o.feature.name).join(", ")}` : undefined,
+      subtitle: included.length ? `Inklusive ${included.join(", ")}` : undefined,
       dice: diceString(damage.expr),
       damageType: damage.types.join(" / "),
       crit: outcome === "crit",
@@ -176,7 +204,21 @@
       physical: isPhysical(c.rollMode),
     });
     damageRolled = true;
-    if (!offhandChoices.length) onclose();
+    if (!offhandChoices.length && !otherTargets.length) onclose();
+  }
+
+  function rollOtherTarget(o: (typeof otherTargets)[number]) {
+    openRoll({
+      type: "damage",
+      title: o.kind === "other" ? o.feature.name : `${o.feature.name} – Schaden`,
+      subtitle: o.kind === "other" ? `Ausgelöst durch ${attack.name || "Angriff"}` : `Weiteres Ziel, ausgelöst durch ${attack.name || "Angriff"}`,
+      dice: diceString(o.expr),
+      damageType: o.kind === "other" ? undefined : o.text || undefined,
+      effect: o.kind === "other" ? o.text : undefined,
+      canCrit: o.kind !== "other",
+      physical: isPhysical(c.rollMode),
+    });
+    otherRolled = [...otherRolled, o.feature.id];
   }
 
   function startOffhand(a: Attack) {
@@ -206,13 +248,20 @@
       <span class="tiny muted block">
         {[
           describeRollMods(f.rollMods.filter(m => m.target === "attack" || m.target === "damage")),
-          f.effectType === "damage" && featureDamageExpr(c, f) ? `+${formatDice(featureDamageExpr(c, f)!)} ${f.damageType}` : "",
+          featureRollKind(f) === "other" && exprOf(f)
+            ? `${formatDice(exprOf(f)!)}: ${f.effectText}`
+            : featureRollKind(f) === "damage" && exprOf(f)
+              ? `${f.damageOtherTarget ? "Weiteres Ziel: " : "+"}${formatDice(exprOf(f)!)} ${featureDamageType(f, attack)}`.trim()
+              : "",
           convertText(f.benefit, unitSystem()),
         ]
           .filter(Boolean)
           .join(" · ")}
       </span>
       {#if f.condition}<span class="tiny faint block">Bedingung: {convertText(f.condition, unitSystem())}</span>{/if}
+      {#if abilityChoices(f).length && (o.automatic || selected.includes(f.id))}
+        <AbilityPicker feature={f} bind:picks={() => picks[f.id] ?? {}, v => (picks = { ...picks, [f.id]: v })} />
+      {/if}
     </span>
     {#if left != null}<span class="tiny muted nowrap">{left} übrig</span>{/if}
   </label>
@@ -322,6 +371,19 @@
         <p class="small muted">Verfehlt. Nächster Versuch!</p>
       {/if}
     {/if}
+  {/if}
+
+  {#if step === "result" && damageRolled && otherTargets.length}
+    <div class="offhand">
+      <h4 class="label">{otherTargets.some(o => o.kind === "other") ? "Weitere Würfe" : "Weitere Ziele"}</h4>
+      <div class="row">
+        {#each otherTargets as o (o.feature.id)}
+          <button class="btn btn-sm" class:btn-primary={!otherRolled.includes(o.feature.id)} onclick={() => rollOtherTarget(o)}>
+            <Icon name={o.kind === "other" ? "roll" : "attack"} size={14} /> {o.feature.name}: {formatDice(o.expr)}{o.text ? `${o.kind === "other" ? ":" : ""} ${o.text}` : ""}
+          </button>
+        {/each}
+      </div>
+    </div>
   {/if}
 
   {#if step === "result" && offhandChoices.length}

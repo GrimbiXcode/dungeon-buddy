@@ -34,7 +34,7 @@
   import type { ArmorItem } from "../lib/armor";
   import type { Campaign, CharacterRecord, Ruleset } from "../lib/types";
   import { rulesetLabel } from "../lib/themes";
-  import { setSheet } from "./character/context";
+  import { setSheet, type SheetContext } from "./character/context";
   import Abilities from "./character/Abilities.svelte";
   import Skills from "./character/Skills.svelte";
   import Vitals from "./character/Vitals.svelte";
@@ -48,17 +48,23 @@
   import Features from "./character/Features.svelte";
   import CombatAssistant from "./character/CombatAssistant.svelte";
   import AttackWizard from "./character/AttackWizard.svelte";
-  import { diceString } from "../lib/dice";
+  import AbilityPicker from "./character/AbilityPicker.svelte";
+  import Modal from "../components/Modal.svelte";
+  import { diceString, formatDice } from "../lib/dice";
   import Portrait from "./character/Portrait.svelte";
   import {
+    abilityChoices,
     confirmLinkSuccess,
     describeDamageAdds,
     featureDamageExpr,
+    featureDamageType,
+    featureRollKind,
     linkedFeatures,
     refundFeature,
     rollFeatures,
     sumMods,
     useFeature,
+    type AbilityPicks,
     type Feature,
     type RollContext,
   } from "../lib/features";
@@ -81,6 +87,8 @@
   let editing = $state(new URLSearchParams(route.search).has("bearbeiten"));
   let tab = $state<Tab>(readTab());
   let attackWizard = $state<{ attack: Attack; offhand: boolean } | null>(null);
+  /** Fähigkeit, für deren Wurf vor dem Einsetzen ein Attribut gewählt wird */
+  let featureChoice = $state<{ feature: Feature; picks: AbilityPicks } | null>(null);
   let libraryKind = $state<"feature" | "attack" | "armor" | null>(null);
 
   const url = $derived(`/api/characters/${characterId}`);
@@ -103,7 +111,7 @@
     }
   });
 
-  setSheet({
+  const sheetCtx: SheetContext = {
     get ruleset() {
       return ruleset;
     },
@@ -143,21 +151,29 @@
         dice,
         damageType: opts.damageType,
         heal: opts.heal,
-        canCrit: !opts.heal,
+        effect: opts.effect,
+        canCrit: !opts.heal && !opts.effect,
         physical: isPhysical(data.rollMode),
       });
     },
-    useFeature(f: Feature) {
-      for (const note of useFeature(data, f)) toast(note);
-      const expr = featureDamageExpr(data, f);
+    useFeature(f: Feature, picks?: AbilityPicks) {
       // Fähigkeiten, die an Treffer/Angriffe gebunden sind, wirken erst im Angriff
       const attackBound = f.triggers.includes("hit") || f.triggers.includes("attack");
-      if (expr && !attackBound && (f.effectType === "damage" || f.effectType === "healing")) {
-        const adds = f.damageAdds.length ? `Inklusive ${describeDamageAdds(data, f.damageAdds)}` : "";
+      const kind = attackBound ? null : featureRollKind(f);
+      // Mehrere Attribute zur Wahl: erst fragen, dann einsetzen und würfeln
+      if (kind && !picks && featureDamageExpr(data, f) && abilityChoices(f).length) {
+        featureChoice = { feature: f, picks: {} };
+        return;
+      }
+      for (const note of useFeature(data, f)) toast(note);
+      const expr = kind ? featureDamageExpr(data, f, picks) : null;
+      if (kind && expr) {
+        const adds = f.damageAdds.length ? `Inklusive ${describeDamageAdds(data, f.damageAdds, picks)}` : "";
         this.rollDamage(f.name, diceString(expr), {
-          heal: f.effectType === "healing",
-          damageType: f.damageType || undefined,
-          subtitle: [adds, f.save ? `Rettungswurf: ${f.save}` : ""].filter(Boolean).join(" · ") || undefined,
+          heal: kind === "healing",
+          effect: kind === "other" ? f.effectText.trim() : undefined,
+          damageType: kind === "damage" ? featureDamageType(f) || undefined : undefined,
+          subtitle: [f.damageOtherTarget ? "Weiteres Ziel" : "", adds, f.save ? `Rettungswurf: ${f.save}` : ""].filter(Boolean).join(" · ") || undefined,
         });
       } else {
         toast(`${f.name} eingesetzt${f.benefit ? `: ${f.benefit}` : "."}`, "success");
@@ -176,7 +192,8 @@
     openLibrary(kind) {
       libraryKind = kind;
     },
-  });
+  };
+  setSheet(sheetCtx);
 
   const inCampaign = $derived(Boolean(campaign && record?.campaigns?.some(x => x.campaignId === campaign.id && x.active)));
   const isActiveCharacter = $derived(Boolean(campaign && campaign.activeCharacterId === characterId));
@@ -478,6 +495,28 @@
 
 {#if libraryKind}
   <LibraryPicker kind={libraryKind} {ruleset} onpick={pickFromLibrary} onclose={() => (libraryKind = null)} />
+{/if}
+
+{#if featureChoice}
+  {@const choice = featureChoice}
+  {@const preview = featureDamageExpr(data, choice.feature, choice.picks)}
+  <Modal title="{choice.feature.name || 'Fähigkeit'}: Attribut wählen" size="sm" onclose={() => (featureChoice = null)}>
+    <p class="small muted">Welches Attribut verwendest du?</p>
+    <AbilityPicker feature={choice.feature} bind:picks={choice.picks} />
+    {#if preview}<p class="small">Wurf: <strong class="mono">{formatDice(preview)}</strong></p>{/if}
+    {#snippet footer()}
+      <button class="btn" onclick={() => (featureChoice = null)}>Abbrechen</button>
+      <button
+        class="btn btn-primary"
+        onclick={() => {
+          // Erst Werte sichern: `choice` hängt an featureChoice und wird mit null ungültig
+          const { feature, picks } = choice;
+          featureChoice = null;
+          sheetCtx.useFeature(feature, { ...picks });
+        }}>Einsetzen und würfeln</button
+      >
+    {/snippet}
+  </Modal>
 {/if}
 
 {#if attackWizard}
