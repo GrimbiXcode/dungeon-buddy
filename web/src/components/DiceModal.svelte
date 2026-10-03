@@ -6,19 +6,28 @@
     logRoll,
     openRoll,
     roller,
+    updateLog,
     type AdvMode,
     type D20Request,
     type DamageRequest,
+    type RollOption,
   } from "../lib/roller.svelte";
-  import { critExpr, formatDice, groupRange, parseDice, rollDie, rollGroup, type DiceExpr } from "../lib/dice";
+  import { critExpr, formatDice, groupRange, parseDice, rollDie, rollGroup, type DiceExpr, type DiceGroup } from "../lib/dice";
   import { formatMod } from "../lib/dnd";
 
   const req = $derived(roller.request);
 
   // ── W20 ────────────────────────────────────────────────────────────────
-  let mode = $state<AdvMode>("normal");
+  /** Von Hand gewählter Modus; null = aus Anfrage und Optionen berechnet */
+  let userMode = $state<AdvMode | null>(null);
   let picks = $state<number[]>([]);
   let rolled = $state(false);
+  /** Gewählte Optionen (automatische sind immer dabei) */
+  let selected = $state<string[]>([]);
+  /** Ergebnis der Bonuswürfel je Option */
+  let bonusRolls = $state<Record<string, number | null>>({});
+  let successDone = $state<string[]>([]);
+  let logId: number | null = null;
 
   // ── Schaden ────────────────────────────────────────────────────────────
   let crit = $state(false);
@@ -32,13 +41,67 @@
     if (!r) return;
     picks = [];
     rolled = false;
-    mode = r.type === "d20" ? (r.mode ?? "normal") : "normal";
+    userMode = null;
+    selected = r.type === "d20" ? (r.options ?? []).filter(o => o.auto).map(o => o.id) : [];
+    bonusRolls = {};
+    successDone = [];
+    logId = null;
     crit = r.type === "damage" ? Boolean(r.crit) : false;
     groupResults = [];
     manualSums = [];
   });
 
+  const options = $derived(req?.type === "d20" ? (req.options ?? []) : []);
+  const active = $derived(options.filter(o => selected.includes(o.id)));
+
+  /** Vorteil und Nachteil heben sich auf, egal aus wie vielen Quellen */
+  const computedMode = $derived.by<AdvMode>(() => {
+    if (req?.type !== "d20") return "normal";
+    const adv = req.mode === "advantage" || active.some(o => o.mode === "advantage");
+    const dis = req.mode === "disadvantage" || active.some(o => o.mode === "disadvantage");
+    return adv && dis ? "normal" : adv ? "advantage" : dis ? "disadvantage" : "normal";
+  });
+  const mode = $derived(userMode ?? computedMode);
   const needed = $derived(mode === "normal" ? 1 : 2);
+
+  const optionFlat = $derived(active.reduce((s, o) => s + o.flat, 0));
+  const diceOptions = $derived(active.filter(o => o.dice.length));
+  const bonusMissing = $derived(diceOptions.some(o => bonusRolls[o.id] == null));
+  const bonusSum = $derived(diceOptions.reduce((s, o) => s + o.sign * (bonusRolls[o.id] ?? 0), 0));
+
+  const diceLabel = (groups: DiceGroup[]) => groups.map(g => `${g.count}W${g.sides}`).join(" + ");
+  const rollGroups = (groups: DiceGroup[]) => groups.reduce((s, g) => s + rollGroup(g).reduce((a, b) => a + b, 0), 0);
+
+  function rollMissingBonus() {
+    const next = { ...bonusRolls };
+    for (const o of diceOptions) if (next[o.id] == null) next[o.id] = rollGroups(o.dice);
+    bonusRolls = next;
+  }
+
+  function toggleOption(r: D20Request, o: RollOption) {
+    if (o.auto || (o.disabled && !selected.includes(o.id))) return;
+    const on = !selected.includes(o.id);
+    selected = on ? [...selected, o.id] : selected.filter(x => x !== o.id);
+    o.onToggle?.(on);
+    if (o.mode) {
+      // Vorteil/Nachteil ändert den W20-Wurf selbst: neu würfeln
+      userMode = null;
+      if (rolled || picks.length) resetD20();
+    } else if (on && rolled && !r.physical && o.dice.length) {
+      bonusRolls = { ...bonusRolls, [o.id]: rollGroups(o.dice) };
+    }
+    if (rolled) queueMicrotask(() => reportD20(r));
+  }
+
+  function optionText(o: RollOption) {
+    return [
+      o.dice.length ? `${o.sign < 0 ? "−" : "+"}${diceLabel(o.dice)}` : "",
+      o.flat ? formatMod(o.flat) : "",
+      o.mode === "advantage" ? "Vorteil" : o.mode === "disadvantage" ? "Nachteil" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
 
   function d20Kept(values: number[]) {
     if (values.length < needed) return null;
@@ -50,46 +113,63 @@
   const kept = $derived(d20Kept(picks));
 
   function d20Total(r: D20Request, k: number) {
-    return k + r.modifier + (r.penalty ?? 0);
+    return k + r.modifier + (r.penalty ?? 0) + optionFlat + bonusSum;
+  }
+
+  function d20Detail(r: D20Request) {
+    const bonus = diceOptions.map(o => `${o.sign < 0 ? "−" : "+"}${diceLabel(o.dice)} (${bonusRolls[o.id] ?? "?"})`).join(" ");
+    return `W20 ${picks.join(" / ")}${mode !== "normal" ? (mode === "advantage" ? " (Vorteil)" : " (Nachteil)") : ""} ${formatMod(r.modifier + optionFlat)}${r.penalty ? ` ${formatMod(r.penalty)}` : ""}${bonus ? ` ${bonus}` : ""}`;
+  }
+
+  /** Ergebnis melden und Verlauf schreiben bzw. aktualisieren */
+  function reportD20(r: D20Request) {
+    if (kept == null || bonusMissing) return;
+    const total = d20Total(r, kept);
+    r.onResult?.(kept, total);
+    const entry = { title: r.title, detail: d20Detail(r), total, flag: kept === 20 ? ("crit" as const) : kept === 1 ? ("fumble" as const) : undefined };
+    if (logId != null) updateLog(logId, entry);
+    else logId = logRoll(entry);
   }
 
   function finishD20(r: D20Request, values: number[]) {
     const k = d20Kept(values);
     if (k == null) return;
     rolled = true;
-    const total = d20Total(r, k);
-    r.onResult?.(k, total);
-    logRoll({
-      title: r.title,
-      detail: `W20 ${values.join(" / ")}${mode !== "normal" ? (mode === "advantage" ? " (Vorteil)" : " (Nachteil)") : ""} ${formatMod(r.modifier)}${r.penalty ? ` ${formatMod(r.penalty)}` : ""}`,
-      total,
-      flag: k === 20 ? "crit" : k === 1 ? "fumble" : undefined,
-    });
+    queueMicrotask(() => reportD20(r));
   }
 
   function rollD20Digital(r: D20Request) {
     picks = Array.from({ length: needed }, () => rollDie(20));
+    bonusRolls = {};
+    rollMissingBonus();
+    logId = null;
     finishD20(r, picks);
+  }
+
+  function setBonus(r: D20Request, id: string, value: number) {
+    bonusRolls = { ...bonusRolls, [id]: Number.isFinite(value) ? value : null };
+    if (rolled) queueMicrotask(() => reportD20(r));
   }
 
   function pick(r: D20Request, n: number) {
     if (rolled) {
       picks = [];
       rolled = false;
+      logId = null;
     }
     picks = [...picks, n];
     if (picks.length >= needed) finishD20(r, picks);
   }
 
   function setMode(m: AdvMode) {
-    mode = m;
-    picks = [];
-    rolled = false;
+    userMode = m;
+    resetD20();
   }
 
   function resetD20() {
     picks = [];
     rolled = false;
+    logId = null;
   }
 
   function toDamage(r: D20Request) {
@@ -155,12 +235,28 @@
           {/each}
         </div>
         <span class="badge badge-accent mono">
-          W20 {formatMod(req.modifier)}{#if req.penalty}&nbsp;{formatMod(req.penalty)}{/if}
+          W20 {formatMod(req.modifier + optionFlat)}{#if req.penalty}&nbsp;{formatMod(req.penalty)}{/if}{#each diceOptions as o (o.id)}&nbsp;{o.sign < 0 ? "−" : "+"}{diceLabel(o.dice)}{/each}
         </span>
       </div>
       {#each req.notes ?? [] as note (note)}
         <p class="note small">{note}</p>
       {/each}
+
+      {#if options.length}
+        <div class="options">
+          {#each options as o (o.id)}
+            <label class="option" class:auto={o.auto} class:disabled={o.disabled && !selected.includes(o.id)}>
+              <input type="checkbox" checked={selected.includes(o.id)} disabled={o.auto || (o.disabled && !selected.includes(o.id))} onchange={() => toggleOption(req, o)} />
+              <span class="grow">
+                <strong>{o.label}</strong>
+                <span class="mono small">{optionText(o)}</span>
+                {#if o.auto}<span class="badge badge-accent">aktiv</span>{/if}
+                {#if o.detail}<span class="tiny muted block">{o.detail}</span>{/if}
+              </span>
+            </label>
+          {/each}
+        </div>
+      {/if}
 
       {#if req.physical}
         <p class="muted small">
@@ -185,13 +281,37 @@
         </button>
       {/if}
 
-      {#if rolled && kept != null}
+      {#if req.physical && diceOptions.length}
+        <div class="bonus-dice">
+          {#each diceOptions as o (o.id)}
+            {@const range = o.dice.reduce((r, g) => ({ min: r.min + groupRange(g).min, max: r.max + groupRange(g).max }), { min: 0, max: 0 })}
+            <label class="small">
+              {o.label}: {diceLabel(o.dice)}
+              <input
+                class="input input-sm mono"
+                type="number"
+                inputmode="numeric"
+                min={range.min}
+                max={range.max}
+                placeholder="{range.min}–{range.max}"
+                value={bonusRolls[o.id] ?? ""}
+                onchange={e => setBonus(req, o.id, Number((e.currentTarget as HTMLInputElement).value))}
+              />
+            </label>
+          {/each}
+        </div>
+      {/if}
+
+      {#if rolled && kept != null && bonusMissing}
+        <p class="muted small">Trage noch das Ergebnis der Bonuswürfel ein.</p>
+      {:else if rolled && kept != null}
         {@const total = d20Total(req, kept)}
         <div class="result" class:crit={kept === 20} class:fumble={kept === 1}>
           <div class="total mono">{total}</div>
           <div class="breakdown mono">
             W20 {#if picks.length > 1}({picks.join(" / ")}) → {/if}{kept}
-            {formatMod(req.modifier)}{#if req.penalty}&nbsp;{formatMod(req.penalty)}{/if}
+            {formatMod(req.modifier + optionFlat)}{#if req.penalty}&nbsp;{formatMod(req.penalty)}{/if}
+            {#each diceOptions as o (o.id)}&nbsp;{o.sign < 0 ? "−" : "+"}{bonusRolls[o.id]} ({diceLabel(o.dice)}){/each}
           </div>
           {#if kept === 20}<div class="flag">Natürliche 20!</div>{/if}
           {#if kept === 1}<div class="flag">Natürliche 1 – Patzer</div>{/if}
@@ -199,6 +319,15 @@
             <div class="flag">{total >= req.target ? "Erfolg" : "Misserfolg"} (Ziel {req.target})</div>
           {/if}
         </div>
+        {#each active.filter(o => o.onSuccess) as o (o.id)}
+          {#if successDone.includes(o.id)}
+            <p class="small muted center">✓ {o.onSuccess!.label}</p>
+          {:else}
+            <div class="row actions">
+              <button class="btn btn-sm" onclick={() => { o.onSuccess!.run(); successDone = [...successDone, o.id]; }}>Gelungen: {o.onSuccess!.label}</button>
+            </div>
+          {/if}
+        {/each}
         <div class="row actions">
           <button class="btn" onclick={() => (req.physical ? resetD20() : rollD20Digital(req))}>
             <RotateCcw size={16} /> Nochmal
@@ -333,5 +462,25 @@
   .breakdown { color: var(--muted); font-size: 0.9rem; }
   .flag { margin-top: 0.3rem; font-weight: 700; }
   .actions { justify-content: center; margin-top: 0.9rem; }
+  .center { text-align: center; margin: 0.6rem 0 0; }
+  .options { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; }
+  .option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    cursor: pointer;
+  }
+  .option:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .option.disabled { opacity: 0.55; cursor: not-allowed; }
+  .option input { margin-top: 0.2rem; accent-color: var(--accent-strong); }
+  .option .badge { font-size: 0.66rem; margin-left: 0.25rem; }
+  .block { display: block; }
+  .bonus-dice { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.8rem; }
+  .bonus-dice label { display: flex; align-items: center; gap: 0.4rem; }
+  .bonus-dice input { width: 5.5rem; }
   @keyframes reveal { from { transform: scale(0.9); opacity: 0; } }
 </style>

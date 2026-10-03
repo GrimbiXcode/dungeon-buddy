@@ -4,13 +4,18 @@
   import { Heart, Minus, Plus, Shield, Sparkles, Zap, Footprints, Award } from "@lucide/svelte";
   import { applyDamage, applyHealing, initiative, profBonus } from "../../lib/character";
   import { formatMod, rulesTerms } from "../../lib/dnd";
+  import { armorClass } from "../../lib/armor";
   import { sheet } from "./context";
+  import ArmorClassModal from "./ArmorClassModal.svelte";
 
   const ctx = sheet();
   const c = $derived(ctx.data);
   const terms = $derived(rulesTerms(ctx.ruleset));
 
   let amount = $state<number | null>(null);
+  let showAc = $state(false);
+  const ac = $derived(armorClass(c));
+  const acBoosted = $derived(c.combat.effects.some(e => e.ac && e.ac.mode !== "none"));
 
   function apply(kind: "damage" | "heal" | "temp") {
     const n = Math.floor(Number(amount));
@@ -39,15 +44,18 @@
 </script>
 
 <div class="vitals">
-  <div class="stat">
-    <span class="label"><Shield size={13} /> RK</span>
-    {#if ctx.editing}
+  {#if ctx.editing && c.acMode === "manual"}
+    <div class="stat">
+      <span class="label"><Shield size={13} /> RK (Grundwert)</span>
       <input class="input input-sm mono" type="number" bind:value={c.ac} aria-label="Rüstungsklasse" />
-    {:else}
-      <span class="value mono">{c.ac}</span>
-    {/if}
-  </div>
-  <button class="stat clickable" disabled={ctx.editing} onclick={() => ctx.rollD20("Initiative", initiative(c), "initiative")}>
+    </div>
+  {:else}
+    <button class="stat clickable" onclick={() => (showAc = true)} title={ac.parts.map(p => `${p.label} ${p.value}`).join(", ")}>
+      <span class="label"><Shield size={13} /> RK</span>
+      <span class="value mono" class:boosted={acBoosted}>{ac.total}</span>
+    </button>
+  {/if}
+  <button class="stat clickable" disabled={ctx.editing} onclick={() => ctx.rollD20("Initiative", initiative(c), "initiative", { ability: "dex" })}>
     <span class="label"><Zap size={13} /> Initiative</span>
     <span class="value mono">{formatMod(initiative(c))}</span>
   </button>
@@ -108,6 +116,10 @@
   </div>
 </div>
 
+{#if showAc}
+  <ArmorClassModal onclose={() => (showAc = false)} />
+{/if}
+
 <style>
   .vitals {
     display: grid;
@@ -134,6 +146,7 @@
   .clickable:not(:disabled):hover { border-color: var(--accent); background: var(--accent-soft); }
   .clickable:disabled { cursor: default; }
   .value { font-size: 1.45rem; font-weight: 800; font-family: var(--font-display); }
+  .value.boosted { color: var(--accent-text); }
   .value small { font-size: 0.7rem; color: var(--muted); }
   .hp { grid-column: 1 / -1; padding: 0.7rem 0.9rem; }
   .hp .label { display: inline-flex; align-items: center; gap: 0.25rem; }

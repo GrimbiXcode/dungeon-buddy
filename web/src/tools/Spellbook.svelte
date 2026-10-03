@@ -18,7 +18,7 @@
   import SpellEditor from "./spellbook/SpellEditor.svelte";
   import SpellRow from "./spellbook/SpellRow.svelte";
   import SrdBrowser from "./spellbook/SrdBrowser.svelte";
-  import { isPrepared, schoolName, type RollChar } from "./spellbook/spells";
+  import { applySpellEffect, isPrepared, schoolName, srdAcMod, type RollChar } from "./spellbook/spells";
 
   /**
    * Zwei Einsatzorte: in einer Kampagne (Zauber aller aktiven Charaktere plus
@@ -181,7 +181,8 @@
   }
 
   async function addFromSrd(s: SrdSpell) {
-    const { key, name, level, ...data } = s;
+    const { key, name, level, ...rest } = s;
+    const data = { ...rest, acMod: srdAcMod(key, ruleset) };
     try {
       const created = await post<Spell>(spellUrl, {
         srdKey: key,
@@ -302,6 +303,7 @@
       return;
     }
     s.used += 1;
+    for (const note of applySpellEffect(entry.data, spell, ruleset)) toast(note);
     scheduleSave(char.id);
     toast(
       slot === "pact" ? `Paktplatz (Grad ${sc.pact.level}) verbraucht – ${spell.name}` : `Grad-${slot}-Zauberplatz verbraucht`,

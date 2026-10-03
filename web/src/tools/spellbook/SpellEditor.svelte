@@ -48,6 +48,8 @@
       heal: d.heal ?? "",
       healAddsModifier: d.healAddsModifier,
       upcast: d.upcast ?? "",
+      acMode: (d.acMod?.mode ?? "") as "" | "bonus" | "base" | "min",
+      acValue: d.acMod?.value ?? 0,
       characterId: (s ? s.characterId : charId) ?? "",
       notes: s?.notes ?? "",
       prepared: s?.prepared ?? false,
@@ -105,6 +107,7 @@
       heal: opt(form.heal),
       healAddsModifier: opt(form.heal) ? form.healAddsModifier : false,
       upcast: opt(form.upcast),
+      acMod: form.acMode && form.acValue ? { mode: form.acMode, value: Number(form.acValue) } : null,
     };
     const body = {
       name: form.name.trim(),
@@ -228,6 +231,19 @@
           <label for="sp-up">Pro höherem Grad</label>
           <input id="sp-up" class="input mono" bind:value={form.upcast} placeholder="1d6" autocomplete="off" />
           {#if errors.upcast}<span class="err">{errors.upcast}</span>{:else}<span class="tiny faint">Zusätzliche Würfel je Grad über dem Spruchgrad</span>{/if}
+        </div>
+        <div class="field">
+          <label for="sp-ac">Rüstungsklasse</label>
+          <select id="sp-ac" class="select" bind:value={form.acMode}>
+            <option value="">Keine Wirkung</option>
+            <option value="bonus">Bonus (z. B. Schild +5)</option>
+            <option value="base">Grund-RK + GES (z. B. Magierrüstung 13)</option>
+            <option value="min">Mindest-RK (z. B. Rindenhaut 16)</option>
+          </select>
+          {#if form.acMode}
+            <input class="input mono" type="number" bind:value={form.acValue} aria-label="RK-Wert" />
+            <span class="tiny faint">Wirkt nach dem Wirken für die Wirkungsdauer als aktiver Effekt.</span>
+          {/if}
         </div>
       </div>
     </fieldset>

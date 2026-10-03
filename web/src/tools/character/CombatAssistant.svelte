@@ -5,7 +5,8 @@
   import { Flag, Hourglass, Plus, Swords, Timer, Trash2, Zap } from "@lucide/svelte";
   import Modal from "../../components/Modal.svelte";
   import { get } from "../../lib/api";
-  import { attackToHit, initiative, spellAttackBonus, type Attack } from "../../lib/character";
+  import { attackToHit, initiative, offhandIsNick, offhandWeapons, spellAttackBonus, type Attack } from "../../lib/character";
+  import { setEquipped } from "../../lib/armor";
   import { formatMod, SPELL_LEVEL_NAMES } from "../../lib/dnd";
   import {
     EFFECT_TYPES,
@@ -24,7 +25,7 @@
   import { d20Request, isPhysical, openRoll } from "../../lib/roller.svelte";
   import { toast } from "../../lib/toast.svelte";
   import type { Spell } from "../../lib/types";
-  import { isPrepared, spellDice } from "../spellbook/spells";
+  import { applySpellEffect, isPrepared, spellDice } from "../spellbook/spells";
   import { sheet } from "./context";
 
   const ctx = sheet();
@@ -37,6 +38,23 @@
   let effectName = $state("");
   let effectRounds = $state<number | null>(10);
   let effectConcentration = $state(false);
+  let effectAc = $state<number | null>(null);
+
+  const shields = $derived(c.armor.filter(a => a.type === "shield"));
+  /** Nach einem Angriff mit leichter Waffe: Zusatzangriff mit der zweiten leichten Waffe */
+  const offhand = $derived.by(() => {
+    if (!c.combat.lightAttack || c.combat.offhandUsed) return [];
+    const main = c.attacks.find(a => a.id === c.combat.lightAttack);
+    return main ? offhandWeapons(c, main, ctx.ruleset) : [];
+  });
+
+  function toggleShield(id: string) {
+    const s = c.armor.find(a => a.id === id);
+    if (!s) return;
+    setEquipped(c, s, !s.equipped);
+    c.combat.used.action = true;
+    toast(`${s.name} ${s.equipped ? "aufgenommen" : "abgelegt"} – Aktion verbraucht.`);
+  }
 
   onMount(async () => {
     try {
@@ -85,7 +103,7 @@
 
   function begin(rollInitiative: boolean) {
     startCombat(c);
-    if (rollInitiative) ctx.rollD20("Initiative", initiative(c), "initiative");
+    if (rollInitiative) ctx.rollD20("Initiative", initiative(c), "initiative", { ability: "dex" });
   }
 
   function turn() {
@@ -98,14 +116,6 @@
     if (name === "Ausweichen") addEffect(c, { name: "Ausweichen", featureId: null, remaining: 1, concentration: false, note: "Angriffe gegen dich mit Nachteil, Vorteil auf GES-Rettungswürfe" });
     if (name === "Rückzug") addEffect(c, { name: "Rückzug", featureId: null, remaining: 1, concentration: false, note: "Keine Gelegenheitsangriffe" });
     toast(`${name} – Aktion verbraucht.`);
-  }
-
-  /** Rundenzahl aus SRD-Dauer, z. B. "Concentration, up to 1 minute" */
-  function spellRounds(duration: string): number | null {
-    const m = /(\d+)\s*(round|minute|hour)/i.exec(duration);
-    if (!m) return null;
-    const n = Number(m[1]);
-    return m[2]!.toLowerCase().startsWith("round") ? n : m[2]!.toLowerCase().startsWith("minute") ? n * 10 : n * 600;
   }
 
   function castSpell(s: Spell, activation: Activation) {
@@ -130,9 +140,7 @@
     }
     const economy = SECTIONS.find(x => x.key === activation)?.economy;
     if (economy) c.combat.used[economy] = true;
-    if (s.data.concentration) {
-      for (const note of addEffect(c, { name: s.name, featureId: null, remaining: spellRounds(s.data.duration ?? ""), concentration: true, note: "Zauber" })) toast(note);
-    }
+    for (const note of applySpellEffect(c, s, ctx.ruleset)) toast(note);
     const dmg = spellDice(s, "damage", c, slotLevel);
     const heal = spellDice(s, "heal", c, slotLevel);
     if (s.data.attack) {
@@ -163,11 +171,13 @@
       remaining: effectRounds && effectRounds > 0 ? effectRounds : null,
       concentration: effectConcentration,
       note: "",
+      ac: effectAc ? { mode: "bonus", value: Math.trunc(effectAc) } : null,
     }))
       toast(note);
     effectName = "";
     effectRounds = 10;
     effectConcentration = false;
+    effectAc = null;
     addingEffect = false;
   }
 
@@ -205,6 +215,30 @@
   </div>
 {/snippet}
 
+{#snippet effectChips()}
+<div class="chip-row">
+  {#each c.combat.effects as e (e.id)}
+    <span class="effect" class:conc={e.concentration} title={e.note}>
+      {e.name}
+      {#if e.ac && e.ac.mode !== "none"}<span class="mono tiny">RK {e.ac.mode === "bonus" ? formatMod(e.ac.value) : e.ac.mode === "min" ? `≥${e.ac.value}` : `${e.ac.value}+GES`}</span>{/if}
+      <span class="mono tiny">{e.remaining == null ? "∞" : `${e.remaining} R`}</span>
+      {#if e.concentration}<span class="tiny">K</span>{/if}
+      <button aria-label="{e.name} beenden" onclick={() => (c.combat.effects = c.combat.effects.filter(x => x.id !== e.id))}><Trash2 size={12} /></button>
+    </span>
+  {/each}
+</div>
+{/snippet}
+
+{#snippet offhandRow(a: Attack)}
+  <div class="sugg">
+    <div class="grow">
+      <div class="sugg-name"><Swords size={14} /> <strong>Zusatzangriff: {a.name || "Waffe"}</strong> <span class="badge mono">{formatMod(attackToHit(c, a))}</span></div>
+      <span class="tiny muted">Zweite leichte Waffe, ohne positiven Attributsmodifikator beim Schaden{offhandIsNick(a, ctx.ruleset) ? " · Einkerben: Teil der Angriffsaktion" : ""}</span>
+    </div>
+    <button class="btn btn-sm btn-primary" onclick={() => ctx.openAttack(a, { offhand: true })}>Angreifen</button>
+  </div>
+{/snippet}
+
 {#snippet spellRow(s: Spell, activation: Activation)}
   <div class="sugg">
     <div class="grow">
@@ -234,6 +268,12 @@
         <button class="btn btn-primary" onclick={() => begin(true)}><Zap size={15} /> Initiative würfeln</button>
       </div>
     </div>
+    {#if c.combat.effects.length}
+      <div class="effects idle">
+        <h4 class="label">Aktive Effekte</h4>
+        {@render effectChips()}
+      </div>
+    {/if}
   {:else}
     <div class="row-between bar">
       <h3><Timer size={17} /> Runde {c.combat.round}</h3>
@@ -263,6 +303,15 @@
         <span class="muted">/ {formatDistance(c.speed, unitSystem())}</span>
       </label>
     </div>
+    {#if shields.length}
+      <div class="chip-row shields">
+        {#each shields as s (s.id)}
+          <button class="chip" aria-pressed={s.equipped} onclick={() => toggleShield(s.id)} title="An-/Ablegen kostet eine Aktion">
+            {s.equipped ? "Schild getragen" : "Schild aufnehmen"}: {s.name} (+{s.baseAc + s.bonus} RK)
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     <div class="effects">
       <div class="row-between">
@@ -272,16 +321,7 @@
       {#if c.combat.effects.length === 0}
         <p class="tiny muted">Keine. Eingesetzte Fähigkeiten mit Dauer erscheinen hier automatisch.</p>
       {:else}
-        <div class="chip-row">
-          {#each c.combat.effects as e (e.id)}
-            <span class="effect" class:conc={e.concentration} title={e.note}>
-              {e.name}
-              <span class="mono tiny">{e.remaining == null ? "∞" : `${e.remaining} R`}</span>
-              {#if e.concentration}<span class="tiny">K</span>{/if}
-              <button aria-label="{e.name} beenden" onclick={() => (c.combat.effects = c.combat.effects.filter(x => x.id !== e.id))}><Trash2 size={12} /></button>
-            </span>
-          {/each}
-        </div>
+        {@render effectChips()}
       {/if}
     </div>
   {/if}
@@ -311,6 +351,10 @@
           </div>
           {#if section.key === "action" && showAttacks}
             {#each c.attacks as a (a.id)}{@render attackRow(a)}{/each}
+            {#each offhand.filter(a => offhandIsNick(a, ctx.ruleset)) as a (a.id)}{@render offhandRow(a)}{/each}
+          {/if}
+          {#if section.key === "bonus" && showAttacks}
+            {#each offhand.filter(a => !offhandIsNick(a, ctx.ruleset)) as a (a.id)}{@render offhandRow(a)}{/each}
           {/if}
           {#each feats as f (f.id)}{@render featureRow(f)}{/each}
           {#each sp as s (s.id)}{@render spellRow(s, section.key)}{/each}
@@ -321,7 +365,7 @@
               {/each}
             </div>
           {/if}
-          {#if !feats.length && !sp.length && !(section.key === "action")}
+          {#if !feats.length && !sp.length && !(section.key === "action") && !(section.key === "bonus" && offhand.length)}
             <p class="tiny faint">Nichts passendes.</p>
           {/if}
         </div>
@@ -338,6 +382,7 @@
     <form id="effect-form" onsubmit={addManualEffect}>
       <label class="field"><span class="label">Name</span><input class="input" bind:value={effectName} required placeholder="z. B. Segen, Vergiftet, Hast" /></label>
       <label class="field"><span class="label">Dauer in Runden (leer = unbestimmt)</span><input class="input mono" type="number" min="1" bind:value={effectRounds} /></label>
+      <label class="field"><span class="label">RK-Bonus (optional)</span><input class="input mono" type="number" bind:value={effectAc} placeholder="z. B. 2" /></label>
       <label class="checkbox"><input type="checkbox" bind:checked={effectConcentration} /> Konzentration</label>
     </form>
     {#snippet footer()}
@@ -373,6 +418,9 @@
   .move { display: inline-flex; align-items: center; gap: 0.35rem; margin-left: auto; }
   .move input { width: 4.5rem; }
   .effects { margin-bottom: 0.6rem; }
+  .effects.idle { margin: 0.7rem 0 0; }
+  .effects.idle h4 { margin-bottom: 0.3rem; }
+  .shields { margin: -0.3rem 0 0.8rem; }
   .effects h4 { margin: 0; }
   .effect {
     display: inline-flex;
