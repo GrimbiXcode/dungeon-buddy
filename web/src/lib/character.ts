@@ -191,7 +191,7 @@ export function normalizeAttack(a: unknown): Attack {
     mastery: str(o.mastery),
     notes: str(o.notes),
     kind: o.kind === "ranged" ? "ranged" : "melee",
-    properties: arr(o.properties).filter((x): x is string => typeof x === "string"),
+    properties: sortProperties(arr(o.properties).filter((x): x is string => typeof x === "string")),
     ...normalizeRange(o),
     versatileDamage: str(o.versatileDamage),
     extraDamage: str(o.extraDamage),
@@ -354,6 +354,9 @@ export function spellSaveDc(c: CharacterData) {
 export function spellMod(c: CharacterData) {
   return c.spellcasting.ability ? mod(c, c.spellcasting.ability) : 0;
 }
+
+/** Waffeneigenschaften alphabetisch (auch eigene, die nicht in der Liste stehen) */
+export const sortProperties = (list: string[]) => [...list].sort((x, y) => x.localeCompare(y, "de"));
 
 export const isFinesse = (a: Attack) => a.properties.includes("Finesse");
 export const isLight = (a: Attack) => a.properties.includes("Leicht");

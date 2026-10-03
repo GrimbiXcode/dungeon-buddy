@@ -1,7 +1,7 @@
 <script lang="ts">
   import { unitSystem } from "../../lib/session.svelte";
   import Modal from "../../components/Modal.svelte";
-  import { newAttack, type Attack } from "../../lib/character";
+  import { newAttack, sortProperties, type Attack } from "../../lib/character";
   import { parseDice } from "../../lib/dice";
   import { ABILITIES, ABILITY_SHORT } from "../../lib/dnd";
   import { WEAPON_PROPERTIES } from "../../lib/features";
@@ -33,7 +33,7 @@
   }
 
   function toggleProperty(p: string) {
-    a.properties = a.properties.includes(p) ? a.properties.filter(x => x !== p) : [...a.properties, p];
+    a.properties = a.properties.includes(p) ? a.properties.filter(x => x !== p) : sortProperties([...a.properties, p]);
   }
 
   function submit(e: SubmitEvent) {

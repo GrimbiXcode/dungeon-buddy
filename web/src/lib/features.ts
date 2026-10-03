@@ -148,18 +148,19 @@ export function baseCategories(speciesLabel: string) {
   return ["Klasse", "Unterklasse", speciesLabel, "Hintergrund", "Talent", "Ausrüstung", "Magischer Gegenstand", "Sonstiges"];
 }
 
+/** Alphabetisch sortiert */
 export const WEAPON_PROPERTIES = [
   "Finesse",
+  "Laden",
   "Leicht",
+  "Magisch",
+  "Munition",
   "Schwer",
-  "Zweihändig",
+  "Versilbert",
   "Vielseitig",
   "Weitreichend",
   "Wurfwaffe",
-  "Munition",
-  "Laden",
-  "Magisch",
-  "Versilbert",
+  "Zweihändig",
 ] as const;
 
 // ── Typen ───────────────────────────────────────────────────────────────
