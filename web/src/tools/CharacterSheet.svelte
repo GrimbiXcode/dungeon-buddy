@@ -509,8 +509,10 @@
       <button
         class="btn btn-primary"
         onclick={() => {
+          // Erst Werte sichern: `choice` hängt an featureChoice und wird mit null ungültig
+          const { feature, picks } = choice;
           featureChoice = null;
-          sheetCtx.useFeature(choice.feature, { ...choice.picks });
+          sheetCtx.useFeature(feature, { ...picks });
         }}>Einsetzen und würfeln</button
       >
     {/snippet}

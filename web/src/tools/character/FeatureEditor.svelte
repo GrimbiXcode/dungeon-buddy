@@ -531,7 +531,7 @@
         {@render blockHead("other", () => remove("other"))}
         <div class="grid-2">
           <input class="input mono" bind:value={f.damage} placeholder="1d10" aria-label="Würfel" />
-          <input class="input" bind:value={f.effectText} maxlength="200" placeholder="vom erlittenen Schaden abziehen" aria-label="Wirkung" />
+          <input class="input" bind:value={f.effectText} maxlength="200" placeholder="Wirkung, z. B. Schaden abziehen" aria-label="Wirkung" />
         </div>
         {@render damageAddsEditor()}
         <p class="tiny muted">Nach dem Wurf siehst du das Ergebnis mit diesem Text, z. B. „12 · vom erlittenen Schaden abziehen“.</p>

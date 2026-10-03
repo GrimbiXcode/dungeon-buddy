@@ -210,7 +210,7 @@
   function rollOtherTarget(o: (typeof otherTargets)[number]) {
     openRoll({
       type: "damage",
-      title: `${o.feature.name} – Schaden`,
+      title: o.kind === "other" ? o.feature.name : `${o.feature.name} – Schaden`,
       subtitle: o.kind === "other" ? `Ausgelöst durch ${attack.name || "Angriff"}` : `Weiteres Ziel, ausgelöst durch ${attack.name || "Angriff"}`,
       dice: diceString(o.expr),
       damageType: o.kind === "other" ? undefined : o.text || undefined,
@@ -379,7 +379,7 @@
       <div class="row">
         {#each otherTargets as o (o.feature.id)}
           <button class="btn btn-sm" class:btn-primary={!otherRolled.includes(o.feature.id)} onclick={() => rollOtherTarget(o)}>
-            <Icon name={o.kind === "other" ? "roll" : "attack"} size={14} /> {o.feature.name}: {formatDice(o.expr)}{o.text ? ` ${o.text}` : ""}
+            <Icon name={o.kind === "other" ? "roll" : "attack"} size={14} /> {o.feature.name}: {formatDice(o.expr)}{o.text ? `${o.kind === "other" ? ":" : ""} ${o.text}` : ""}
           </button>
         {/each}
       </div>
