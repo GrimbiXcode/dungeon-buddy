@@ -542,13 +542,51 @@ export function longRest(c: CharacterData, ruleset: "2014" | "2024") {
   restFeatures(c, "long");
 }
 
-/** Schaden anwenden: zuerst temporäre TP, dann aktuelle. */
-export function applyDamage(c: CharacterData, amount: number) {
+/**
+ * Schaden anwenden: zuerst temporäre TP, dann aktuelle. Bei 0 TP zählt
+ * Schaden als Fehlschlag beim Todesrettungswurf (kritisch: zwei); bleibt
+ * nach dem Sturz auf 0 noch Schaden in Höhe des TP-Maximums übrig, ist der
+ * Charakter sofort tot. Gibt einen Hinweis zurück.
+ */
+export function applyDamage(c: CharacterData, amount: number, opts: { crit?: boolean } = {}): string | null {
   let rest = Math.max(0, amount);
+  if (!rest) return null;
   const fromTemp = Math.min(Math.max(0, c.hp.temp), rest);
   c.hp.temp = Math.max(0, c.hp.temp - fromTemp);
   rest -= fromTemp;
-  c.hp.current = Math.max(0, c.hp.current - rest);
+  if (!rest) return null;
+  const before = Math.max(0, c.hp.current);
+  c.hp.current = Math.max(0, before - rest);
+  const overflow = rest - before;
+  if (c.hp.max > 0 && overflow >= c.hp.max) {
+    c.deathSaves = { successes: 0, failures: 3 };
+    return "Massiver Schaden: Der Schaden übersteigt das TP-Maximum – sofortiger Tod.";
+  }
+  if (before === 0) {
+    c.deathSaves.failures = Math.min(3, c.deathSaves.failures + (opts.crit ? 2 : 1));
+    c.deathSaves.successes = Math.min(3, c.deathSaves.successes);
+    return c.deathSaves.failures >= 3 ? "Drei Fehlschläge: Der Charakter stirbt." : `Schaden bei 0 TP: ${opts.crit ? "zwei Fehlschläge" : "ein Fehlschlag"} beim Todesrettungswurf.`;
+  }
+  if (c.hp.current === 0) return "0 TP: bewusstlos. Ab jetzt Todesrettungswürfe.";
+  return null;
+}
+
+/**
+ * Ergebnis eines Todesrettungswurfs eintragen: ab 10 Erfolg, natürliche 20
+ * bringt 1 TP zurück, natürliche 1 zählt zwei Fehlschläge.
+ */
+export function applyDeathSave(c: CharacterData, kept: number, total: number): string {
+  if (kept === 20) {
+    c.hp.current = Math.max(1, c.hp.current);
+    c.deathSaves = { successes: 0, failures: 0 };
+    return "Natürliche 20: Du kommst mit 1 TP wieder zu dir.";
+  }
+  if (kept === 1) c.deathSaves.failures = Math.min(3, c.deathSaves.failures + 2);
+  else if (total >= 10) c.deathSaves.successes = Math.min(3, c.deathSaves.successes + 1);
+  else c.deathSaves.failures = Math.min(3, c.deathSaves.failures + 1);
+  if (c.deathSaves.failures >= 3) return "Drei Fehlschläge: Der Charakter stirbt.";
+  if (c.deathSaves.successes >= 3) return "Drei Erfolge: stabil (bewusstlos, 0 TP).";
+  return kept === 1 ? "Natürliche 1: zwei Fehlschläge." : total >= 10 ? "Erfolg." : "Fehlschlag.";
 }
 
 export function applyHealing(c: CharacterData, amount: number) {

@@ -4,6 +4,7 @@ import { abilityMod, cantripMultiplier, exhaustionEffect, formatMod, proficiency
 import {
   applyDamage,
   applyHealing,
+  applyDeathSave,
   attackDamageBonus,
   attackToHit,
   hitDiceLeft,
@@ -183,5 +184,36 @@ describe("Trefferwürfel und Alleskönner", () => {
     expect(initiative(c, "2024")).toBe(2);
     expect(checkBonus(c, "str", "2014")).toBe(1);
     expect(checkBonus(c, "str", "2024")).toBe(0);
+  });
+});
+
+describe("Todesrettung", () => {
+  const down = () => normalizeCharacter({ hp: { max: 20, current: 5, temp: 0 } });
+
+  it("Schaden bei 0 TP zählt Fehlschläge, massiver Schaden tötet", () => {
+    const c = down();
+    expect(applyDamage(c, 5)).toMatch(/bewusstlos/);
+    applyDamage(c, 1);
+    expect(c.deathSaves.failures).toBe(1);
+    applyDamage(c, 1, { crit: true });
+    expect(c.deathSaves.failures).toBe(3);
+    const d = down();
+    expect(applyDamage(d, 25)).toMatch(/sofortiger Tod/);
+    expect(d.deathSaves.failures).toBe(3);
+  });
+
+  it("Wurfergebnis wird eingetragen", () => {
+    const c = down();
+    c.hp.current = 0;
+    applyDeathSave(c, 12, 12);
+    applyDeathSave(c, 5, 5);
+    applyDeathSave(c, 1, 1);
+    expect(c.deathSaves).toEqual({ successes: 1, failures: 3 });
+    const d = down();
+    d.hp.current = 0;
+    d.deathSaves = { successes: 2, failures: 2 };
+    applyDeathSave(d, 20, 20);
+    expect(d.hp.current).toBe(1);
+    expect(d.deathSaves).toEqual({ successes: 0, failures: 0 });
   });
 });

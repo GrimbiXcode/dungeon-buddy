@@ -16,7 +16,15 @@ export type SheetContext = {
     title: string,
     modifier: number,
     kind: RollKind,
-    opts?: { subtitle?: string; target?: number; damage?: DamageSpec; ability?: Ability | null; skill?: SkillKey | null }
+    opts?: {
+      subtitle?: string;
+      target?: number;
+      damage?: DamageSpec;
+      ability?: Ability | null;
+      skill?: SkillKey | null;
+      /** Ergebnis (wird bei erneutem Wurf im Dialog erneut gemeldet) */
+      onResult?: (kept: number, total: number) => void;
+    }
   ): void;
   rollDamage(title: string, dice: string, opts?: { damageType?: string; heal?: boolean; effect?: string; subtitle?: string }): void;
   /**

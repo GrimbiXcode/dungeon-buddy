@@ -7,6 +7,7 @@
   import { applyDamage, applyHealing, initiative, profBonus } from "../../lib/character";
   import { formatMod, rulesTerms } from "../../lib/dnd";
   import { armorClass } from "../../lib/armor";
+  import { toast } from "../../lib/toast.svelte";
   import { sheet } from "./context";
   import ArmorClassModal from "./ArmorClassModal.svelte";
 
@@ -19,10 +20,17 @@
   const ac = $derived(armorClass(c));
   const acBoosted = $derived(c.combat.effects.some(e => e.ac && e.ac.mode !== "none"));
 
+  /** Kritischer Treffer bei 0 TP: zwei Fehlschläge */
+  let critHit = $state(false);
+
   function apply(kind: "damage" | "heal" | "temp") {
     const n = Math.floor(Number(amount));
     if (!n || n < 0) return;
-    if (kind === "damage") applyDamage(c, n);
+    if (kind === "damage") {
+      const note = applyDamage(c, n, { crit: critHit });
+      if (note) toast(note);
+      critHit = false;
+    }
     else if (kind === "heal") applyHealing(c, n);
     else c.hp.temp = Math.max(c.hp.temp, n);
     amount = null;
@@ -103,6 +111,9 @@
           <button class="btn btn-sm btn-danger" onclick={() => apply("damage")} aria-label="Schaden"><Minus size={14} /> Schaden</button>
           <button class="btn btn-sm" onclick={() => apply("heal")} aria-label="Heilen"><Plus size={14} /> Heilen</button>
           <button class="btn btn-sm btn-ghost" onclick={() => apply("temp")}>Temp</button>
+          {#if c.hp.current === 0}
+            <label class="checkbox tiny"><input type="checkbox" bind:checked={critHit} /> Kritischer Treffer (2 Fehlschläge)</label>
+          {/if}
         </div>
       {/if}
     </div>

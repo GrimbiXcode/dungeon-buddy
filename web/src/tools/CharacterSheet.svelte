@@ -140,6 +140,7 @@
           rollMode: data.rollMode,
           target: opts.target,
           critRange: data.critRange,
+          onResult: opts.onResult,
           followUp: opts.damage ? { ...opts.damage, canCrit: true } : undefined,
           options: rollOptions({ kind, ability: opts.ability ?? null, skill: opts.skill ?? null }),
         })

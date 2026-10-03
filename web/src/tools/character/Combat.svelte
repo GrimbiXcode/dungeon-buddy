@@ -3,9 +3,10 @@
   import { Plus, Trash2 } from "@lucide/svelte";
   import Icon from "../../components/Icon.svelte";
   import Modal from "../../components/Modal.svelte";
-  import { hitDiceLeft, hitDicePools, hitDiceSummary, leftOf, mod, newResource, spendHitDie as markHitDie } from "../../lib/character";
+  import { applyDeathSave, hitDiceLeft, hitDicePools, hitDiceSummary, leftOf, mod, newResource, spendHitDie as markHitDie } from "../../lib/character";
   import { CONDITIONS } from "../../lib/dnd";
   import { confirmDialog } from "../../lib/confirm.svelte";
+  import { toast } from "../../lib/toast.svelte";
   import { sheet } from "./context";
 
   const ctx = sheet();
@@ -18,6 +19,23 @@
 
   function toggleCondition(name: string) {
     c.conditions = c.conditions.includes(name) ? c.conditions.filter(x => x !== name) : [...c.conditions, name];
+  }
+
+  /**
+   * Todesrettungswurf: Ergebnis wird eingetragen. Würfelt man im Dialog neu
+   * (oder ändert Optionen), ersetzt das neue Ergebnis das alte.
+   */
+  function rollDeathSave() {
+    const base = { deathSaves: { ...c.deathSaves }, hp: c.hp.current };
+    ctx.rollD20("Todesrettungswurf", 0, "deathSave", {
+      target: 10,
+      subtitle: "Wird eingetragen. 10 oder mehr: Erfolg. Natürliche 20: 1 TP. Natürliche 1: zwei Fehlschläge.",
+      onResult: (kept, total) => {
+        c.deathSaves = { ...base.deathSaves };
+        c.hp.current = base.hp;
+        toast(applyDeathSave(c, kept, total));
+      },
+    });
   }
 
   /** Trefferwürfel ausgeben: würfeln (Heilung) und als verbraucht markieren. */
@@ -78,7 +96,7 @@
           <button class="pip failure" class:on={c.deathSaves.failures >= n} aria-label="Fehlschlag {n}" onclick={() => setDeath("failures", n)}></button>
         {/each}
       </div>
-      <button class="btn btn-sm" onclick={() => ctx.rollD20("Todesrettungswurf", 0, "deathSave", { target: 10, subtitle: "10 oder mehr: Erfolg. Natürliche 20: 1 TP. Natürliche 1: zwei Fehlschläge." })}>
+      <button class="btn btn-sm" onclick={rollDeathSave}>
         Würfeln
       </button>
     </div>
