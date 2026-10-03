@@ -1,6 +1,8 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { Maximize2, Minus, Plus } from "@lucide/svelte";
+  import { attachmentUrl } from "../../lib/markdown";
+  import { session } from "../../lib/session.svelte";
   import type { Npc, NpcRelation } from "../../lib/types";
   import { ATTITUDES, attitudeColor, hasPlayerLink, initials } from "./attitude";
   import { ForceSim, spiralPosition, type SimLink, type SimNode } from "./force";
@@ -547,9 +549,24 @@
               >
                 <circle class="hit" r={r + 6} />
                 <circle class="dot" {r} />
-                <text class="initials" dy="0.36em" style="font-size:{you ? 13 : Math.round(r * 0.66)}px">
-                  {you ? "Du" : initials(n.name)}
-                </text>
+                {#if n.npc?.imageId && session.info?.attachments}
+                  <clipPath id="node-clip-{n.id}"><circle {r} /></clipPath>
+                  <image
+                    class="photo"
+                    href={attachmentUrl(n.npc.imageId, "thumb")}
+                    x={-r}
+                    y={-r}
+                    width={r * 2}
+                    height={r * 2}
+                    preserveAspectRatio="xMidYMid slice"
+                    clip-path="url(#node-clip-{n.id})"
+                  />
+                  <circle class="ring" {r} />
+                {:else}
+                  <text class="initials" dy="0.36em" style="font-size:{you ? 13 : Math.round(r * 0.66)}px">
+                    {you ? "Du" : initials(n.name)}
+                  </text>
+                {/if}
                 {#if showNodeLabels || you}
                   <text class="name" y={r + labelSize + 2} style="font-size:{labelSize}px">{you ? "Gruppe" : n.name}{dead ? " †" : ""}</text>
                 {/if}
@@ -628,6 +645,12 @@
   .node:hover .dot,
   .node.active .dot,
   .node:focus-visible .dot { stroke-width: 3.5; }
+  .photo { pointer-events: none; }
+  .dead .photo { filter: grayscale(1); opacity: 0.7; }
+  .ring { fill: none; stroke: var(--c); stroke-width: 2.2; pointer-events: none; transition: stroke-width 0.12s; }
+  .node:hover .ring,
+  .node.active .ring,
+  .node:focus-visible .ring { stroke-width: 3.5; }
   .node:focus-visible .hit { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 3 3; }
   .initials {
     text-anchor: middle;

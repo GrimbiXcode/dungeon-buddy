@@ -2,7 +2,9 @@
   import { onMount } from "svelte";
   import { Flag, Link2, List, MapPin, Network as NetworkIcon, Plus, Search, Users, X } from "@lucide/svelte";
   import { campaignApi, get } from "../lib/api";
+  import { attachmentUrl } from "../lib/markdown";
   import { route } from "../lib/router.svelte";
+  import { session } from "../lib/session.svelte";
   import { toastError } from "../lib/toast.svelte";
   import type { Campaign, Npc, NpcRelation, NpcStatus } from "../lib/types";
   import AttitudePill from "./network/AttitudePill.svelte";
@@ -264,7 +266,9 @@
           {@const rc = relationCount.get(n.id) ?? 0}
           <button class="card npc" class:dead={n.status === "dead"} style="--c:{attitudeColor(n.attitude)}" onclick={() => (detailId = n.id)}>
             <div class="npc-top">
-              <span class="avatar" aria-hidden="true">{initials(n.name)}</span>
+              <span class="avatar" aria-hidden="true">
+                {#if n.imageId && session.info?.attachments}<img src={attachmentUrl(n.imageId, "thumb")} alt="" loading="lazy" />{:else}{initials(n.name)}{/if}
+              </span>
               <span class="grow npc-title">
                 <strong class="name">{n.name}</strong>
                 {#if n.role}<span class="small muted role">{n.role}</span>{/if}
@@ -318,6 +322,7 @@
       onselect={id => (detailId = id)}
       onrelationsaved={onRelationSaved}
       onrelationdeleted={onRelationDeleted}
+      onimagechange={imageId => onSaved({ ...detailNpc, imageId })}
     />
   {/if}
 
@@ -408,8 +413,10 @@
     box-shadow: var(--shadow);
   }
   .npc-top { display: flex; align-items: center; gap: 0.65rem; min-width: 0; }
+  .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
   .avatar {
     flex: none;
+    overflow: hidden;
     display: grid;
     place-items: center;
     width: 2.4rem;

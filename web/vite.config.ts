@@ -27,6 +27,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+        // pdf.js (~1.7 MB) nur bei Bedarf laden: Vorschaubilder für PDFs brauchen ohnehin eine Verbindung
+        globIgnores: ["**/assets/pdf-*.js", "**/assets/pdf.worker*"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//, /^\/telegram-login\.html/, /^\/health/],
         runtimeCaching: [

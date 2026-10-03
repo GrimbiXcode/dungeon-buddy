@@ -307,6 +307,8 @@ textarea {
 .checkbox input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent-strong); }
 
 .prose { overflow-wrap: anywhere; }
+.prose .attachment-image { display: inline-block; max-width: 100%; }
+.prose img { display: block; max-width: min(100%, 480px); height: auto; border-radius: var(--radius-sm); border: 1px solid var(--border); }
 .prose p:last-child { margin-bottom: 0; }
 .prose h1, .prose h2, .prose h3 { margin-top: 1em; }
 .prose ul, .prose ol { padding-left: 1.3rem; margin: 0 0 0.8em; }

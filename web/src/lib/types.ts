@@ -98,6 +98,8 @@ export type Npc = {
   description: string;
   notes: string;
   tags: string[];
+  /** Anhang mit dem Bild des NPCs */
+  imageId: string | null;
   createdAt: string;
   updatedAt: string;
 };

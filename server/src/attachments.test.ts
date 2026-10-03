@@ -368,3 +368,87 @@ describe("Export mit Anhängen", () => {
     expect(last).toBe(429);
   });
 });
+
+describe("NPC-Bild", () => {
+  it("setzen, ersetzen; mit dem NPC gelöscht", async () => {
+    const { cookie } = await cookieFor(1001);
+    const campaignId = await newCampaign(cookie);
+    const npc = (await app.inject({ method: "POST", url: `/api/campaigns/${campaignId}/npcs`, headers: { cookie }, payload: { name: "Ismark" } })).json();
+    const put = async () => {
+      const f = form(await photoWithGps(), "ismark.jpg");
+      return app.inject({ method: "PUT", url: `/api/campaigns/${campaignId}/npcs/${npc.id}/image`, payload: f.payload, headers: { ...f.headers, cookie } });
+    };
+    const first = await put();
+    expect(first.statusCode).toBe(200);
+    const second = (await put()).json();
+    const list = (await app.inject({ method: "GET", url: `/api/campaigns/${campaignId}/npcs`, headers: { cookie } })).json();
+    expect(list[0].imageId).toBe(second.id);
+    // In der Galerie der Kampagne liegt nur das aktuelle Bild
+    const gallery = (await app.inject({ method: "GET", url: `/api/campaigns/${campaignId}/attachments`, headers: { cookie } })).json();
+    expect(gallery.map((a: { id: string }) => a.id)).toEqual([second.id]);
+
+    await app.inject({ method: "DELETE", url: `/api/campaigns/${campaignId}/npcs/${npc.id}`, headers: { cookie } });
+    expect((await sql`SELECT count(*)::int AS n FROM attachments`)[0]!.n).toBe(0);
+    await processStorageDeletions();
+    await vi.waitFor(() => expect(storage.objects.size).toBe(0));
+  });
+
+  it("nur NPCs der eigenen Kampagne", async () => {
+    const a = await cookieFor(1001);
+    const b = await cookieFor(1002);
+    const campaignId = await newCampaign(a.cookie);
+    const npc = (await app.inject({ method: "POST", url: `/api/campaigns/${campaignId}/npcs`, headers: { cookie: a.cookie }, payload: { name: "Ismark" } })).json();
+    const f = form(await photoWithGps(), "x.jpg");
+    const res = await app.inject({ method: "PUT", url: `/api/campaigns/${campaignId}/npcs/${npc.id}/image`, payload: f.payload, headers: { ...f.headers, cookie: b.cookie } });
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("PDF-Vorschaubild", () => {
+  it("einmal setzbar, nur für PDFs", async () => {
+    const { cookie } = await cookieFor(1001);
+    const campaignId = await newCampaign(cookie);
+    const pdf = (await upload(cookie, `/api/campaigns/${campaignId}/attachments`, PDF, "a.pdf")).json();
+    const put = async (id: string, file: Buffer) => {
+      const f = form(file, "thumb.png");
+      return app.inject({ method: "PUT", url: `/api/attachments/${id}/thumb`, payload: f.payload, headers: { ...f.headers, cookie } });
+    };
+    const png = await sharp({ create: { width: 600, height: 800, channels: 3, background: "#fff" } }).png().toBuffer();
+    const res = await put(pdf.id, png);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().hasThumb).toBe(true);
+    expect(res.json().sizeBytes).toBeGreaterThan(PDF.length);
+    const thumb = await app.inject({ method: "GET", url: `/api/attachments/${pdf.id}/content?variant=thumb`, headers: { cookie } });
+    expect(thumb.headers["content-type"]).toBe("image/webp");
+    expect((await sharp(thumb.rawPayload).metadata()).height).toBe(480);
+
+    expect((await put(pdf.id, png)).statusCode).toBe(409);
+    expect((await put(pdf.id, PDF)).statusCode).toBe(409);
+    const img = (await upload(cookie, `/api/campaigns/${campaignId}/attachments`, await photoWithGps(), "b.jpg")).json();
+    expect((await put(img.id, png)).statusCode).toBe(400);
+  });
+
+  it("lehnt Nicht-Bilder ab", async () => {
+    const { cookie } = await cookieFor(1001);
+    const campaignId = await newCampaign(cookie);
+    const pdf = (await upload(cookie, `/api/campaigns/${campaignId}/attachments`, PDF, "a.pdf")).json();
+    const f = form(PDF, "thumb.png");
+    const res = await app.inject({ method: "PUT", url: `/api/attachments/${pdf.id}/thumb`, payload: f.payload, headers: { ...f.headers, cookie } });
+    expect(res.statusCode).toBe(415);
+  });
+});
+
+describe("Verwendung", () => {
+  it("zählt Verweise in Tagebuch, NPCs, Charakteren und Kampagnen", async () => {
+    const { cookie } = await cookieFor(1001);
+    const campaignId = await newCampaign(cookie);
+    const a = (await upload(cookie, `/api/campaigns/${campaignId}/attachments`, await photoWithGps(), "karte.jpg")).json();
+    const ref = `![Karte](attachment:${a.id})`;
+    await app.inject({ method: "POST", url: `/api/campaigns/${campaignId}/journal`, headers: { cookie }, payload: { content: `Heute: ${ref}` } });
+    await app.inject({ method: "POST", url: `/api/campaigns/${campaignId}/journal`, headers: { cookie }, payload: { content: "ohne Bild" } });
+    await app.inject({ method: "POST", url: `/api/campaigns/${campaignId}/npcs`, headers: { cookie }, payload: { name: "Ismark", notes: ref } });
+    await app.inject({ method: "PATCH", url: `/api/campaigns/${campaignId}`, headers: { cookie }, payload: { description: ref } });
+    const usage = (await app.inject({ method: "GET", url: `/api/attachments/${a.id}/usage`, headers: { cookie } })).json();
+    expect(usage).toEqual({ journalEntries: 1, npcs: 1, characters: 0, campaigns: 1 });
+  });
+});

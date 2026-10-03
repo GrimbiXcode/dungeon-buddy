@@ -1,17 +1,21 @@
 <script lang="ts">
   import { Check, Plus } from "@lucide/svelte";
+  import AttachmentPicker from "../../components/AttachmentPicker.svelte";
   import Markdown from "../../components/Markdown.svelte";
   import Modal from "../../components/Modal.svelte";
   import { confirmDialog } from "../../lib/confirm.svelte";
+  import { insertAtCursor } from "../../lib/textarea";
   import type { EntryDraft } from "./journal";
 
   let {
+    campaignId,
     title,
     initial,
     baseline,
     onsave,
     onclose,
   }: {
+    campaignId: string;
     title: string;
     initial: EntryDraft;
     /** Vergleichsstand für "ungespeicherte Änderungen" (Standard: initial) */
@@ -139,9 +143,12 @@
     <div class="field content-field">
       <div class="row-between content-head">
         <label for="j-content" class="label">Eintrag</label>
-        <div class="segmented" role="group" aria-label="Editor-Modus">
-          <button type="button" aria-pressed={mode === "write"} onclick={() => setMode("write")}>Schreiben</button>
-          <button type="button" aria-pressed={mode === "preview"} onclick={() => setMode("preview")}>Vorschau</button>
+        <div class="row tools">
+          <AttachmentPicker {campaignId} oninsert={md => insertAtCursor(textarea, content, md, v => (content = v))} />
+          <div class="segmented" role="group" aria-label="Editor-Modus">
+            <button type="button" aria-pressed={mode === "write"} onclick={() => setMode("write")}>Schreiben</button>
+            <button type="button" aria-pressed={mode === "preview"} onclick={() => setMode("preview")}>Vorschau</button>
+          </div>
         </div>
       </div>
       {#if mode === "write"}
@@ -189,6 +196,7 @@
   .with-btn .input { min-width: 0; }
   .content-field { margin-bottom: 0; }
   .content-head { gap: 0.5rem; }
+  .content-head .tools { gap: 0.4rem; }
   .textarea,
   .preview {
     min-height: 16rem;

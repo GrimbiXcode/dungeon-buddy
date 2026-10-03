@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { ArrowLeft, ArrowRight, Flag, MapPin, Pencil, Plus, Trash2, UserRound } from "@lucide/svelte";
+  import { ArrowLeft, ArrowRight, Flag, ImagePlus, MapPin, Pencil, Plus, Trash2, UserRound, X } from "@lucide/svelte";
   import Modal from "../../components/Modal.svelte";
   import Markdown from "../../components/Markdown.svelte";
-  import { campaignApi, del, patch, post } from "../../lib/api";
+  import { campaignApi, del, patch, post, upload } from "../../lib/api";
+  import { attachmentUrl } from "../../lib/markdown";
+  import { session } from "../../lib/session.svelte";
   import { confirmDialog } from "../../lib/confirm.svelte";
   import { toast, toastError } from "../../lib/toast.svelte";
-  import type { Npc, NpcRelation } from "../../lib/types";
+  import type { Attachment, Npc, NpcRelation } from "../../lib/types";
   import AttitudePicker from "./AttitudePicker.svelte";
   import AttitudePill from "./AttitudePill.svelte";
   import { attitudeColor, initials, relationsOf, statusLabel } from "./attitude";
@@ -21,6 +23,7 @@
     onselect,
     onrelationsaved,
     onrelationdeleted,
+    onimagechange,
   }: {
     campaignId: string;
     npc: Npc;
@@ -32,7 +35,38 @@
     onselect: (id: string) => void;
     onrelationsaved: (r: NpcRelation) => void;
     onrelationdeleted: (id: string) => void;
+    onimagechange: (imageId: string | null) => void;
   } = $props();
+
+  let imageInput: HTMLInputElement | undefined = $state();
+  let imageBusy = $state(false);
+  const imageUrl = $derived(`${campaignApi(campaignId, "npcs")}/${npc.id}/image`);
+
+  async function imagePicked(e: Event) {
+    const el = e.currentTarget as HTMLInputElement;
+    const file = el.files?.[0];
+    el.value = "";
+    if (!file) return;
+    imageBusy = true;
+    try {
+      const a = await upload<Attachment>(imageUrl, file, {}, { method: "PUT" });
+      onimagechange(a.id);
+    } catch (err) {
+      toastError(err);
+    } finally {
+      imageBusy = false;
+    }
+  }
+
+  async function removeImage() {
+    if (!(await confirmDialog(`Bild von ${npc.name} entfernen?`, { title: "Bild entfernen", confirmLabel: "Entfernen" }))) return;
+    try {
+      await del(imageUrl);
+      onimagechange(null);
+    } catch (err) {
+      toastError(err);
+    }
+  }
 
   const byId = $derived(new Map(npcs.map(n => [n.id, n])));
   const rels = $derived(
@@ -136,7 +170,32 @@
 <Modal title={npc.name} size="lg" {onclose}>
   <div class="detail" style="--c:{attitudeColor(npc.attitude)}">
     <div class="head">
-      <div class="avatar" class:dead={npc.status === "dead"} aria-hidden="true">{initials(npc.name)}</div>
+      {#if session.info?.attachments}
+        <div class="avatar-wrap">
+          <button
+            class="avatar photo-btn"
+            class:dead={npc.status === "dead"}
+            class:busy={imageBusy}
+            disabled={imageBusy}
+            onclick={() => imageInput?.click()}
+            aria-label={npc.imageId ? `Bild von ${npc.name} ändern` : `Bild für ${npc.name} hinzufügen`}
+            title={npc.imageId ? "Bild ändern" : "Bild hinzufügen"}
+          >
+            {#if npc.imageId}
+              <img src={attachmentUrl(npc.imageId, "thumb")} alt="" />
+            {:else}
+              {initials(npc.name)}
+            {/if}
+            <span class="photo-hint"><ImagePlus size={16} /></span>
+          </button>
+          {#if npc.imageId}
+            <button class="btn btn-sm btn-ghost btn-icon remove-photo" onclick={removeImage} aria-label="Bild entfernen"><X size={12} /></button>
+          {/if}
+          <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif" bind:this={imageInput} onchange={imagePicked} tabindex="-1" aria-hidden="true" />
+        </div>
+      {:else}
+        <div class="avatar" class:dead={npc.status === "dead"} aria-hidden="true">{initials(npc.name)}</div>
+      {/if}
       <div class="grow head-text">
         {#if npc.role}<p class="role">{npc.role}</p>{/if}
         <div class="row meta">
@@ -307,6 +366,22 @@
     border: 2px solid var(--c);
   }
   .avatar.dead { filter: grayscale(1); opacity: 0.7; border-style: dashed; }
+  .avatar-wrap { position: relative; flex: none; }
+  .photo-btn { position: relative; padding: 0; overflow: hidden; cursor: pointer; }
+  .photo-btn img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-btn.busy { opacity: 0.5; cursor: progress; }
+  .photo-hint {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgb(0 0 0 / 0.45);
+    color: #fff;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .photo-btn:hover .photo-hint, .photo-btn:focus-visible .photo-hint { opacity: 1; }
+  .remove-photo { position: absolute; right: -8px; bottom: -6px; min-width: 24px; min-height: 24px; padding: 0; background: var(--surface); }
   .role { margin: 0 0 0.35rem; font-size: 1.02rem; color: var(--muted); }
   .head-text { padding-top: 0.15rem; }
   .meta { gap: 0.5rem 0.75rem; }

@@ -4,6 +4,7 @@
   import { campaignApi, del, get, patch, upload } from "../lib/api";
   import { confirmDialog } from "../lib/confirm.svelte";
   import { formatBytes, formatDate, uid } from "../lib/format";
+  import { ensurePdfThumbnail } from "../lib/pdf-thumbnail";
   import { toast, toastError } from "../lib/toast.svelte";
   import type { Attachment, AttachmentCategory, Campaign } from "../lib/types";
 
@@ -55,11 +56,25 @@
     loadError = null;
     try {
       const list = await get<Attachment[]>(campaignApi(campaignId, "attachments"));
-      if (campaignId === campaign.id) items = list;
+      if (campaignId === campaign.id) {
+        items = list;
+        void backfillThumbnails(list);
+      }
     } catch (e) {
       loadError = (e as Error).message;
     } finally {
       loading = false;
+    }
+  }
+
+  function replaceItem(updated: Attachment | null) {
+    if (updated) items = items.map(a => (a.id === updated.id ? updated : a));
+  }
+
+  /** Ältere PDFs ohne Vorschaubild nachziehen, nacheinander und begrenzt. */
+  async function backfillThumbnails(list: Attachment[]) {
+    for (const a of list.filter(x => x.kind === "pdf" && !x.hasThumb).slice(0, 10)) {
+      replaceItem(await ensurePdfThumbnail(a));
     }
   }
 
@@ -92,6 +107,7 @@
         });
         items = [created, ...items];
         queue = queue.filter(q => q.id !== item.id);
+        if (created.kind === "pdf") void ensurePdfThumbnail(created, file).then(replaceItem);
       } catch (e) {
         if ((e as Error).name === "AbortError") {
           queue = queue.filter(q => q.id !== item.id);
@@ -138,8 +154,26 @@
     }
   }
 
+  type Usage = { journalEntries: number; npcs: number; characters: number; campaigns: number };
+
+  /** "2 Tagebucheinträgen und 1 NPC" – wo der Anhang noch vorkommt. */
+  function usageText(u: Usage) {
+    const parts = [
+      u.journalEntries && `${u.journalEntries} ${u.journalEntries === 1 ? "Tagebucheintrag" : "Tagebucheinträgen"}`,
+      u.npcs && `${u.npcs} ${u.npcs === 1 ? "NPC" : "NPCs"}`,
+      u.characters && `${u.characters} ${u.characters === 1 ? "Charakter" : "Charakteren"}`,
+      u.campaigns && `der Beschreibung ${u.campaigns === 1 ? "einer Kampagne" : `von ${u.campaigns} Kampagnen`}`,
+    ].filter(Boolean) as string[];
+    return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} und ${parts.at(-1)}` : (parts[0] ?? "");
+  }
+
   async function remove(a: Attachment) {
-    const ok = await confirmDialog(`„${label(a)}“ endgültig löschen?`, { title: "Anhang löschen" });
+    const usage = await get<Usage>(`/api/attachments/${a.id}/usage`).catch(() => null);
+    const used = usage ? usageText(usage) : "";
+    const message = used
+      ? `„${label(a)}“ wird noch in ${used} verwendet und fehlt dort danach. Trotzdem endgültig löschen?`
+      : `„${label(a)}“ endgültig löschen?`;
+    const ok = await confirmDialog(message, { title: "Anhang löschen" });
     if (!ok) return;
     try {
       await del(`/api/attachments/${a.id}`);
@@ -226,6 +260,11 @@
           <button class="thumb" onclick={() => (viewing = a)} aria-label="{label(a)} ansehen">
             <img src={contentUrl(a, "thumb")} alt={label(a)} loading="lazy" decoding="async" />
           </button>
+        {:else if a.hasThumb}
+          <a class="thumb pdf-preview" href={contentUrl(a)} target="_blank" rel="noopener" aria-label="{label(a)} öffnen">
+            <img src={contentUrl(a, "thumb")} alt={label(a)} loading="lazy" decoding="async" />
+            <span class="pdf-badge tiny">PDF</span>
+          </a>
         {:else}
           <a class="thumb pdf" href={contentUrl(a)} target="_blank" rel="noopener" aria-label="{label(a)} öffnen">
             <FileText size={40} />
@@ -336,6 +375,8 @@
   .gallery { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
   .item { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
   .thumb {
+    position: relative;
+    overflow: hidden;
     display: grid;
     place-items: center;
     aspect-ratio: 4 / 3;
@@ -345,9 +386,21 @@
     color: var(--muted);
     cursor: pointer;
   }
-  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  /* Absolut positioniert, sonst setzt das Bild sein eigenes Seitenverhältnis durch */
+  .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .thumb.pdf { gap: 0.2rem; align-content: center; }
   .thumb.pdf:hover { color: var(--accent-text); text-decoration: none; }
+  .pdf-preview img { object-position: top; }
+  .pdf-badge {
+    position: absolute;
+    left: 0.4rem;
+    bottom: 0.4rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
   .meta { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.5rem 0.7rem 0; min-width: 0; }
   .actions { display: flex; justify-content: flex-end; padding: 0.1rem 0.3rem 0.3rem; }
   .foot { margin-top: 1rem; }

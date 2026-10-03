@@ -20,7 +20,8 @@
       <li>
         <strong>Anhänge</strong> (Bilder, PDFs) in einem Object Storage, den der Betreiber dieser Instanz wählt. Fotos
         werden beim Hochladen von Metadaten befreit – Standort (GPS), Kamera und Aufnahmezeit werden nicht gespeichert.
-        PDFs bleiben unverändert. Der ursprüngliche Dateiname steht nur in der Datenbank.
+        PDFs bleiben unverändert; ihr Vorschaubild erzeugt dein Browser. Der ursprüngliche Dateiname steht nur in der
+        Datenbank. In Texten werden nur eigene Anhänge als Bild angezeigt, keine Bilder von fremden Servern.
       </li>
     {/if}
     <li>

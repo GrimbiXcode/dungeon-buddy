@@ -9,7 +9,7 @@ import { onlyGiven, requireCampaign } from "../lib/crud.js";
 import { HttpError, idParam, noContent, notFound, parse } from "../lib/http.js";
 import { getStorage, RangeNotSatisfiable } from "../lib/storage.js";
 import { flushStorageDeletions } from "../lib/storage-cleanup.js";
-import { processImage, SNIFF_BYTES, sniff, UPLOAD_LIMITS } from "../lib/uploads.js";
+import { processImage, processThumbnail, SNIFF_BYTES, sniff, UPLOAD_LIMITS } from "../lib/uploads.js";
 import { requireCharacter } from "./characters.js";
 
 /**
@@ -185,6 +185,44 @@ async function receiveUpload(req: FastifyRequest, target: Target, opts: UploadOp
   }
 }
 
+/**
+ * Setzt ein Bild (Porträt eines Charakters, Bild eines NPCs) und löscht
+ * das bisherige samt Dateien.
+ */
+async function setImage(table: "characters" | "npcs", column: "portrait_id" | "image_id", rowId: string, attachmentId: string) {
+  const replaced = await sql.begin(async tx => {
+    const [row] = await tx<{ old: string | null }[]>`SELECT ${tx(column)} AS old FROM ${tx(table)} WHERE id = ${rowId} FOR UPDATE`;
+    await tx`UPDATE ${tx(table)} SET ${tx(column)} = ${attachmentId}, updated_at = now() WHERE id = ${rowId}`;
+    if (!row?.old) return false;
+    await tx`DELETE FROM attachments WHERE id = ${row.old}`;
+    return true;
+  });
+  if (replaced) flushStorageDeletions();
+}
+
+/** Kleines Bild aus einem Formular lesen (für PDF-Vorschaubilder). */
+async function readSmallImage(req: FastifyRequest, maxBytes: number): Promise<Buffer> {
+  if (!req.isMultipart()) throw new HttpError(415, "Erwartet wird ein Formular mit Datei (multipart/form-data).");
+  const part = await req.file();
+  if (!part) throw new HttpError(400, "Keine Datei gesendet.");
+  const chunks = part.file[Symbol.asyncIterator]() as AsyncIterator<Buffer>;
+  const parts: Buffer[] = [];
+  let total = 0;
+  try {
+    for (let next = await chunks.next(); !next.done; next = await chunks.next()) {
+      total += next.value.length;
+      if (total > maxBytes) throw tooLarge(maxBytes);
+      parts.push(next.value);
+    }
+  } catch (e) {
+    await discard(chunks);
+    throw isFileTooLarge(e) ? tooLarge(maxBytes) : e;
+  }
+  const buf = Buffer.concat(parts);
+  if (sniff(buf)?.kind !== "image") throw new HttpError(415, "Hier sind nur Bilder möglich (JPEG, PNG, WebP, GIF).");
+  return buf;
+}
+
 async function requireAttachment(req: FastifyRequest) {
   const [row] = await sql<
     { id: string; kind: "image" | "pdf"; mimeType: string; title: string; originalName: string; objectKey: string; thumbKey: string | null }[]
@@ -288,14 +326,7 @@ export async function attachmentRoutes(app: FastifyInstance) {
     const ch = await requireCharacter(req);
     await assertQuota(req, "attachmentsPerCharacter", () => countRows("attachments", "character_id", ch.id));
     const attachment = await receiveUpload(req, { characterId: ch.id }, { category: "portrait", imagesOnly: true });
-    const replaced = await sql.begin(async tx => {
-      const [row] = await tx<{ portraitId: string | null }[]>`SELECT portrait_id FROM characters WHERE id = ${ch.id} FOR UPDATE`;
-      await tx`UPDATE characters SET portrait_id = ${attachment.id}, updated_at = now() WHERE id = ${ch.id}`;
-      if (!row?.portraitId) return false;
-      await tx`DELETE FROM attachments WHERE id = ${row.portraitId}`;
-      return true;
-    });
-    if (replaced) flushStorageDeletions();
+    await setImage("characters", "portrait_id", ch.id, attachment.id as string);
     return attachment;
   });
 
@@ -303,6 +334,30 @@ export async function attachmentRoutes(app: FastifyInstance) {
     const ch = await requireCharacter(req);
     const result = await sql`DELETE FROM attachments WHERE id = (SELECT portrait_id FROM characters WHERE id = ${ch.id})`;
     if (result.count === 0) throw notFound("Porträt");
+    flushStorageDeletions();
+    return noContent(reply);
+  });
+
+  // ── Bild eines NPCs (ein Anhang der Kampagne) ───────────────────────────
+  const requireNpc = async (req: FastifyRequest) => {
+    const campaign = await requireCampaign(req);
+    const [npc] = await sql<{ id: string }[]>`SELECT id FROM npcs WHERE id = ${idParam(req)} AND campaign_id = ${campaign.id}`;
+    if (!npc) throw notFound("NPC");
+    return { campaign, npc };
+  };
+
+  app.put("/api/campaigns/:campaignId/npcs/:id/image", async req => {
+    const { campaign, npc } = await requireNpc(req);
+    await assertQuota(req, "attachmentsPerCampaign", () => countRows("attachments", "campaign_id", campaign.id));
+    const attachment = await receiveUpload(req, { campaignId: campaign.id }, { category: "portrait", imagesOnly: true });
+    await setImage("npcs", "image_id", npc.id, attachment.id as string);
+    return attachment;
+  });
+
+  app.delete("/api/campaigns/:campaignId/npcs/:id/image", async (req, reply) => {
+    const { npc } = await requireNpc(req);
+    const result = await sql`DELETE FROM attachments WHERE id = (SELECT image_id FROM npcs WHERE id = ${npc.id})`;
+    if (result.count === 0) throw notFound("Bild");
     flushStorageDeletions();
     return noContent(reply);
   });
@@ -328,6 +383,51 @@ export async function attachmentRoutes(app: FastifyInstance) {
     // Der Trigger hat die Objekte vorgemerkt
     flushStorageDeletions();
     return noContent(reply);
+  });
+
+  /**
+   * Vorschaubild für ein PDF, im Browser aus der ersten Seite gerendert.
+   * Nur einmal setzbar: Inhalte unter einem Key ändern sich nie (Cache).
+   */
+  app.put("/api/attachments/:id/thumb", async req => {
+    const a = await requireAttachment(req);
+    if (a.kind !== "pdf") throw new HttpError(400, "Vorschaubilder werden nur für PDFs nachgereicht.");
+    if (a.thumbKey) throw new HttpError(409, "Dieses PDF hat bereits ein Vorschaubild.");
+    const thumb = await processThumbnail(await readSmallImage(req, 5 * 1024 * 1024)).catch(e => {
+      throw e instanceof HttpError ? e : new HttpError(400, "Das Bild konnte nicht gelesen werden.");
+    });
+    await assertStorageQuota(req, thumb.length);
+    const key = `a/${a.id}/thumb.webp`;
+    await getStorage()!.put(key, thumb, "image/webp");
+    const [row] = await sql`
+      UPDATE attachments SET thumb_key = ${key}, size_bytes = size_bytes + ${thumb.length}, updated_at = now()
+      WHERE id = ${a.id} AND thumb_key IS NULL
+      RETURNING ${columns()}
+    `;
+    if (!row) {
+      // Gleichzeitig von anderswo gesetzt: unser Objekt wieder entfernen
+      await getStorage()!.delete([key]).catch(() => {});
+      throw new HttpError(409, "Dieses PDF hat bereits ein Vorschaubild.");
+    }
+    return row;
+  });
+
+  /** Wo ein Anhang verwendet wird (Warnung vor dem Löschen). */
+  app.get("/api/attachments/:id/usage", async req => {
+    const a = await requireAttachment(req);
+    const pattern = `%attachment:${a.id}%`;
+    const userId = req.user!.id;
+    const [row] = await sql`
+      SELECT
+        (SELECT count(*)::int FROM journal_entries j JOIN campaigns c ON c.id = j.campaign_id
+          WHERE c.user_id = ${userId} AND j.content LIKE ${pattern}) AS journal_entries,
+        (SELECT count(*)::int FROM npcs n JOIN campaigns c ON c.id = n.campaign_id
+          WHERE c.user_id = ${userId} AND (n.image_id = ${a.id} OR n.description LIKE ${pattern} OR n.notes LIKE ${pattern})) AS npcs,
+        (SELECT count(*)::int FROM characters ch
+          WHERE ch.user_id = ${userId} AND (ch.portrait_id = ${a.id} OR ch.data::text LIKE ${pattern})) AS characters,
+        (SELECT count(*)::int FROM campaigns c WHERE c.user_id = ${userId} AND c.description LIKE ${pattern}) AS campaigns
+    `;
+    return row;
   });
 
   app.get("/api/attachments/:id/content", { compress: false }, sendContent);

@@ -1,7 +1,9 @@
 <script lang="ts">
   import { X } from "@lucide/svelte";
+  import AttachmentPicker from "../../components/AttachmentPicker.svelte";
   import Modal from "../../components/Modal.svelte";
   import { campaignApi, patch, post } from "../../lib/api";
+  import { insertAtCursor } from "../../lib/textarea";
   import { toastError } from "../../lib/toast.svelte";
   import type { Npc, NpcStatus } from "../../lib/types";
   import AttitudePicker from "./AttitudePicker.svelte";
@@ -39,6 +41,8 @@
   let tags = $state<string[]>([...(initial?.tags ?? [])]);
   let tagInput = $state("");
   let busy = $state(false);
+  let descArea: HTMLTextAreaElement | undefined = $state();
+  let notesArea: HTMLTextAreaElement | undefined = $state();
 
   const uid = Math.random().toString(36).slice(2, 8);
   const openTagSuggestions = $derived(tagSuggestions.filter(t => !tags.includes(t)));
@@ -192,20 +196,28 @@
     </div>
 
     <div class="field">
-      <label for="n-desc-{uid}">Beschreibung</label>
+      <div class="row-between">
+        <label for="n-desc-{uid}">Beschreibung</label>
+        <AttachmentPicker {campaignId} oninsert={md => insertAtCursor(descArea, description, md, v => (description = v))} />
+      </div>
       <textarea
         id="n-desc-{uid}"
         class="textarea"
+        bind:this={descArea}
         bind:value={description}
         maxlength="20000"
         placeholder="Aussehen, Auftreten, Hintergrund … (Markdown möglich)"
       ></textarea>
     </div>
     <div class="field">
-      <label for="n-notes-{uid}">Notizen</label>
+      <div class="row-between">
+        <label for="n-notes-{uid}">Notizen</label>
+        <AttachmentPicker {campaignId} oninsert={md => insertAtCursor(notesArea, notes, md, v => (notes = v))} />
+      </div>
       <textarea
         id="n-notes-{uid}"
         class="textarea"
+        bind:this={notesArea}
         bind:value={notes}
         maxlength="50000"
         placeholder="Was wir erfahren haben, Versprechen, Geheimnisse … (Markdown möglich)"

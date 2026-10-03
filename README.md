@@ -4,7 +4,7 @@ Selbst gehostete Toolbox für **D&D 5e**, kompatibel mit den Regeln von **2014**
 Als Web-App für Smartphone, Tablet und Desktop, installierbar als PWA.
 
 - **Kampagnen**: Lege die Kampagnen an, in denen du spielst, mit Name, Beschreibung, Regelversion und Farbschema. Du kannst sie bearbeiten, archivieren und löschen. Jedes Tool speichert pro Kampagne getrennt.
-- **Tagebuch**: Einträge pro Session und pro Tag im Spiel, mit Markdown. Ansicht nach Session oder als Zeitleiste nach Spieltag.
+- **Tagebuch**: Einträge pro Session und pro Tag im Spiel, mit Markdown und eingebetteten Anhängen. Ansicht nach Session oder als Zeitleiste nach Spieltag.
 - **Soziales Netzwerk**: NPCs mit Rolle, Fraktion, Ort, Status, Notizen und deiner Beziehung zu ihnen. Dazu die Beziehungen der NPCs untereinander, als Liste oder als interaktiver Graph.
 - **Meine Charaktere**: Charaktere gehören dir, nicht einer Kampagne.
   - Ein Charakter kann in mehreren Kampagnen spielen. Werte, Stufe und bekannte Zauber gelten überall: Steigt er in einer Kampagne auf, hat er die Stufe auch in den anderen.
@@ -26,7 +26,7 @@ Als Web-App für Smartphone, Tablet und Desktop, installierbar als PWA.
     - schlägt Fähigkeiten, Angriffe und Zauber vor, gruppiert nach *vor der Aktion / Aktion / Bonusaktion / Reaktion / frei* und filterbar nach Kategorie und Wirkung
     - Angriff mit einer Waffe: Der Assistent schlägt passende Fähigkeiten vor (z. B. Vorteil oder Bonus vor dem Wurf, Zusatzschaden bei Treffer) und rechnet sie in Treffer- und Schadenswurf ein.
 - **Zauberbuch**: Zauber aus dem SRD übernehmen oder eigene anlegen. Zauber eines Charakters wandern mit ihm in jede Kampagne; Zauber ohne Charakter bleiben Notizen der Kampagne. Zauber kannst du vorbereiten und Charakteren zuordnen. Zauberangriffe, Schaden und Heilung würfelst du direkt, inklusive Hochstufen und Zaubertrick-Skalierung. Zauberplätze lassen sich direkt verbrauchen.
-- **Anhänge**: Bilder und PDFs pro Kampagne, etwa Karten, Szenenbilder, Fotos von Notizen und vom Spieltisch, Regel- und Abenteuer-PDFs. Auf dem Smartphone direkt mit der Kamera. Fotos werden beim Hochladen gedreht, verkleinert und von Metadaten (GPS, Kamera) befreit. Braucht einen S3-Bucket, siehe [Anhänge](#anhänge-s3-speicher).
+- **Anhänge**: Bilder und PDFs pro Kampagne, etwa Karten, Szenenbilder, Fotos von Notizen und vom Spieltisch, Regel- und Abenteuer-PDFs. Auf dem Smartphone direkt mit der Kamera. Fotos werden beim Hochladen gedreht, verkleinert und von Metadaten (GPS, Kamera) befreit. PDFs bekommen ein Vorschaubild der ersten Seite, das der Browser mit pdf.js erzeugt (der Server rendert keine PDFs). In Tagebuch- und NPC-Texten fügt „Datei einfügen“ Bilder (`![Titel](attachment:<id>)`) und Links auf PDFs (`[Titel](attachment:<id>)`) ein. Bilder von fremden Servern werden in Texten nicht geladen. NPCs können ein Bild haben, das in Liste und Graph erscheint. Vor dem Löschen eines Anhangs warnt die App, wenn er noch verwendet wird. Braucht einen S3-Bucket, siehe [Anhänge](#anhänge-s3-speicher).
 
 - **Einheiten**: Im Profil wählst du imperial (ft, lb) oder metrisch (m, kg). Metrisch rechnet die App nach der Konvention der deutschen Regelwerke um (5 ft = 1.5 m). Das betrifft Bewegung, Reichweiten, Zaubertexte und Fähigkeiten.
 - **Einheitenrechner**: über eine Lasche am Bildschirmrand als Overlay. Er rechnet Länge, Strecke, Gewicht, Volumen, Felder, Runden/Minuten, Temperatur und Münzen um, wahlweise mit Spieltisch-Werten oder exakt. Im Profil lässt er sich komplett ausblenden.

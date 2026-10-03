@@ -355,7 +355,7 @@
 {/if}
 
 {#if editor}
-  <EntryEditor title={editor.heading} initial={editor.initial} baseline={editor.baseline} onsave={save} onclose={() => (editor = null)} />
+  <EntryEditor campaignId={campaign.id} title={editor.heading} initial={editor.initial} baseline={editor.baseline} onsave={save} onclose={() => (editor = null)} />
 {/if}
 
 <style>

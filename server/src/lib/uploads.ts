@@ -65,3 +65,12 @@ export async function processImage(input: Buffer, opts: { maxEdge: number }): Pr
   const thumb = await base.clone().resize(fit(UPLOAD_LIMITS.thumbEdge)).webp({ quality: 75 }).toBuffer();
   return { full: full.data, thumb, width: full.info.width, height: full.info.height };
 }
+
+/** Nur ein Vorschaubild (z. B. für PDFs, im Browser gerendert), ohne Metadaten. */
+export async function processThumbnail(input: Buffer): Promise<Buffer> {
+  return sharp(input, { limitInputPixels: UPLOAD_LIMITS.imagePixels, animated: false, failOn: "error" })
+    .rotate()
+    .resize({ width: UPLOAD_LIMITS.thumbEdge, height: UPLOAD_LIMITS.thumbEdge, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 75 })
+    .toBuffer();
+}
