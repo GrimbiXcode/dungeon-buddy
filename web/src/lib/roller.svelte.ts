@@ -17,6 +17,11 @@ export type DamageRequest = {
   crit?: boolean;
   /** Kritische Treffer ermöglichen (bei Heilung sinnlos) */
   canCrit?: boolean;
+  /**
+   * Diese Würfel (Teil von `dice`, z. B. die Waffenwürfel "1d8") zweimal
+   * würfeln und ein Ergebnis wählen (Wilder Angreifer).
+   */
+  twice?: { label: string; dice: string };
   physical: boolean;
 };
 

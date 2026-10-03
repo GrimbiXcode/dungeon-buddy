@@ -18,6 +18,7 @@
   import {
     attackOptions,
     describeRollMods,
+    isDamageTwice,
     label,
     sumMods,
     useFeature,
@@ -73,9 +74,13 @@
   const advantage = $derived(attackMods.advantage && !attackMods.disadvantage);
   const disadvantage = $derived(attackMods.disadvantage && !attackMods.advantage);
 
+  /** Waffenwürfel ohne Boni (für „zweimal würfeln“) */
+  const weaponDice = $derived(parseDice(twoHanded && attack.versatileDamage ? attack.versatileDamage : attack.damage));
+  /** Fähigkeiten, mit denen die Waffenwürfel zweimal gewürfelt werden (Wilder Angreifer) */
+  const twiceFrom = $derived([...activeBefore, ...activeHit].filter(o => o.feature.rollMods.some(isDamageTwice)).map(o => o.feature.name));
+
   const damage = $derived.by(() => {
-    const base = parseDice(twoHanded && attack.versatileDamage ? attack.versatileDamage : attack.damage);
-    let expr: DiceExpr = base ?? { groups: [], bonus: 0 };
+    let expr: DiceExpr = weaponDice ?? { groups: [], bonus: 0 };
     const types = [attack.damageType];
     expr = addExpr(expr, { groups: [], bonus: attackDamageBonus(c, attack, rollOpts) + damageMods.flat });
     for (const d of damageMods.dice) if (d.sign > 0) expr = addExpr(expr, { groups: d.groups, bonus: 0 });
@@ -162,6 +167,10 @@
       damageType: damage.types.join(" / "),
       crit: outcome === "crit",
       canCrit: true,
+      twice:
+        twiceFrom.length && weaponDice?.groups.length
+          ? { label: twiceFrom.join(", "), dice: diceString({ groups: weaponDice.groups, bonus: 0 }) }
+          : undefined,
       physical: isPhysical(c.rollMode),
     });
     damageRolled = true;
