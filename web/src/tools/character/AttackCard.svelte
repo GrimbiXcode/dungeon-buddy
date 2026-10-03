@@ -1,9 +1,8 @@
 <script lang="ts">
   import { unitSystem } from "../../lib/session.svelte";
-  import { convertText } from "../../lib/units";
   import { ChevronDown, Trash2 } from "@lucide/svelte";
   import Icon from "../../components/Icon.svelte";
-  import { attackAbility, attackDamageBonus, attackToHit, isFinesse, offhandWeapons, type Attack } from "../../lib/character";
+  import { attackAbility, attackDamageBonus, attackRange, attackToHit, isFinesse, offhandWeapons, type Attack } from "../../lib/character";
   import { formatDice, parseDice } from "../../lib/dice";
   import { ABILITY_SHORT, formatMod, type Ability } from "../../lib/dnd";
   import { appliesToAttack } from "../../lib/features";
@@ -59,7 +58,7 @@
   </div>
 
   <div class="chip-row meta">
-    <span class="badge">{attack.kind === "ranged" ? "Fernkampf" : "Nahkampf"}{#if attack.range} {convertText(attack.range, unitSystem())}{/if}</span>
+    <span class="badge">{attack.kind === "ranged" ? "Fernkampf" : "Nahkampf"}{attackRange(attack, unitSystem()) ? ` ${attackRange(attack, unitSystem())}` : ""}</span>
     {#if abilityLabel}<span class="badge">{abilityLabel}{#if isFinesse(attack)} (Finesse){/if}</span>{/if}
     <span class="badge mono">{damageText(attack)}{attack.damageType ? ` ${attack.damageType}` : ""}</span>
     {#if attack.extraDamage}<span class="badge mono">+{attack.extraDamage} {attack.extraDamageType}</span>{/if}

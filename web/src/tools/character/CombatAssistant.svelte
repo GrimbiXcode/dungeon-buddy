@@ -6,7 +6,7 @@
   import Icon from "../../components/Icon.svelte";
   import Modal from "../../components/Modal.svelte";
   import { get } from "../../lib/api";
-  import { attackToHit, initiative, offhandIsNick, offhandWeapons, spellAttackBonus, type Attack } from "../../lib/character";
+  import { attackRange, attackToHit, initiative, offhandIsNick, offhandWeapons, spellAttackBonus, type Attack } from "../../lib/character";
   import { setEquipped } from "../../lib/armor";
   import { formatMod, SPELL_LEVEL_NAMES } from "../../lib/dnd";
   import {
@@ -212,7 +212,7 @@
   <div class="sugg">
     <div class="grow">
       <div class="sugg-name"><Icon name="attack" size={14} /> <strong>{a.name || "Angriff"}</strong> <span class="badge mono">{formatMod(attackToHit(c, a))}</span></div>
-      <span class="tiny muted">{a.kind === "ranged" ? "Fernkampf" : "Nahkampf"}{a.range ? ` ${convertText(a.range, unitSystem())}` : ""} · {a.damage} {a.damageType}</span>
+      <span class="tiny muted">{a.kind === "ranged" ? "Fernkampf" : "Nahkampf"}{attackRange(a, unitSystem()) ? ` ${attackRange(a, unitSystem())}` : ""} · {a.damage} {a.damageType}</span>
     </div>
     <button class="btn btn-sm btn-primary" onclick={() => ctx.openAttack(a)}>Angreifen</button>
   </div>

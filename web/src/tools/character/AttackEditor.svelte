@@ -5,6 +5,7 @@
   import { parseDice } from "../../lib/dice";
   import { ABILITIES, ABILITY_SHORT } from "../../lib/dnd";
   import { WEAPON_PROPERTIES } from "../../lib/features";
+  import { distanceUnit, feetToInput, inputToFeet } from "../../lib/units";
   import { sheet } from "./context";
 
   let { attack, onsave, onclose }: { attack: Attack; onsave: (a: Attack) => void; onclose: () => void } = $props();
@@ -18,6 +19,19 @@
   let a = $state(newAttack(JSON.parse(JSON.stringify(attack))));
   let error = $state<string | null>(null);
 
+  /** Fern- und Wurfwaffen haben eine Grund- und eine Fernreichweite */
+  const hasLong = $derived(a.kind === "ranged" || a.properties.includes("Wurfwaffe"));
+  const unit = $derived(distanceUnit(unitSystem()));
+
+  function rangeInput(ft: number | null) {
+    return ft == null ? "" : feetToInput(ft, unitSystem());
+  }
+
+  function setRange(field: "rangeNormal" | "rangeLong", raw: string) {
+    const value = raw.trim() === "" ? null : Number(raw.replace(",", "."));
+    a[field] = value == null || !Number.isFinite(value) || value < 0 ? null : inputToFeet(value, unitSystem());
+  }
+
   function toggleProperty(p: string) {
     a.properties = a.properties.includes(p) ? a.properties.filter(x => x !== p) : [...a.properties, p];
   }
@@ -28,6 +42,16 @@
       error = "Bitte einen Namen eingeben.";
       return;
     }
+    if (!hasLong) a.rangeLong = null;
+    if (a.rangeLong != null && a.rangeNormal == null) {
+      error = "Bitte zuerst die Grundreichweite angeben.";
+      return;
+    }
+    if (a.rangeLong != null && a.rangeNormal != null && a.rangeLong <= a.rangeNormal) {
+      error = "Die Fernreichweite muss grösser sein als die Grundreichweite.";
+      return;
+    }
+    if (a.rangeNormal != null) a.range = "";
     for (const [label, value] of [["Schaden", a.damage], ["Zweihändig", a.versatileDamage], ["Zusatzschaden", a.extraDamage]] as const) {
       if (value.trim() && !parseDice(value)) {
         error = `Ungültiger Würfelausdruck bei „${label}“: „${value}“ (Beispiel: 1d8).`;
@@ -66,8 +90,50 @@
           <p class="tiny muted">Leicht: Nach einem Angriff damit bietet der Assistent einen Zusatzangriff mit einer zweiten leichten Waffe an.</p>
         {/if}
       </div>
+      <div class="grid-2 ranges">
+        <label class="field">
+          <span class="label">{hasLong ? "Grundreichweite" : "Reichweite"}</span>
+          <span class="unit-input">
+            <input
+              class="input mono"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="any"
+              value={rangeInput(a.rangeNormal)}
+              placeholder={hasLong ? (unit === "m" ? "24" : "80") : unit === "m" ? "1.5" : "5"}
+              onchange={e => setRange("rangeNormal", e.currentTarget.value)}
+            />
+            <span class="unit">{unit}</span>
+          </span>
+          <span class="tiny muted">
+            {hasLong ? "Bis hier greifst du normal an." : `Nahkampf meist ${unit === "m" ? "1.5 m" : "5 ft"}, mit „Weitreichend“ ${unit === "m" ? "3 m" : "10 ft"}.`}
+          </span>
+        </label>
+        {#if hasLong}
+          <label class="field">
+            <span class="label">Fernreichweite</span>
+            <span class="unit-input">
+              <input
+                class="input mono"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="any"
+                value={rangeInput(a.rangeLong)}
+                placeholder={unit === "m" ? "96" : "320"}
+                onchange={e => setRange("rangeLong", e.currentTarget.value)}
+              />
+              <span class="unit">{unit}</span>
+            </span>
+            <span class="tiny muted">Weiter weg bis hier: Angriff mit Nachteil. Darüber hinaus nicht möglich.</span>
+          </label>
+        {/if}
+      </div>
+      {#if a.range && a.rangeNormal == null}
+        <p class="tiny muted">Bisherige Angabe: „{a.range}“. Bitte in die Felder oben übertragen.</p>
+      {/if}
       <div class="grid-3">
-        <label class="field"><span class="label">Reichweite</span><input class="input" bind:value={a.range} placeholder={unitSystem() === "metric" ? "1.5 m / 24/96 m" : "5 ft / 80/320 ft"} /></label>
         {#if ctx.ruleset === "2024"}
           <label class="field">
             <span class="label">Meisterschaft</span>
@@ -118,6 +184,11 @@
 </Modal>
 
 <style>
+  .ranges { align-items: start; }
+  .ranges > .field { min-width: 0; }
+  .unit-input { display: flex; align-items: center; gap: 0.4rem; }
+  .unit-input .input { flex: 1; min-width: 0; }
+  .unit { color: var(--muted); font-size: 0.9rem; }
   fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
   legend {
     font-family: var(--font-display);
