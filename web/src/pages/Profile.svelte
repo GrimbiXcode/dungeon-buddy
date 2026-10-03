@@ -202,7 +202,7 @@
 {/if}
 
 <style>
-  .layout { display: grid; gap: 1rem; max-width: 720px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; max-width: 720px; }
   section h2 { font-size: 1.05rem; }
   .segmented button { display: inline-flex; align-items: center; gap: 0.35rem; }
   .option {

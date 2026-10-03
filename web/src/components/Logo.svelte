@@ -9,5 +9,5 @@
 
 <style>
   .logo { display: inline-flex; align-items: center; gap: 0.55rem; color: var(--text); }
-  .text { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; letter-spacing: 0.02em; }
+  .text { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; letter-spacing: 0.02em; white-space: nowrap; }
 </style>
