@@ -1,6 +1,6 @@
 export type Ruleset = "2014" | "2024";
 export type DiceMode = "digital" | "physical";
-export type ColorMode = "system" | "light" | "dark";
+export type ColorMode = "system" | "light" | "dark" | "adventurer";
 
 export type UserSettings = {
   colorMode?: ColorMode;

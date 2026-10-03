@@ -3,6 +3,7 @@
   import Logo from "../components/Logo.svelte";
   import { post } from "../lib/api";
   import { session } from "../lib/session.svelte";
+  import { isDarkMode } from "../lib/themes";
   import { toastError } from "../lib/toast.svelte";
   import type { User } from "../lib/types";
 
@@ -18,7 +19,7 @@
 
   const info = $derived(session.info);
   const bot = $derived(info?.botUsername);
-  const dark = $derived(document.documentElement.dataset.mode === "dark");
+  const dark = $derived(isDarkMode());
 
   function readConsent() {
     try {

@@ -24,17 +24,28 @@ export function rulesetLabel(r: string) {
 
 const COLOR_MODE_KEY = "db-color-mode";
 
-/** Hell/Dunkel anwenden und lokal merken (für theme-init.js beim nächsten Start). */
+const THEME_COLORS = { light: "#f6f2ea", dark: "#1a1625", adventurer: "#1e1f22" } as const;
+
+/** Farbschema anwenden und lokal merken (für theme-init.js beim nächsten Start). */
 export function applyColorMode(mode: ColorMode = "system") {
   try {
     localStorage.setItem(COLOR_MODE_KEY, mode);
   } catch {
     /* privates Fenster o. ä. */
   }
-  const dark =
-    mode === "dark" || (mode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.dataset.mode = dark ? "dark" : "light";
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#1a1625" : "#f6f2ea");
+  const resolved =
+    mode === "system"
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light"
+      : mode;
+  document.documentElement.dataset.mode = resolved;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLORS[resolved]);
+}
+
+/** Ob das aktuell angewendete Schema dunkel ist (Dunkel oder Adventurer). */
+export function isDarkMode() {
+  return document.documentElement.dataset.mode !== "light";
 }
 
 export function storedColorMode(): ColorMode {

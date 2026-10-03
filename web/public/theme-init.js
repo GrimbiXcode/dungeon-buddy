@@ -2,8 +2,8 @@
 (function () {
   try {
     var mode = localStorage.getItem("db-color-mode") || "system";
-    var dark = mode === "dark" || (mode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    document.documentElement.dataset.mode = dark ? "dark" : "light";
+    if (mode === "system") mode = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.mode = mode === "light" || mode === "adventurer" ? mode : "dark";
   } catch (e) {
     document.documentElement.dataset.mode = "dark";
   }
