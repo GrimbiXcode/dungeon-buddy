@@ -3,7 +3,7 @@ import { sql } from "../db.js";
 import { env } from "../env.js";
 
 export const userSettingsSchema = z.object({
-  colorMode: z.enum(["system", "light", "dark"]).optional(),
+  colorMode: z.enum(["system", "light", "dark", "adventurer"]).optional(),
   diceMode: z.enum(["digital", "physical"]).optional(),
   units: z.enum(["imperial", "metric"]).optional(),
   unitCalculator: z.boolean().optional(),
