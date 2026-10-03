@@ -10,11 +10,16 @@
   }
   document.documentElement.dataset.mode = mode;
 
-  // Favicon, App-Icon und Manifest passend zum Schema (gleiches Muster wie modeIconLinks in src/lib/logo.ts)
+  // Favicon folgt dem Schema, das App-Icon der eigenen Wahl (gleiche Muster wie in src/lib/logo.ts)
+  var icon;
+  try {
+    icon = localStorage.getItem("db-app-icon");
+  } catch (e) {}
+  if (icon !== "light" && icon !== "adventurer") icon = "dark";
   var links = {
     icon: "/icons/favicon-" + mode + ".svg",
-    "apple-touch-icon": "/icons/apple-touch-icon-" + mode + ".png",
-    manifest: "/manifest-" + mode + ".webmanifest",
+    "apple-touch-icon": "/icons/apple-touch-icon-" + icon + ".png",
+    manifest: "/manifest-" + icon + ".webmanifest",
   };
   for (var rel in links) {
     var link = document.querySelector('link[rel="' + rel + '"]');

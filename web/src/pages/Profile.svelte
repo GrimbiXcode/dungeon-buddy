@@ -5,7 +5,8 @@
   import { del, patch, post } from "../lib/api";
   import { navigate } from "../lib/router.svelte";
   import { session } from "../lib/session.svelte";
-  import { applyColorMode } from "../lib/themes";
+  import type { LogoMode } from "../lib/logo";
+  import { applyAppIcon, applyColorMode, storedAppIcon } from "../lib/themes";
   import { toast, toastError } from "../lib/toast.svelte";
   import type { ColorMode, DiceMode, User, UserSettings } from "../lib/types";
 
@@ -15,6 +16,12 @@
   let showDelete = $state(false);
   let deleteConfirm = $state("");
   let busy = $state(false);
+  let appIcon = $state(storedAppIcon());
+
+  function chooseAppIcon(icon: LogoMode) {
+    appIcon = icon;
+    applyAppIcon(icon);
+  }
 
   async function saveSettings(settings: UserSettings) {
     try {
@@ -70,6 +77,11 @@
     { key: "dark", label: "Dunkel", icon: Moon },
     { key: "adventurer", label: "Adventurer", icon: Swords },
   ];
+  const appIcons: { key: LogoMode; label: string }[] = [
+    { key: "dark", label: "Dunkel" },
+    { key: "light", label: "Hell" },
+    { key: "adventurer", label: "Adventurer" },
+  ];
   const diceModes: { key: DiceMode; label: string; text: string }[] = [
     { key: "digital", label: "Digital würfeln", text: "Die App würfelt für dich." },
     { key: "physical", label: "Echte Würfel", text: "Du würfelst selbst und tippst das Ergebnis an – die App rechnet Boni dazu." },
@@ -108,6 +120,21 @@
         {/each}
       </div>
       <p class="tiny muted">Die Akzentfarbe legst du pro Kampagne fest.</p>
+
+      <h3 id="app-icon-label">App-Icon</h3>
+      <div class="app-icons" role="group" aria-labelledby="app-icon-label">
+        {#each appIcons as i (i.key)}
+          <button class="app-icon" aria-pressed={appIcon === i.key} onclick={() => chooseAppIcon(i.key)}>
+            <img src="/icons/apple-touch-icon-{i.key}.png" alt="" width="48" height="48" />
+            {i.label}
+          </button>
+        {/each}
+      </div>
+      <p class="tiny muted">
+        Gilt für die installierte App auf diesem Gerät, unabhängig vom Farbschema. Eine bereits installierte App
+        übernimmt das neue Icon beim nächsten Start, je nach Browser nach einer Rückfrage. Auf iPhone und iPad musst du
+        die App dafür vom Home-Bildschirm entfernen und neu hinzufügen.
+      </p>
       <p class="tiny muted">
         Icons im Adventurer-Modus von Lorc, Delapouite und weiteren auf
         <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, lizenziert unter
@@ -205,6 +232,23 @@
   .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; max-width: 720px; }
   section h2 { font-size: 1.05rem; }
   .segmented button { display: inline-flex; align-items: center; gap: 0.35rem; }
+  h3 { font-size: 0.95rem; margin: 1rem 0 0.5rem; }
+  .app-icons { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .app-icon {
+    display: grid;
+    justify-items: center;
+    gap: 0.35rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .app-icon[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .app-icon img { border-radius: 11px; }
   .option {
     display: flex;
     gap: 0.7rem;

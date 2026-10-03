@@ -23,12 +23,17 @@ export const MODE_COLORS = {
 
 export type LogoMode = keyof typeof MODE_COLORS;
 
-/** Favicon, Apple-Icon und Manifest zum Farbschema. Gleiches Muster in public/theme-init.js. */
-export function modeIconLinks(mode: LogoMode) {
+/** Favicon zum Farbschema. Gleiches Muster in public/theme-init.js. */
+export const faviconHref = (mode: LogoMode) => `/icons/favicon-${mode}.svg`;
+
+/**
+ * Icon der installierten App. Unabhängig vom Farbschema gewählt, damit ein
+ * Schemawechsel keinen Update-Dialog des Browsers auslöst. Gleiches Muster in public/theme-init.js.
+ */
+export function appIconLinks(icon: LogoMode) {
   return {
-    icon: `/icons/favicon-${mode}.svg`,
-    "apple-touch-icon": `/icons/apple-touch-icon-${mode}.png`,
-    manifest: `/manifest-${mode}.webmanifest`,
+    "apple-touch-icon": `/icons/apple-touch-icon-${icon}.png`,
+    manifest: `/manifest-${icon}.webmanifest`,
   };
 }
 
