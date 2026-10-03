@@ -8,27 +8,13 @@ export default defineConfig({
     VitePWA({
       registerType: "prompt",
       injectRegister: false,
-      includeAssets: ["favicon.svg", "apple-touch-icon.png"],
-      manifest: {
-        name: "Dungeon Buddy",
-        short_name: "Dungeon Buddy",
-        description: "Deine D&D-5e-Toolbox: Tagebuch, NPC-Netzwerk, Charakterbogen und Zauberbuch.",
-        lang: "de",
-        theme_color: "#1a1625",
-        background_color: "#1a1625",
-        display: "standalone",
-        start_url: "/",
-        scope: "/",
-        icons: [
-          { src: "icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png" },
-          { src: "icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-        ],
-      },
+      // Manifeste je Farbschema liegen in public/ (npm run icons), theme-init.js verlinkt das passende
+      manifest: false,
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         // pdf.js (~1.7 MB) nur bei Bedarf laden: Vorschaubilder für PDFs brauchen ohnehin eine Verbindung
-        globIgnores: ["**/assets/pdf-*.js", "**/assets/pdf.worker*"],
+        // App-Icons braucht nur die Installation, nicht der Offline-Betrieb
+        globIgnores: ["**/assets/pdf-*.js", "**/assets/pdf.worker*", "**/icons/icon-*", "**/icons/apple-touch-icon-*"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//, /^\/telegram-login\.html/, /^\/health/],
         runtimeCaching: [

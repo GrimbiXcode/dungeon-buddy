@@ -14,9 +14,13 @@
     "check": "npm run check -w server && npm run check -w web",
     "test": "npm run test -w server && npm run test -w web",
     "start": "npm run start -w server",
-    "srd": "node scripts/build-srd.mjs"
+    "srd": "node scripts/build-srd.mjs",
+    "icons": "node scripts/build-icons.mjs"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2"
   }
 }
