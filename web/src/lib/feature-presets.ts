@@ -1,4 +1,4 @@
-import { newFeature, newRollMod, type Feature, type FeatureLink } from "./features";
+import { newDamageAdd, newFeature, newRollMod, type Feature, type FeatureLink } from "./features";
 import type { Ruleset } from "./types";
 
 /**
@@ -91,7 +91,8 @@ export const FEATURE_PRESETS: Preset[] = [
       effectType: "healing",
       target: "self",
       benefit: "Heilt 1W10 + Kämpferstufe",
-      damage: "1d10+1",
+      damage: "1d10",
+      damageAdds: [newDamageAdd({ kind: "classLevel", className: "Kämpfer" })],
       uses: { max: r === "2024" ? 2 : 1, used: 0, reset: r === "2024" ? "long" : "short" },
       description: r === "2024" ? "2024: Eine Nutzung kehrt nach einer kurzen Rast zurück." : "",
     }),

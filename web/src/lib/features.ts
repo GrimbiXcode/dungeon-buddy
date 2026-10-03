@@ -6,8 +6,8 @@
  * `normalizeFeature` / `normalizeCombat` in Form gebracht.
  */
 import type { Attack, CharacterData, Resource } from "./character";
-import { ABILITIES, ABILITY_SHORT, SKILLS, type Ability, type RollKind, type SkillKey } from "./dnd";
-import { formatBonus, parseBonus, type DiceGroup } from "./dice";
+import { ABILITIES, ABILITY_SHORT, SKILLS, abilityMod, proficiencyBonus, type Ability, type RollKind, type SkillKey } from "./dnd";
+import { addExpr, formatBonus, parseBonus, parseDice, type DiceExpr, type DiceGroup } from "./dice";
 import { uid } from "./format";
 
 // ── Auswahllisten ───────────────────────────────────────────────────────
@@ -119,6 +119,20 @@ export const AC_MODES = [
 ] as const;
 export type AcModMode = (typeof AC_MODES)[number]["key"];
 
+/** Was beim Schadens-/Heilungswurf zusätzlich dazukommt (Durchschnaufen: 1W10 + Kämpferstufe). */
+export const DAMAGE_ADDS = [
+  { key: "ability", label: "Attribut-Mod." },
+  { key: "level", label: "Stufe (gesamt)" },
+  { key: "classLevel", label: "Klassenstufe" },
+  { key: "proficiency", label: "Übungsbonus" },
+] as const;
+export type DamageAddKind = (typeof DAMAGE_ADDS)[number]["key"];
+export type DamageAdd = { kind: DamageAddKind; ability: Ability; className: string };
+
+export function newDamageAdd(partial: Partial<DamageAdd> = {}): DamageAdd {
+  return { kind: "ability", ability: "con", className: "", ...partial };
+}
+
 export const LINK_WHEN = [
   { key: "use", label: "beim Einsetzen" },
   { key: "success", label: "wenn es gelingt (selbst bestätigen)" },
@@ -188,6 +202,8 @@ export type Feature = {
   /** Voraussetzungen, z. B. "nur mit Finesse-Waffe" */
   condition: string;
   damage: string;
+  /** Zum Würfelergebnis addiert: Attributsmodifikator, Stufe, Klassenstufe, Übungsbonus */
+  damageAdds: DamageAdd[];
   damageType: string;
   /** Rettungswurf der Ziele, z. B. "GES-Rettungswurf, halber Schaden" */
   save: string;
@@ -256,6 +272,7 @@ export function newFeature(partial: Partial<Feature> = {}): Feature {
     benefit: "",
     condition: "",
     damage: "",
+    damageAdds: [],
     damageType: "",
     save: "",
     duration: { kind: "instant", amount: 1, text: "" },
@@ -334,6 +351,14 @@ export function normalizeFeature(raw: unknown): Feature {
     benefit: str(f.benefit),
     condition: str(f.condition),
     damage: str(f.damage),
+    damageAdds: (Array.isArray(f.damageAdds) ? f.damageAdds : []).map(raw => {
+      const a = obj(raw);
+      return newDamageAdd({
+        kind: oneOf(DAMAGE_ADDS, a.kind, "ability"),
+        ability: (ABILITIES as readonly string[]).includes(a.ability as string) ? (a.ability as Ability) : "con",
+        className: str(a.className).slice(0, 60),
+      });
+    }),
     damageType: str(f.damageType),
     save: str(f.save),
     duration: {
@@ -651,6 +676,60 @@ export function attackOptions(c: CharacterData, a: Attack) {
   return { before: before.sort(order), onHit: onHit.sort(order) };
 }
 
+// ── Schaden und Heilung ─────────────────────────────────────────────────
+
+/** Stufe einer Klasse (Name ohne Gross-/Kleinschreibung); 0, wenn der Charakter sie nicht hat */
+function classLevel(c: CharacterData, name: string) {
+  const n = name.trim().toLocaleLowerCase("de");
+  return c.classes.filter(k => k.name.trim().toLocaleLowerCase("de") === n).reduce((sum, k) => sum + (k.level || 0), 0);
+}
+
+export function damageAddValue(c: CharacterData, add: DamageAdd): number {
+  const level = Math.max(1, c.classes.reduce((sum, k) => sum + (k.level || 0), 0));
+  switch (add.kind) {
+    case "ability":
+      return abilityMod(c.abilities[add.ability]);
+    case "level":
+      return level;
+    case "classLevel":
+      return classLevel(c, add.className);
+    case "proficiency":
+      return c.profBonusOverride ?? proficiencyBonus(level);
+  }
+}
+
+export function damageAddLabel(add: DamageAdd): string {
+  switch (add.kind) {
+    case "ability":
+      return `${ABILITY_SHORT[add.ability]}-Mod.`;
+    case "level":
+      return "Stufe";
+    case "classLevel": {
+      const name = add.className.trim();
+      return name ? `${name[0]!.toLocaleUpperCase("de")}${name.slice(1)}stufe` : "Klassenstufe";
+    }
+    case "proficiency":
+      return "Übung";
+  }
+}
+
+/** Würfel der Fähigkeit inklusive Zuschläge; null ohne Würfel und ohne Zuschläge */
+export function featureDamageExpr(c: CharacterData, f: Pick<Feature, "damage" | "damageAdds">): DiceExpr | null {
+  const base = f.damage.trim() ? parseDice(f.damage) : { groups: [], bonus: 0 };
+  if (!base || (!base.groups.length && !base.bonus && !f.damageAdds.length)) return null;
+  const bonus = f.damageAdds.reduce((sum, a) => sum + damageAddValue(c, a), 0);
+  return addExpr(base, { groups: [], bonus });
+}
+
+/** Kurztext der Zuschläge mit aktuellem Wert, z. B. "Kämpferstufe +3, KON-Mod. +2" */
+export function describeDamageAdds(c: CharacterData, adds: DamageAdd[]) {
+  return adds.map(a => `${damageAddLabel(a)} ${formatSigned(damageAddValue(c, a))}`).join(", ");
+}
+
+function formatSigned(n: number) {
+  return n < 0 ? `−${Math.abs(n)}` : `+${n}`;
+}
+
 // ── Wurfmodifikatoren ───────────────────────────────────────────────────
 
 /**
@@ -665,8 +744,8 @@ export function isDamageTwice(m: RollMod) {
  * Art der Fähigkeit aus ihren Bausteinen ableiten (für Filter und das
  * Würfeln von Schaden/Heilung), solange sie nicht ausdrücklich gesetzt ist.
  */
-export function deriveEffectType(f: Pick<Feature, "damage" | "acMod" | "rollMods">, healing = false): EffectType {
-  if (f.damage.trim()) return healing ? "healing" : "damage";
+export function deriveEffectType(f: Pick<Feature, "damage" | "acMod" | "rollMods"> & { damageAdds?: DamageAdd[] }, healing = false): EffectType {
+  if (f.damage.trim() || f.damageAdds?.length) return healing ? "healing" : "damage";
   if (f.acMod.mode !== "none") return "defense";
   if (f.rollMods.some(m => m.bonus.trim() || m.mode !== "none")) return "buff";
   return "utility";

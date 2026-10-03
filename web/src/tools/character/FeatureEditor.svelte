@@ -4,8 +4,8 @@
   import Modal from "../../components/Modal.svelte";
   import TagInput from "../../components/TagInput.svelte";
   import { Plus, Trash2, X } from "@lucide/svelte";
-  import { parseBonus, parseDice } from "../../lib/dice";
-  import { ABILITIES, ABILITY_NAMES, SKILLS, rulesTerms } from "../../lib/dnd";
+  import { formatDice, parseBonus, parseDice } from "../../lib/dice";
+  import { ABILITIES, ABILITY_NAMES, ABILITY_SHORT, SKILLS, rulesTerms } from "../../lib/dnd";
   import {
     AC_MODES,
     ACTIVATIONS,
@@ -18,7 +18,11 @@
     TRIGGERS,
     USE_RESETS,
     baseCategories,
+    DAMAGE_ADDS,
     deriveEffectType,
+    describeDamageAdds,
+    featureDamageExpr,
+    newDamageAdd,
     isDamageTwice,
     label,
     newRollMod,
@@ -104,8 +108,8 @@
     twice: f.rollMods.some(isDamageTwice),
     ac: f.acMod.mode !== "none",
     scope: f.appliesTo.scope !== "none",
-    damage: Boolean(f.damage.trim() || f.damageType.trim()) && !startHealing,
-    healing: Boolean(f.damage.trim()) && startHealing,
+    damage: Boolean(f.damage.trim() || f.damageType.trim() || f.damageAdds.length) && !startHealing,
+    healing: Boolean(f.damage.trim() || f.damageAdds.length) && startHealing,
     save: Boolean(f.save.trim()),
     target: f.target !== "self" || Boolean(f.targetText.trim()),
     duration: f.duration.kind !== "instant",
@@ -134,7 +138,13 @@
       ...(on.twice ? [newRollMod({ target: "damage", mode: "advantage" })] : []),
     ];
   }
-  const derivedType = $derived(deriveEffectType({ damage: f.damage, acMod: f.acMod, rollMods: composedMods() }, on.healing));
+  const derivedType = $derived(
+    deriveEffectType({ damage: f.damage, damageAdds: f.damageAdds, acMod: f.acMod, rollMods: composedMods() }, on.healing)
+  );
+
+  /** Würfel mit Zuschlägen, wie sie für diesen Charakter gerade gewürfelt würden */
+  const damagePreview = $derived(featureDamageExpr(c, f));
+  const classNames = $derived([...new Set(c.classes.map(k => k.name.trim()).filter(Boolean))]);
 
   /** Würfe auf Angriff/Schaden brauchen einen Angriffsbezug */
   function ensureScope(scope: Feature["appliesTo"]["scope"] = "all") {
@@ -245,6 +255,7 @@
       case "healing":
         f.damage = "";
         f.damageType = "";
+        f.damageAdds = [];
         break;
       case "save":
         f.save = "";
@@ -294,6 +305,10 @@
       error = `Ungültiger Würfelausdruck „${f.damage}“ (Beispiel: 2d6+3).`;
       return;
     }
+    if (f.damageAdds.some(a => a.kind === "classLevel" && !a.className.trim())) {
+      error = "Bitte bei „Klassenstufe“ die Klasse angeben (z. B. Kämpfer).";
+      return;
+    }
     const badMod = bonusMods.find(m => m.bonus.trim() && !parseBonus(m.bonus));
     if (badMod) {
       error = `Ungültiger Bonus „${badMod.bonus}“ (Beispiele: 2, -1, 1d4, -1d4).`;
@@ -313,6 +328,36 @@
     <strong>{title(key)}</strong>
     <button type="button" class="btn btn-sm btn-icon btn-ghost" aria-label={removeLabel} onclick={onremove}><Trash2 size={15} /></button>
   </div>
+{/snippet}
+
+{#snippet damageAddsEditor()}
+  {#each f.damageAdds as a, i (i)}
+    <div class="add-row">
+      <span class="plus" aria-hidden="true">+</span>
+      <select class="select kind" bind:value={a.kind} aria-label="Zuschlag">
+        {#each DAMAGE_ADDS as d (d.key)}<option value={d.key}>{d.label}</option>{/each}
+      </select>
+      {#if a.kind === "ability"}
+        <select class="select" bind:value={a.ability} aria-label="Attribut">
+          {#each ABILITIES as ab (ab)}<option value={ab}>{ABILITY_SHORT[ab]}</option>{/each}
+        </select>
+      {:else if a.kind === "classLevel"}
+        <input class="input" list="feature-classes" bind:value={a.className} placeholder="Klasse, z. B. Kämpfer" aria-label="Klasse" />
+      {/if}
+      <button type="button" class="btn btn-sm btn-icon btn-ghost" aria-label="Zuschlag entfernen" onclick={() => (f.damageAdds = f.damageAdds.filter((_, j) => j !== i))}><Trash2 size={15} /></button>
+    </div>
+  {/each}
+  <datalist id="feature-classes">{#each classNames as n (n)}<option value={n}></option>{/each}</datalist>
+  <button
+    type="button"
+    class="btn btn-sm btn-ghost add-inline"
+    onclick={() => (f.damageAdds = [...f.damageAdds, newDamageAdd(classNames.length ? { kind: "classLevel", className: classNames[0] } : {})])}
+  >
+    <Plus size={14} /> Modifikator oder Stufe hinzurechnen
+  </button>
+  {#if f.damageAdds.length && damagePreview}
+    <p class="tiny muted">Für diesen Charakter: <span class="mono">{formatDice(damagePreview)}</span> ({describeDamageAdds(c, f.damageAdds)})</p>
+  {/if}
 {/snippet}
 
 {#snippet abilityOrSkill(m: RollMod)}
@@ -424,13 +469,15 @@
           <input class="input mono" bind:value={f.damage} placeholder="2d6+3" aria-label="Schadenswürfel" />
           <input class="input" bind:value={f.damageType} placeholder="Feuer" aria-label="Schadensart" />
         </div>
+        {@render damageAddsEditor()}
         <p class="tiny muted">Bei Angriffen kommt der Schaden zum Waffenschaden dazu, wenn „Bei Treffer“ als Auslöser gesetzt ist oder die Fähigkeit vor dem Angriff gewählt wird.</p>
       </div>
     {/if}
     {#if on.healing}
       <div class="block" id="feature-block-healing">
         {@render blockHead("healing", () => remove("healing"))}
-        <input class="input mono" bind:value={f.damage} placeholder="1d10+5" aria-label="Heilungswürfel" />
+        <input class="input mono" bind:value={f.damage} placeholder="1d10" aria-label="Heilungswürfel" />
+        {@render damageAddsEditor()}
       </div>
     {/if}
     {#if on.save}
@@ -623,6 +670,11 @@
   .block .wide { grid-column: 1 / -1; }
   .block p { margin: 0; }
   .uses { gap: 0.5rem; flex-wrap: nowrap; }
+  .add-row { display: flex; align-items: center; gap: 0.4rem; }
+  .add-row > :global(.select), .add-row > :global(.input) { flex: 1 1 0; min-width: 0; padding-left: 0.55rem; }
+  .add-row > :global(.kind) { flex-grow: 1.25; }
+  .plus { color: var(--muted); font-weight: 700; width: 0.8rem; text-align: center; }
+  .add-inline { align-self: flex-start; }
   .uses .select { width: auto; flex: 1; }
   .num { width: 4.5rem; flex: none; }
 

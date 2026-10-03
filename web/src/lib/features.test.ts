@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { longRest, newAttack, normalizeCharacter, shortRest } from "./character";
+import { diceString } from "./dice";
 import { buildPreset, FEATURE_PRESETS } from "./feature-presets";
 import {
   activationFromCastingTime,
@@ -7,12 +8,15 @@ import {
   appliesToAttack,
   attackOptions,
   deriveEffectType,
+  describeDamageAdds,
   describeRollMods,
   economySpent,
+  featureDamageExpr,
   endCombat,
   isAvailable,
   isDamageTwice,
   matchesFilter,
+  newDamageAdd,
   newFeature,
   newRollMod,
   nextTurn,
@@ -200,5 +204,52 @@ describe("Kategorien", () => {
   it("Vorlagen behalten ihre Kategorie, Spezies wird umbenannt", () => {
     expect(buildPreset("rage", "2024", "Spezies").categories).toEqual(["Klasse"]);
     expect(buildPreset("breath", "2014", "Volk").categories).toEqual(["Volk"]);
+  });
+});
+
+describe("Zuschläge auf Schaden und Heilung", () => {
+  function fighter() {
+    return normalizeCharacter({
+      abilities: { con: 14, wis: 8 },
+      classes: [
+        { name: "Kämpfer", level: 3, hitDie: 10 },
+        { name: "Schurke", level: 2, hitDie: 8 },
+      ],
+    });
+  }
+
+  it("rechnet Attributsmodifikator, Stufe, Klassenstufe und Übungsbonus dazu", () => {
+    const c = fighter();
+    const f = newFeature({
+      damage: "1d10",
+      damageAdds: [
+        newDamageAdd({ kind: "classLevel", className: "kämpfer" }),
+        newDamageAdd({ kind: "ability", ability: "con" }),
+        newDamageAdd({ kind: "ability", ability: "wis" }),
+        newDamageAdd({ kind: "level" }),
+        newDamageAdd({ kind: "proficiency" }),
+      ],
+    });
+    // 3 (Kämpfer) + 2 (KON) − 1 (WEI) + 5 (Stufe) + 3 (Übung)
+    expect(diceString(featureDamageExpr(c, f)!)).toBe("1d10+12");
+    expect(describeDamageAdds(c, f.damageAdds.slice(0, 2))).toBe("Kämpferstufe +3, KON-Mod. +2");
+  });
+
+  it("geht auch ohne Würfel und ohne Klasse", () => {
+    const c = fighter();
+    expect(featureDamageExpr(c, newFeature({ damageAdds: [newDamageAdd({ kind: "level" })] }))).toEqual({ groups: [], bonus: 5 });
+    expect(featureDamageExpr(c, newFeature())).toBeNull();
+    expect(diceString(featureDamageExpr(c, newFeature({ damage: "1d6", damageAdds: [newDamageAdd({ kind: "classLevel", className: "Magier" })] }))!)).toBe("1d6");
+  });
+
+  it("Durchschnaufen heilt 1W10 + Kämpferstufe", () => {
+    const f = normalizeFeature(JSON.parse(JSON.stringify(buildPreset("secondWind", "2024", "Spezies"))));
+    expect(diceString(featureDamageExpr(fighter(), f)!)).toBe("1d10+3");
+    expect(deriveEffectType(f, true)).toBe("healing");
+  });
+
+  it("normalisiert unbekannte Zuschläge", () => {
+    const f = normalizeFeature({ damageAdds: [{ kind: "quatsch", ability: "xyz" }, "kaputt"] });
+    expect(f.damageAdds).toEqual([newDamageAdd(), newDamageAdd()]);
   });
 });

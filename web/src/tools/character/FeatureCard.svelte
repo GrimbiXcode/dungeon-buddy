@@ -4,13 +4,14 @@
   import { Check, ChevronDown, Link2, Play, Trash2 } from "@lucide/svelte";
   import Icon from "../../components/Icon.svelte";
   import Markdown from "../../components/Markdown.svelte";
-  import { formatDice, parseDice } from "../../lib/dice";
+  import { formatDice } from "../../lib/dice";
   import {
     AC_MODES,
     confirmLinkSuccess,
     dependentFeatures,
     describeRollMods,
     economySpent,
+    featureDamageExpr,
     isAvailable,
     label,
     linkedFeatures,
@@ -37,7 +38,7 @@
   const spent = $derived(economySpent(c, feature.activation));
   const resource = $derived(feature.resourceId ? c.resources.find(r => r.id === feature.resourceId) : null);
   const activeEffect = $derived(c.combat.effects.find(e => e.featureId === feature.id));
-  const dice = $derived(parseDice(feature.damage));
+  const dice = $derived(featureDamageExpr(c, feature));
   const links = $derived(linkedFeatures(c, feature));
   const dependents = $derived(dependentFeatures(c, feature));
   const mods = $derived(describeRollMods(feature.rollMods));
