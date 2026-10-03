@@ -12,7 +12,9 @@ import {
   LayoutDashboard,
   LibraryBig,
   MapPin,
+  Moon,
   Pencil,
+  Play,
   ScrollText,
   Search,
   Settings,
@@ -64,6 +66,8 @@ export const ICONS = {
   nextTurn: { lucide: Hourglass, game: "sands-of-time" },
   endCombat: { lucide: Flag, game: "flying-flag" },
   shortRest: { lucide: Sunrise, game: "campfire" },
+  longRest: { lucide: Moon, game: "camping-tent" },
+  play: { lucide: Play, game: "rolling-dices" },
   // Netzwerk & Werkzeuge
   faction: { lucide: Flag, game: "knight-banner" },
   location: { lucide: MapPin, game: "position-marker" },

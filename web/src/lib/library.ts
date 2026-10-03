@@ -140,7 +140,7 @@ export function librarySummary(item: LibraryItem): string {
   switch (item.kind) {
     case "feature": {
       const f = normalizeFeature(d);
-      return [f.category, f.benefit].filter(Boolean).join(" · ");
+      return [f.categories.join(", "), f.benefit].filter(Boolean).join(" · ");
     }
     case "attack": {
       const a = normalizeAttack(d);

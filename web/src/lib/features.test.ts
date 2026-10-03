@@ -6,10 +6,15 @@ import {
   addEffect,
   appliesToAttack,
   attackOptions,
+  deriveEffectType,
+  describeRollMods,
   economySpent,
   endCombat,
   isAvailable,
+  isDamageTwice,
+  matchesFilter,
   newFeature,
+  newRollMod,
   nextTurn,
   normalizeFeature,
   startCombat,
@@ -145,5 +150,55 @@ describe("Kampfablauf", () => {
     const c = normalizeCharacter({ features: "**Zweite Luft**" });
     expect(c.features).toEqual([]);
     expect(c.featureNotes).toBe("**Zweite Luft**");
+  });
+});
+
+describe("Bausteine im Editor", () => {
+  it("leitet die Art aus den Bausteinen ab", () => {
+    const base = newFeature();
+    expect(deriveEffectType(base)).toBe("utility");
+    expect(deriveEffectType({ ...base, damage: "2d6" })).toBe("damage");
+    expect(deriveEffectType({ ...base, damage: "1d10+5" }, true)).toBe("healing");
+    expect(deriveEffectType({ ...base, acMod: { mode: "bonus", value: 2 } })).toBe("defense");
+    expect(deriveEffectType({ ...base, rollMods: [newRollMod({ target: "check", mode: "advantage" })] })).toBe("buff");
+  });
+
+  it("Wilder Angreifer: Waffenschadenswürfel zweimal würfeln, einmal pro Zug bei Treffer", () => {
+    const savage = buildPreset("savageAttacker", "2024", "Spezies");
+    expect(savage.rollMods.some(isDamageTwice)).toBe(true);
+    expect(savage.uses).toEqual({ max: 1, used: 0, reset: "turn" });
+    expect(describeRollMods(savage.rollMods)).toBe("Schadenswürfel zweimal würfeln, Ergebnis wählen");
+    // Die Art bleibt beim Ableiten erhalten (Buff)
+    expect(deriveEffectType(savage)).toBe(savage.effectType);
+
+    const { c, rapier } = rogue();
+    c.features.push(savage);
+    const opts = attackOptions(c, rapier);
+    expect(opts.onHit.map(o => o.feature.name)).toContain("Wilder Angreifer");
+    // Nur bei Waffenangriffen, nicht bei Zauberangriffen
+    const spell = newAttack({ name: "Feuerpfeil", ability: "spell", damage: "1d10", kind: "ranged" });
+    expect(appliesToAttack(savage, spell)).toBe(false);
+  });
+});
+
+describe("Kategorien", () => {
+  it("übernimmt die alte Einzelkategorie und startet neue Fähigkeiten ohne Kategorie", () => {
+    expect(normalizeFeature({ name: "Alt", category: "Talent" }).categories).toEqual(["Talent"]);
+    expect(normalizeFeature({ name: "Neu", categories: ["Klasse", " Barbar ", "Klasse", ""] }).categories).toEqual(["Klasse", "Barbar"]);
+    expect(normalizeFeature({ name: "Ohne" }).categories).toEqual([]);
+    expect(newFeature().categories).toEqual([]);
+  });
+
+  it("filtert nach jeder der Kategorien", () => {
+    const f = newFeature({ name: "Kampfrausch", categories: ["Klasse", "Barbar"] });
+    const filter = { search: "", tags: [], effectTypes: [] };
+    expect(matchesFilter(f, { ...filter, categories: ["Barbar"] })).toBe(true);
+    expect(matchesFilter(f, { ...filter, categories: ["Talent"] })).toBe(false);
+    expect(matchesFilter(f, { ...filter, search: "barb", categories: [] })).toBe(true);
+  });
+
+  it("Vorlagen behalten ihre Kategorie, Spezies wird umbenannt", () => {
+    expect(buildPreset("rage", "2024", "Spezies").categories).toEqual(["Klasse"]);
+    expect(buildPreset("breath", "2014", "Volk").categories).toEqual(["Volk"]);
   });
 });

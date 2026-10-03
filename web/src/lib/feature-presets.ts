@@ -14,7 +14,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Barbar",
     build: () => ({
       name: "Kampfrausch",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Barbar"],
       activation: "bonus",
       effectType: "buff",
@@ -36,7 +36,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Barbar",
     build: () => ({
       name: "Rücksichtsloser Angriff",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Barbar"],
       activation: "before",
       effectType: "buff",
@@ -54,7 +54,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Schurke",
     build: () => ({
       name: "Hinterhältiger Angriff",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Schurke"],
       activation: "free",
       effectType: "damage",
@@ -72,7 +72,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Schurke",
     build: () => ({
       name: "Raffinierte Aktion",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Schurke"],
       activation: "bonus",
       effectType: "mobility",
@@ -85,7 +85,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Kämpfer",
     build: r => ({
       name: "Durchschnaufen",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Kämpfer"],
       activation: "bonus",
       effectType: "healing",
@@ -101,7 +101,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Kämpfer",
     build: () => ({
       name: "Taktisches Verständnis",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Kämpfer"],
       activation: "free",
       effectType: "buff",
@@ -117,7 +117,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Kämpfer",
     build: () => ({
       name: "Tatendrang",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Kämpfer"],
       activation: "free",
       effectType: "utility",
@@ -131,7 +131,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Paladin",
     build: r => ({
       name: r === "2024" ? "Göttlicher Niederschlag (Zauber)" : "Göttliches Niederstrecken",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Paladin", "Zauberplatz"],
       activation: r === "2024" ? "bonus" : "free",
       effectType: "damage",
@@ -151,7 +151,7 @@ export const FEATURE_PRESETS: Preset[] = [
       r === "2024"
         ? {
             name: "Meister der schweren Waffen",
-            category: "Talent",
+            categories: ["Talent"],
             tags: ["Schwere Waffe"],
             activation: "passive",
             effectType: "damage",
@@ -163,7 +163,7 @@ export const FEATURE_PRESETS: Preset[] = [
           }
         : {
             name: "Meister der schweren Waffen (−5/+10)",
-            category: "Talent",
+            categories: ["Talent"],
             tags: ["Schwere Waffe"],
             activation: "before",
             effectType: "damage",
@@ -180,7 +180,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Kampfstil",
     build: () => ({
       name: "Kampfstil: Bogenschiessen",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Kampfstil"],
       activation: "passive",
       effectType: "buff",
@@ -195,7 +195,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Kampfstil",
     build: () => ({
       name: "Kampfstil: Verteidigung",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Kampfstil"],
       activation: "passive",
       effectType: "defense",
@@ -210,7 +210,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Kampfstil",
     build: () => ({
       name: "Kampfstil: Duellieren",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Kampfstil"],
       activation: "passive",
       effectType: "buff",
@@ -226,7 +226,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Zauber",
     build: () => ({
       name: "Schild",
-      category: "Zauber",
+      categories: ["Zauber"],
       tags: ["Zauberplatz"],
       activation: "reaction",
       effectType: "defense",
@@ -243,7 +243,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Zauber",
     build: () => ({
       name: "Segen",
-      category: "Zauber",
+      categories: ["Zauber"],
       tags: ["Zauberplatz", "Konzentration"],
       activation: "action",
       effectType: "buff",
@@ -260,7 +260,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Zauber",
     build: () => ({
       name: "Schild des Glaubens",
-      category: "Zauber",
+      categories: ["Zauber"],
       tags: ["Zauberplatz", "Konzentration"],
       activation: "bonus",
       effectType: "defense",
@@ -275,7 +275,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Zauber",
     build: r => ({
       name: "Anleitung",
-      category: "Zauber",
+      categories: ["Zauber"],
       tags: ["Zaubertrick", "Konzentration"],
       activation: "action",
       effectType: "buff",
@@ -290,7 +290,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Barde",
     build: r => ({
       name: "Bardische Inspiration",
-      category: "Klasse",
+      categories: ["Klasse"],
       tags: ["Barde"],
       activation: "bonus",
       effectType: "buff",
@@ -306,7 +306,7 @@ export const FEATURE_PRESETS: Preset[] = [
     group: "Spezies",
     build: () => ({
       name: "Odemwaffe",
-      category: "Spezies",
+      categories: ["Spezies"],
       tags: ["Drachenblütiger"],
       activation: "action",
       effectType: "damage",
@@ -318,11 +318,28 @@ export const FEATURE_PRESETS: Preset[] = [
     }),
   },
   {
+    key: "savageAttacker",
+    group: "Talent",
+    build: r => ({
+      name: "Wilder Angreifer",
+      categories: ["Talent"],
+      tags: r === "2024" ? ["Herkunft"] : [],
+      activation: "free",
+      effectType: "buff",
+      target: "self",
+      benefit: "Einmal pro Zug bei einem Treffer: Waffenschadenswürfel zweimal würfeln, ein Ergebnis wählen",
+      uses: { max: 1, used: 0, reset: "turn" },
+      triggers: ["hit"],
+      appliesTo: { scope: "weapon", attackIds: [] },
+      rollMods: [newRollMod({ target: "damage", mode: "advantage" })],
+    }),
+  },
+  {
     key: "lucky",
     group: "Talent",
     build: () => ({
       name: "Glückspilz",
-      category: "Talent",
+      categories: ["Talent"],
       tags: ["Herkunft"],
       activation: "free",
       effectType: "buff",
@@ -346,5 +363,5 @@ export function buildPreset(key: string, ruleset: Ruleset, speciesLabel: string,
     const target = existing.find(f => f.name.trim().toLowerCase() === l.name.toLowerCase());
     return target ? [{ featureId: target.id, cost: l.cost, when: l.when }] : [];
   });
-  return newFeature({ ...partial, links, category: partial.category === "Spezies" ? speciesLabel : partial.category });
+  return newFeature({ ...partial, links, categories: (partial.categories ?? []).map(cat => (cat === "Spezies" ? speciesLabel : cat)) });
 }

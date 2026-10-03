@@ -173,8 +173,8 @@ export type FeatureLink = { featureId: string; cost: number; when: LinkWhen };
 export type Feature = {
   id: string;
   name: string;
-  /** Herkunft im Bogen: Klasse, Spezies, Talent, Ausrüstung … oder eigene */
-  category: string;
+  /** Herkunft im Bogen: Klasse, Spezies, Talent, Ausrüstung … oder eigene (mehrere möglich; die erste gruppiert die Liste) */
+  categories: string[];
   /** Eigene Kategorien / Schlagworte zum Filtern */
   tags: string[];
   description: string;
@@ -246,7 +246,7 @@ export function newFeature(partial: Partial<Feature> = {}): Feature {
   return {
     id: uid(),
     name: "",
-    category: "Klasse",
+    categories: [],
     tags: [],
     description: "",
     activation: "action",
@@ -304,6 +304,18 @@ function legacyAttackMods(raw: unknown): RollMod[] {
   return out;
 }
 
+/** Kategorien; ältere Daten haben genau eine Kategorie als Text. */
+function normalizeCategories(f: Record<string, unknown>): string[] {
+  const list = Array.isArray(f.categories) ? f.categories : typeof f.category === "string" ? [f.category] : [];
+  const clean = list.filter((x): x is string => typeof x === "string").map(x => x.trim()).filter(Boolean);
+  return [...new Set(clean)];
+}
+
+/** Hauptkategorie (gruppiert die Liste) */
+export function mainCategory(f: Pick<Feature, "categories">) {
+  return f.categories[0] ?? "";
+}
+
 export function normalizeFeature(raw: unknown): Feature {
   const f = obj(raw);
   const duration = obj(f.duration);
@@ -312,7 +324,7 @@ export function normalizeFeature(raw: unknown): Feature {
   return newFeature({
     id: str(f.id) || uid(),
     name: str(f.name),
-    category: str(f.category, "Sonstiges"),
+    categories: normalizeCategories(f),
     tags: Array.isArray(f.tags) ? f.tags.filter((t): t is string => typeof t === "string") : [],
     description: str(f.description),
     activation: oneOf(ACTIVATIONS, f.activation, "action"),
@@ -641,6 +653,26 @@ export function attackOptions(c: CharacterData, a: Attack) {
 
 // ── Wurfmodifikatoren ───────────────────────────────────────────────────
 
+/**
+ * „Vorteil auf den Schadenswurf“: Waffenschadenswürfel zweimal würfeln und
+ * ein Ergebnis wählen (Wilder Angreifer).
+ */
+export function isDamageTwice(m: RollMod) {
+  return m.target === "damage" && m.mode === "advantage";
+}
+
+/**
+ * Art der Fähigkeit aus ihren Bausteinen ableiten (für Filter und das
+ * Würfeln von Schaden/Heilung), solange sie nicht ausdrücklich gesetzt ist.
+ */
+export function deriveEffectType(f: Pick<Feature, "damage" | "acMod" | "rollMods">, healing = false): EffectType {
+  if (f.damage.trim()) return healing ? "healing" : "damage";
+  if (f.acMod.mode !== "none") return "defense";
+  if (f.rollMods.some(m => m.bonus.trim() || m.mode !== "none")) return "buff";
+  return "utility";
+}
+
+
 export type RollContext = { kind: RollKind; ability?: Ability | null; skill?: SkillKey | null };
 
 /**
@@ -735,6 +767,7 @@ export function describeRollMods(mods: RollMod[]) {
     .map(m => {
       const target = ROLL_TARGETS.find(t => t.key === m.target)?.label ?? m.target;
       const filter = m.skill ? SKILLS.find(s => s.key === m.skill)?.name : m.ability ? ABILITY_SHORT[m.ability] : "";
+      if (isDamageTwice(m)) return "Schadenswürfel zweimal würfeln, Ergebnis wählen";
       const b = parseBonus(m.bonus);
       const parts = [b ? formatBonus(b) : "", m.mode === "advantage" ? "Vorteil" : m.mode === "disadvantage" ? "Nachteil" : ""].filter(Boolean);
       return parts.length ? `${target}${filter ? ` (${filter})` : ""} ${parts.join(", ")}` : "";
@@ -758,8 +791,8 @@ export type FeatureFilter = { search: string; categories: string[]; tags: string
 
 export function matchesFilter(f: Feature, filter: FeatureFilter) {
   const q = filter.search.trim().toLowerCase();
-  if (q && ![f.name, f.benefit, f.description, f.condition, f.category, ...f.tags].some(x => x.toLowerCase().includes(q))) return false;
-  if (filter.categories.length && !filter.categories.includes(f.category)) return false;
+  if (q && ![f.name, f.benefit, f.description, f.condition, ...f.categories, ...f.tags].some(x => x.toLowerCase().includes(q))) return false;
+  if (filter.categories.length && !filter.categories.some(cat => f.categories.includes(cat))) return false;
   if (filter.tags.length && !filter.tags.some(t => f.tags.includes(t))) return false;
   if (filter.effectTypes.length && !filter.effectTypes.includes(f.effectType)) return false;
   return true;

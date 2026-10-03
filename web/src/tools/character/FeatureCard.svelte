@@ -76,7 +76,7 @@
   <div class="chip-row meta">
     <span class="badge act-{feature.activation}">{label.activation(feature.activation)}</span>
     <span class="badge">{label.effect(feature.effectType)}</span>
-    {#if !compact}<span class="badge">{feature.category}</span>{/if}
+    {#each compact ? feature.categories.slice(1) : feature.categories as cat (cat)}<span class="badge">{cat}</span>{/each}
     {#if feature.target !== "self" || feature.targetText}<span class="badge">{convertText(feature.targetText, unitSystem()) || label.target(feature.target)}</span>{/if}
     {#if feature.duration.kind !== "instant"}<span class="badge">{label.duration(feature)}</span>{/if}
     {#if dice}<span class="badge mono">{formatDice(dice)}{feature.damageType ? ` ${feature.damageType}` : ""}</span>{/if}

@@ -35,6 +35,10 @@
   /** Pro Würfelgruppe: Einzelwürfe (digital) bzw. Summe (physisch) */
   let groupResults = $state<(number[] | null)[]>([]);
   let manualSums = $state<(number | null)[]>([]);
+  /** Zweiter Wurf der Waffenwürfel je Gruppe (Wilder Angreifer) und gewählter Wurf */
+  let twiceRolls = $state<(number[] | null)[]>([]);
+  let twiceChoice = $state<0 | 1>(0);
+  let damageLogId: number | null = null;
 
   $effect(() => {
     // Zurücksetzen, sobald eine neue Anfrage geöffnet wird
@@ -50,6 +54,9 @@
     crit = r.type === "damage" ? Boolean(r.crit) : false;
     groupResults = [];
     manualSums = [];
+    twiceRolls = [];
+    twiceChoice = 0;
+    damageLogId = null;
   });
 
   const options = $derived(req?.type === "d20" ? (req.options ?? []) : []);
@@ -182,11 +189,40 @@
   const baseExpr = $derived(req?.type === "damage" ? parseDice(req.dice) : null);
   const expr = $derived<DiceExpr | null>(baseExpr ? (crit ? critExpr(baseExpr) : baseExpr) : null);
 
+  /** Wie viele Würfel je Gruppe zum „zweimal würfeln“ gehören (die ersten der Gruppe) */
+  const twiceExpr = $derived.by(() => {
+    if (req?.type !== "damage" || !req.twice) return null;
+    const t = parseDice(req.twice.dice);
+    return t ? (crit ? critExpr(t) : t) : null;
+  });
+  const twiceCounts = $derived(
+    twiceExpr && expr ? expr.groups.map(g => Math.min(g.count, twiceExpr.groups.find(t => t.sides === g.sides)?.count ?? 0)) : null
+  );
+
+  /** Würfe einer Gruppe, bei gewähltem zweitem Wurf mit dessen Waffenwürfeln */
+  function groupValues(i: number): number[] | null {
+    const first = groupResults[i];
+    if (!first) return null;
+    const alt = twiceRolls[i];
+    return twiceChoice === 1 && alt ? [...alt, ...first.slice(alt.length)] : first;
+  }
+
+  const twiceSets = $derived.by(() => {
+    if (!twiceCounts || !twiceRolls.some(Boolean)) return null;
+    const first = twiceCounts.flatMap((k, i) => groupResults[i]?.slice(0, k) ?? []);
+    const second = twiceRolls.flatMap(r => r ?? []);
+    const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+    return [
+      { dice: first, sum: sum(first) },
+      { dice: second, sum: sum(second) },
+    ];
+  });
+
   const damageTotal = $derived.by(() => {
     if (!expr || !req || req.type !== "damage") return null;
     let sum = expr.bonus;
     for (let i = 0; i < expr.groups.length; i++) {
-      const value = req.physical ? manualSums[i] : groupResults[i]?.reduce((a, b) => a + b, 0);
+      const value = req.physical ? manualSums[i] : groupValues(i)?.reduce((a, b) => a + b, 0);
       if (value == null) return null;
       sum += value;
     }
@@ -195,17 +231,30 @@
 
   function rollDamageDigital(r: DamageRequest) {
     if (!expr) return;
-    groupResults = expr.groups.map(g => rollGroup(g));
+    const results = expr.groups.map(g => rollGroup(g));
+    groupResults = results;
+    const counts = twiceCounts;
+    twiceRolls = counts ? expr.groups.map((g, i) => (counts[i] ? Array.from({ length: counts[i]! }, () => rollDie(g.sides)) : null)) : [];
+    // Voreinstellung: der höhere der beiden Würfe
+    const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+    const first = counts ? sum(counts.flatMap((k, i) => results[i]!.slice(0, k))) : 0;
+    twiceChoice = counts && sum(twiceRolls.flatMap(x => x ?? [])) > first ? 1 : 0;
     logDamage(r);
+  }
+
+  function damageDetail(r: DamageRequest) {
+    const twice = r.twice && twiceSets ? ` · ${r.twice.label}: Wurf ${twiceChoice + 1}` : "";
+    return `${formatDice(expr!)}${crit ? " (kritisch)" : ""}${r.damageType ? ` ${r.damageType}` : ""}${twice}`;
   }
 
   function logDamage(r: DamageRequest) {
     if (!expr || damageTotal == null) return;
-    logRoll({
-      title: r.title,
-      detail: `${formatDice(expr)}${crit ? " (kritisch)" : ""}${r.damageType ? ` ${r.damageType}` : ""}`,
-      total: damageTotal,
-    });
+    damageLogId = logRoll({ title: r.title, detail: damageDetail(r), total: damageTotal });
+  }
+
+  function chooseTwice(r: DamageRequest, choice: 0 | 1) {
+    twiceChoice = choice;
+    if (damageLogId != null && damageTotal != null) updateLog(damageLogId, { detail: damageDetail(r), total: damageTotal });
   }
 
   function setManual(r: DamageRequest, index: number, value: number) {
@@ -219,6 +268,7 @@
     crit = !crit;
     groupResults = [];
     manualSums = [];
+    twiceRolls = [];
   }
 
   const modeLabel: Record<AdvMode, string> = { normal: "Normal", advantage: "Vorteil", disadvantage: "Nachteil" };
@@ -351,6 +401,12 @@
           {/if}
         </div>
 
+        {#if req.twice && twiceExpr && req.physical}
+          <p class="twice-note small">
+            {req.twice.label}: Würfle die Waffenwürfel ({formatDice(twiceExpr)}) zweimal und trage das Ergebnis ein, das du nimmst.
+          </p>
+        {/if}
+
         {#if req.physical}
           {#each expr.groups as group, i (i)}
             {@const range = groupRange(group)}
@@ -387,7 +443,7 @@
             <div class="breakdown mono">
               {#if !req.physical}
                 {#each expr.groups as g, i (i)}
-                  {#if i > 0}+ {/if}{g.count}W{g.sides} [{groupResults[i]?.join(", ")}]
+                  {#if i > 0}+ {/if}{g.count}W{g.sides} [{groupValues(i)?.join(", ")}]
                 {/each}
               {:else}
                 {expr.groups.map((g, i) => `${g.count}W${g.sides} (${manualSums[i]})`).join(" + ")}
@@ -396,6 +452,18 @@
             </div>
             <div class="flag">{req.heal ? "Trefferpunkte geheilt" : `Schaden${req.damageType ? ` (${req.damageType})` : ""}`}</div>
           </div>
+          {#if req.twice && twiceSets && !req.physical}
+            <div class="twice">
+              <span class="small muted">{req.twice.label}: Waffenwürfel zweimal gewürfelt. Welcher Wurf zählt?</span>
+              <div class="segmented" role="group" aria-label="Wurf wählen">
+                {#each twiceSets as set, k (k)}
+                  <button aria-pressed={twiceChoice === k} onclick={() => chooseTwice(req, k as 0 | 1)}>
+                    Wurf {k + 1}: <span class="mono">[{set.dice.join(", ")}] = {set.sum}</span>
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
           {#if !req.physical}
             <div class="row actions">
               <button class="btn" onclick={() => rollDamageDigital(req)}><RotateCcw size={16} /> Nochmal</button>
@@ -409,6 +477,9 @@
 
 <style>
   .sub { margin-top: -0.3rem; }
+  .twice { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.75rem; }
+  .twice .segmented button { flex: 1; }
+  .twice-note { margin: 0 0 0.6rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-sm); background: var(--accent-soft); }
   .head { margin-bottom: 0.75rem; }
   .note {
     margin: 0 0 0.6rem;
