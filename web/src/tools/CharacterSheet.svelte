@@ -48,9 +48,12 @@
   import Features from "./character/Features.svelte";
   import CombatAssistant from "./character/CombatAssistant.svelte";
   import AttackWizard from "./character/AttackWizard.svelte";
+  import { diceString } from "../lib/dice";
   import Portrait from "./character/Portrait.svelte";
   import {
     confirmLinkSuccess,
+    describeDamageAdds,
+    featureDamageExpr,
     linkedFeatures,
     refundFeature,
     rollFeatures,
@@ -146,14 +149,15 @@
     },
     useFeature(f: Feature) {
       for (const note of useFeature(data, f)) toast(note);
-      const dice = f.damage.trim();
+      const expr = featureDamageExpr(data, f);
       // Fähigkeiten, die an Treffer/Angriffe gebunden sind, wirken erst im Angriff
       const attackBound = f.triggers.includes("hit") || f.triggers.includes("attack");
-      if (dice && !attackBound && (f.effectType === "damage" || f.effectType === "healing")) {
-        this.rollDamage(f.name, dice, {
+      if (expr && !attackBound && (f.effectType === "damage" || f.effectType === "healing")) {
+        const adds = f.damageAdds.length ? `Inklusive ${describeDamageAdds(data, f.damageAdds)}` : "";
+        this.rollDamage(f.name, diceString(expr), {
           heal: f.effectType === "healing",
           damageType: f.damageType || undefined,
-          subtitle: f.save ? `Rettungswurf: ${f.save}` : undefined,
+          subtitle: [adds, f.save ? `Rettungswurf: ${f.save}` : ""].filter(Boolean).join(" · ") || undefined,
         });
       } else {
         toast(`${f.name} eingesetzt${f.benefit ? `: ${f.benefit}` : "."}`, "success");

@@ -14,6 +14,7 @@
     activationFromCastingTime,
     addEffect,
     endCombat,
+    featureDamageExpr,
     isAvailable,
     label,
     matchesFilter,
@@ -27,6 +28,7 @@
   import { toast } from "../../lib/toast.svelte";
   import type { Spell } from "../../lib/types";
   import { applySpellEffect, isPrepared, spellDice } from "../spellbook/spells";
+  import { formatDice } from "../../lib/dice";
   import { sheet } from "./context";
 
   const ctx = sheet();
@@ -198,7 +200,7 @@
         {#if left != null}<span class="badge" class:badge-danger={left === 0}>{left}×</span>{/if}
       </div>
       <span class="tiny muted">
-        {convertText([label.effect(f.effectType), f.benefit, f.damage ? `${f.damage} ${f.damageType}` : "", f.duration.kind !== "instant" ? label.duration(f) : ""].filter(Boolean).join(" · "), unitSystem())}
+        {convertText([label.effect(f.effectType), f.benefit, featureDamageExpr(c, f) ? `${formatDice(featureDamageExpr(c, f)!)} ${f.damageType}`.trim() : "", f.duration.kind !== "instant" ? label.duration(f) : ""].filter(Boolean).join(" · "), unitSystem())}
       </span>
       {#if f.condition}<span class="tiny faint block">{convertText(f.condition, unitSystem())}</span>{/if}
     </div>

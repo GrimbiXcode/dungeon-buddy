@@ -18,6 +18,7 @@
   import {
     attackOptions,
     describeRollMods,
+    featureDamageExpr,
     isDamageTwice,
     label,
     sumMods,
@@ -90,7 +91,7 @@
       types.push(attack.extraDamageType);
     }
     for (const o of [...activeBefore, ...activeHit]) {
-      const d = o.feature.effectType === "damage" ? parseDice(o.feature.damage) : null;
+      const d = o.feature.effectType === "damage" ? featureDamageExpr(c, o.feature) : null;
       if (d) {
         expr = addExpr(expr, d);
         types.push(o.feature.damageType);
@@ -204,7 +205,7 @@
       <span class="tiny muted block">
         {[
           describeRollMods(f.rollMods.filter(m => m.target === "attack" || m.target === "damage")),
-          f.effectType === "damage" && parseDice(f.damage) ? `+${formatDice(parseDice(f.damage)!)} ${f.damageType}` : "",
+          f.effectType === "damage" && featureDamageExpr(c, f) ? `+${formatDice(featureDamageExpr(c, f)!)} ${f.damageType}` : "",
           convertText(f.benefit, unitSystem()),
         ]
           .filter(Boolean)
