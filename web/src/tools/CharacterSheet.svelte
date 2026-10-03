@@ -195,7 +195,7 @@
           subtitle: [f.damageOtherTarget ? "Weiteres Ziel" : "", adds, f.save ? `Rettungswurf: ${f.save}` : ""].filter(Boolean).join(" · ") || undefined,
         });
       } else {
-        toast(`${f.name} eingesetzt${f.benefit ? `: ${f.benefit}` : "."}`, "success");
+        toast(opts.onSelf === false ? `${f.name} auf andere eingesetzt.` : `${f.name} eingesetzt${f.benefit ? `: ${f.benefit}` : "."}`, "success");
       }
     },
     openAttack(a: Attack, opts = {}) {
@@ -616,8 +616,10 @@
           <button
             class="btn"
             onclick={() => {
+              // Erst Werte sichern: `f` hängt an attackFor und wird mit null ungültig
+              const featureId = f.id;
               attackFor = null;
-              sheetCtx.openAttack(a, { feature: f.id });
+              sheetCtx.openAttack(a, { feature: featureId });
             }}
           >
             <Icon name="attack" size={15} /> {a.name || "Angriff"}

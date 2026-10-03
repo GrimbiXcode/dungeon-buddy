@@ -390,6 +390,13 @@ export const FEATURE_PRESETS: Preset[] = [
           : "Zusätzlichen W20 für einen Angriffs-, Attributs- oder Rettungswurf oder einen Angriff gegen dich würfeln und wählen",
       uses: { max: r === "2024" ? 2 : 3, used: 0, reset: "long" },
       triggers: ["attack", "save", "check", "attacked"],
+      // Im Würfeldialog wählbar (2014: zusätzlicher W20 zur Wahl wirkt wie Vorteil)
+      appliesTo: { scope: "all", attackIds: [] },
+      rollMods: [
+        newRollMod({ target: "attack", mode: "advantage" }),
+        newRollMod({ target: "check", mode: "advantage" }),
+        newRollMod({ target: "save", mode: "advantage" }),
+      ],
     }),
   },
 ];

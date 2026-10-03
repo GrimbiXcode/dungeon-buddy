@@ -129,6 +129,9 @@
     return { expr, critExtra, types: [...new Set(types.filter(Boolean))] };
   });
 
+  /** Anzeige: Schaden inklusive Krit-Zusatz (ohne Verdopplung, wie die übrige Anzeige) */
+  const shownDamage = $derived(damage.critExtra ? addExpr(damage.expr, damage.critExtra) : damage.expr);
+
   /**
    * Eigene Würfe nach dem Waffenschaden: Schaden gegen weitere Ziele (Weit
    * ausholender Angriff) und sonstige Wirkungen
@@ -321,7 +324,7 @@
   {/if}
   <div class="summary">
     <div><span class="label">Treffer</span><strong class="mono">{formatMod(toHit)}</strong>{#if toHitDice}<span class="mono small">{toHitDice}</span>{/if}{#if advantage}<span class="badge badge-accent">Vorteil</span>{/if}{#if disadvantage}<span class="badge badge-danger">Nachteil</span>{/if}</div>
-    <div><span class="label">Schaden</span><strong class="mono">{formatDice(damage.expr)}</strong><span class="tiny muted">{damage.types.join(" / ")}</span></div>
+    <div><span class="label">Schaden</span><strong class="mono">{formatDice(shownDamage)}</strong><span class="tiny muted">{damage.types.join(" / ")}</span></div>
   </div>
   {#if attack.properties.length || attack.mastery || attackRange(attack, unitSystem())}
     <p class="tiny muted props">
@@ -465,7 +468,7 @@
     {:else if (outcome === "hit" || outcome === "crit") && !damageRolled}
       <button class="btn" onclick={onclose}>Schliessen</button>
       <button class="btn btn-primary" onclick={rollDamage}>
-        <Icon name="attack" size={16} /> {outcome === "crit" ? "Kritischen Schaden würfeln" : "Schaden würfeln"} ({formatDice(damage.expr)})
+        <Icon name="attack" size={16} /> {outcome === "crit" ? "Kritischen Schaden würfeln" : "Schaden würfeln"} ({formatDice(shownDamage)})
       </button>
     {:else}
       <button class="btn" onclick={onclose}>Schliessen</button>
