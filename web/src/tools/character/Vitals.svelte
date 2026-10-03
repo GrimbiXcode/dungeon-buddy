@@ -178,8 +178,8 @@
     font: inherit;
     color: inherit;
   }
-  .stat .label { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.68rem; }
-  .stat input { width: 4.5rem; text-align: center; }
+  .stat .label { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.68rem; max-width: 100%; text-align: center; overflow-wrap: anywhere; }
+  .stat :global(input) { width: 4.5rem; max-width: 100%; text-align: center; }
   .clickable { cursor: pointer; }
   .clickable:not(:disabled):hover { border-color: var(--accent); background: var(--accent-soft); }
   .clickable:disabled { cursor: default; }
@@ -194,7 +194,9 @@
   .hp-value small { font-size: 1rem; color: var(--muted); }
   .hp-value.down { color: var(--danger); }
   .reduced { color: var(--warning); }
-  .hp-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; flex: 1; justify-content: flex-end; }
+  /* Knöpfe behalten ihre Höhe; der Krit-Hinweis bei 0 TP steht in einer eigenen Zeile */
+  .hp-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; flex: 1; justify-content: flex-end; align-items: center; }
+  .hp-actions .checkbox { flex-basis: 100%; justify-content: flex-end; }
   .hp-actions input { width: 5rem; }
   .bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
   .bar span { display: block; height: 100%; background: var(--success); transition: width 0.25s; }
@@ -223,6 +225,12 @@
     .vitals { grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2.6fr); }
     .hp { grid-column: 3; grid-row: 1 / span 2; display: flex; flex-direction: column; justify-content: center; }
     .stat { flex-direction: row; justify-content: space-between; padding: 0.5rem 0.9rem; }
-    .stat .label { font-size: 0.72rem; }
+    .stat .label { font-size: 0.72rem; flex: 1 1 0; min-width: 0; text-align: left; }
+    /* Eingabefelder im Bearbeiten-Modus nicht zusammendrücken; lieber bricht die Bezeichnung um */
+    .stat :global(input) { flex: none; }
+  }
+  @media (max-width: 420px) {
+    /* Schmale Kacheln: Symbole weglassen, damit „Bewegung“ & Co. hineinpassen */
+    .stat .label :global(svg) { display: none; }
   }
 </style>
