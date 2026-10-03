@@ -27,6 +27,8 @@ export type DamageRequest = {
   twice?: { label: string; dice: string };
   /** Nur bei kritischem Treffer dazu, ohne Verdopplung (Brutaler kritischer Treffer) */
   critExtra?: string;
+  /** Charakter, für den gewürfelt wird (sonst der offene Bogen) */
+  owner?: string;
   physical: boolean;
 };
 
@@ -72,6 +74,8 @@ export type D20Request = {
   target?: number;
   /** Kritischer Treffer ab diesem W20-Wert (Angriffe; Standard 20) */
   critRange?: number;
+  /** Charakter, für den gewürfelt wird (sonst der offene Bogen) */
+  owner?: string;
   /** Anschliessender Schadenswurf (Angriffe) */
   followUp?: Omit<DamageRequest, "physical" | "type">;
   /** Rückmeldung des Ergebnisses (behaltener W20 und Gesamtwert) */
@@ -84,6 +88,8 @@ export type RollRequest = D20Request | DamageRequest;
 
 export type RollLogEntry = {
   id: number;
+  /** Charakter, für den gewürfelt wurde */
+  owner?: string;
   at: Date;
   title: string;
   detail: string;
@@ -92,6 +98,8 @@ export type RollLogEntry = {
 };
 
 export const roller = $state({
+  /** Charakter, dessen Bogen gerade offen ist (für „Letzte Würfe“) */
+  owner: null as string | null,
   request: null as RollRequest | null,
   log: [] as RollLogEntry[],
 });
@@ -108,8 +116,8 @@ export function closeRoll() {
 
 export function logRoll(entry: Omit<RollLogEntry, "id" | "at">) {
   const id = nextId++;
-  roller.log.unshift({ ...entry, id, at: new Date() });
-  if (roller.log.length > 30) roller.log.length = 30;
+  roller.log.unshift({ owner: roller.request?.owner ?? roller.owner ?? undefined, ...entry, id, at: new Date() });
+  if (roller.log.length > 60) roller.log.length = 60;
   return id;
 }
 
@@ -137,6 +145,7 @@ export function d20Request(opts: {
   rollMode: RollModeSetting;
   target?: number;
   critRange?: number;
+  owner?: string;
   followUp?: D20Request["followUp"];
   onResult?: D20Request["onResult"];
   options?: RollOption[];
@@ -161,6 +170,7 @@ export function d20Request(opts: {
     notes: [...(ex.note ? [ex.note] : []), ...cond.notes, ...(opts.notes ?? [])],
     target: opts.target,
     critRange: opts.kind === "attack" ? opts.critRange : undefined,
+    owner: opts.owner,
     followUp: opts.followUp,
     onResult: opts.onResult,
     options: opts.options,

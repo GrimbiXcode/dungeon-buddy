@@ -239,7 +239,7 @@
 
   function toDamage(r: D20Request) {
     if (!r.followUp) return;
-    openRoll({ ...r.followUp, type: "damage", physical: r.physical, crit: kept != null && kept >= (r.critRange ?? 20) });
+    openRoll({ ...r.followUp, type: "damage", owner: r.owner, physical: r.physical, crit: kept != null && kept >= (r.critRange ?? 20) });
   }
 
   // ── Schaden ───────────────────────────────────────────────────────────

@@ -15,7 +15,7 @@
   import { confirmDialog } from "../lib/confirm.svelte";
   import { rulesTerms } from "../lib/dnd";
   import { debounce } from "../lib/format";
-  import { d20Request, isPhysical, openRoll } from "../lib/roller.svelte";
+  import { d20Request, isPhysical, openRoll, roller } from "../lib/roller.svelte";
   import { route } from "../lib/router.svelte";
   import { session } from "../lib/session.svelte";
   import { toast, toastError } from "../lib/toast.svelte";
@@ -293,11 +293,14 @@
 
   onMount(() => {
     void load();
+    // Würfe in „Letzte Würfe“ diesem Charakter zuordnen
+    roller.owner = characterId;
     const flushOnHide = () => {
       if (document.visibilityState === "hidden" && saveState === "dirty") save.flush();
     };
     document.addEventListener("visibilitychange", flushOnHide);
     return () => {
+      if (roller.owner === characterId) roller.owner = null;
       document.removeEventListener("visibilitychange", flushOnHide);
       if (saveState === "dirty") save.flush();
     };

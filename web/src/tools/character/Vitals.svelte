@@ -74,10 +74,17 @@
       <span class="value mono" class:boosted={acBoosted}>{ac.total}</span>
     </button>
   {/if}
-  <button class="stat clickable" disabled={ctx.editing} onclick={() => ctx.rollD20("Initiative", initiative(c, ctx.ruleset), "initiative", { ability: "dex" })}>
-    <span class="label"><Icon name="initiative" size={13} /> Initiative</span>
-    <span class="value mono">{formatMod(initiative(c, ctx.ruleset))}</span>
-  </button>
+  {#if ctx.editing}
+    <div class="stat">
+      <span class="label"><Icon name="initiative" size={13} /> Initiative-Bonus</span>
+      <NumberField class="input input-sm mono" bind:value={c.initiativeBonus} aria-label="Zusätzlicher Initiative-Bonus" title="Zusätzlich zu GES (z. B. Talent Aufmerksam)" />
+    </div>
+  {:else}
+    <button class="stat clickable" onclick={() => ctx.rollD20("Initiative", initiative(c, ctx.ruleset), "initiative", { ability: "dex" })}>
+      <span class="label"><Icon name="initiative" size={13} /> Initiative</span>
+      <span class="value mono">{formatMod(initiative(c, ctx.ruleset))}</span>
+    </button>
+  {/if}
   <div class="stat">
     <span class="label"><Icon name="speed" size={13} /> Bewegung</span>
     {#if ctx.editing}

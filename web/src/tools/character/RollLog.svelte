@@ -1,14 +1,19 @@
 <script lang="ts">
   import { roller } from "../../lib/roller.svelte";
+  import { sheet } from "./context";
+
+  const ctx = sheet();
+  /** Nur Würfe dieses Charakters */
+  const entries = $derived(roller.log.filter(e => e.owner === ctx.characterId));
 
   const time = new Intl.DateTimeFormat("de-CH", { hour: "2-digit", minute: "2-digit" });
 </script>
 
-{#if roller.log.length}
+{#if entries.length}
   <section class="card log">
     <h3>Letzte Würfe</h3>
     <ul>
-      {#each roller.log.slice(0, 8) as entry (entry.id)}
+      {#each entries.slice(0, 8) as entry (entry.id)}
         <li class:crit={entry.flag === "crit"} class:fumble={entry.flag === "fumble"}>
           <strong class="mono total">{entry.total}</strong>
           <span class="grow">

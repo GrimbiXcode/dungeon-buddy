@@ -189,10 +189,19 @@ export function armorClass(c: CharacterData): AcResult {
   }
 
   let total = parts.reduce((t, p) => t + p.value, 0);
-  for (const s of sources) {
-    if (s.mod.mode === "min" && s.mod.value > total) {
-      parts.push({ label: `${s.label} (mindestens ${s.mod.value})`, value: s.mod.value - total });
-      total = s.mod.value;
+  // Mindestwerte; bei festem Grundwert wirkt Magierrüstung & Co. (Grund-RK + GES) wie ein Mindestwert
+  const minimums = sources.flatMap(s =>
+    s.mod.mode === "min"
+      ? [{ label: s.label, value: s.mod.value }]
+      : s.mod.mode === "base" && c.acMode === "manual"
+        ? // Grundwert durch Grund-RK + GES ersetzen, Schild und Boni bleiben
+          [{ label: s.label, value: total - c.ac + s.mod.value + dex }]
+        : []
+  );
+  for (const m of minimums) {
+    if (m.value > total) {
+      parts.push({ label: `${m.label} (mindestens ${m.value})`, value: m.value - total });
+      total = m.value;
     }
   }
   return { total, parts, notes };

@@ -6,7 +6,8 @@ import { addEffect } from "../../lib/features";
 import type { Ruleset, Spell, SpellData, SrdSpellList } from "../../lib/types";
 
 /** Charakter, mit dessen Werten gewürfelt wird. */
-export type RollChar = { id: string; name: string; data: CharacterData };
+/** ruleset: Regelversion des Charakters (Erschöpfung wie auf dem Bogen) */
+export type RollChar = { id: string; name: string; data: CharacterData; ruleset: Ruleset };
 
 // ── SRD-Liste (einmal pro Regelversion laden) ─────────────────────────────
 const srdCache = new Map<Ruleset, Promise<SrdSpellList>>();

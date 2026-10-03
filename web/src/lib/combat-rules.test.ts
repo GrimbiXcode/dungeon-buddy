@@ -324,3 +324,15 @@ describe("Ziel Verbündete", () => {
     expect(armorClass(d).total).toBe(12);
   });
 });
+
+describe("Magierrüstung bei festem Grundwert", () => {
+  it("wirkt als Mindestwert, Schild bleibt", () => {
+    const c = normalizeCharacter({ ac: 11, acMode: "manual", abilities: { dex: 14 } });
+    c.features = [newFeature({ name: "Magierrüstung", activation: "action", duration: { kind: "hours", amount: 8, text: "" }, acMod: { mode: "base", value: 13 } })];
+    expect(armorClass(c).total).toBe(11);
+    useFeature(c, c.features[0]!);
+    expect(armorClass(c).total).toBe(15);
+    c.ac = 17;
+    expect(armorClass(c).total).toBe(17);
+  });
+});
