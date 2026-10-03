@@ -388,7 +388,7 @@
     <Plus size={14} /> Modifikator oder Stufe hinzurechnen
   </button>
   {#if f.damageAdds.length && damagePreview}
-    <p class="tiny muted">Für diesen Charakter: <span class="mono">{formatDice(damagePreview)}</span> ({describeDamageAdds(c, f.damageAdds)})</p>
+    <p class="tiny muted">Für diesen Charakter: <span class="mono">{formatDice(damagePreview)}</span> · {describeDamageAdds(c, f.damageAdds)}</p>
   {/if}
 {/snippet}
 
