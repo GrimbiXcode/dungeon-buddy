@@ -218,7 +218,11 @@
   .exhaustion strong { min-width: 1ch; text-align: center; }
   .exhaustion-text { color: var(--danger); }
   @media (min-width: 1100px) {
-    .vitals { grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 2.4fr); }
-    .hp { grid-column: auto; grid-row: span 1; }
+    /* RK, Initiative, Bewegung, Übung als 2×2-Block neben den Trefferpunkten:
+       so sind die Kacheln so hoch wie ihr Inhalt und die TP haben Platz für ihre Knöpfe */
+    .vitals { grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2.6fr); }
+    .hp { grid-column: 3; grid-row: 1 / span 2; display: flex; flex-direction: column; justify-content: center; }
+    .stat { flex-direction: row; justify-content: space-between; padding: 0.5rem 0.9rem; }
+    .stat .label { font-size: 0.72rem; }
   }
 </style>
