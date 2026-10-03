@@ -1,4 +1,4 @@
-import { exhaustionEffect, type RollKind } from "./dnd";
+import { conditionEffect, exhaustionEffect, type Ability, type RollKind } from "./dnd";
 import { session } from "./session.svelte";
 import type { Ruleset } from "./types";
 import type { RollModeSetting } from "./character";
@@ -142,8 +142,12 @@ export function d20Request(opts: {
   options?: RollOption[];
   notes?: string[];
   sources?: AdvSource[];
+  /** Zustände des Charakters (Vergiftet, Liegend …) */
+  conditions?: string[];
+  ability?: Ability | null;
 }): D20Request {
   const ex = exhaustionEffect(opts.ruleset, opts.exhaustion, opts.kind);
+  const cond = conditionEffect(opts.conditions ?? [], opts.kind, opts.ability ?? null, opts.ruleset);
   return {
     type: "d20",
     title: opts.title,
@@ -152,9 +156,9 @@ export function d20Request(opts: {
     kind: opts.kind,
     physical: isPhysical(opts.rollMode),
     mode: "normal",
-    sources: [...(ex.disadvantage ? [{ label: "Erschöpfung", mode: "disadvantage" as const }] : []), ...(opts.sources ?? [])],
+    sources: [...(ex.disadvantage ? [{ label: "Erschöpfung", mode: "disadvantage" as const }] : []), ...cond.sources, ...(opts.sources ?? [])],
     penalty: ex.penalty,
-    notes: [...(ex.note ? [ex.note] : []), ...(opts.notes ?? [])],
+    notes: [...(ex.note ? [ex.note] : []), ...cond.notes, ...(opts.notes ?? [])],
     target: opts.target,
     critRange: opts.kind === "attack" ? opts.critRange : undefined,
     followUp: opts.followUp,

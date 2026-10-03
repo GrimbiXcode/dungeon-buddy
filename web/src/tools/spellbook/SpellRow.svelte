@@ -86,6 +86,8 @@
         kind: "attack",
         ruleset,
         exhaustion: char.data.exhaustion,
+        conditions: char.data.conditions,
+        critRange: char.data.critRange,
         rollMode: char.data.rollMode,
         followUp: damageDice
           ? { title: `${spell.name} – Schaden`, dice: damageDice, damageType: dmgType || undefined, canCrit: true }

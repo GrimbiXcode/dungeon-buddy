@@ -40,9 +40,9 @@
     {/each}
   </div>
   <div class="passives small muted">
-    <span>Passive Wahrnehmung <strong class="mono">{passive(c, "perception")}</strong></span>
-    <span>Passives Motiv erkennen <strong class="mono">{passive(c, "insight")}</strong></span>
-    <span>Passive Nachforschungen <strong class="mono">{passive(c, "investigation")}</strong></span>
+    <span>Passive Wahrnehmung <strong class="mono">{passive(c, "perception", ctx.ruleset)}</strong></span>
+    <span>Passives Motiv erkennen <strong class="mono">{passive(c, "insight", ctx.ruleset)}</strong></span>
+    <span>Passive Nachforschungen <strong class="mono">{passive(c, "investigation", ctx.ruleset)}</strong></span>
   </div>
 </section>
 

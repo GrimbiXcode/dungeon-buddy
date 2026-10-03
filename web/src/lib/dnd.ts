@@ -137,6 +137,38 @@ export function exhaustionEffect(ruleset: Ruleset, level: number, kind: RollKind
   };
 }
 
+export type ConditionEffect = { sources: { label: string; mode: "advantage" | "disadvantage" }[]; notes: string[] };
+
+/**
+ * Vorteil/Nachteil aus Zuständen für eigene Würfe, soweit eindeutig.
+ * Bedingte Fälle (z. B. Verängstigt nur in Sicht der Quelle) werden trotzdem
+ * gesetzt; im Würfeldialog lässt sich gegensteuern.
+ */
+export function conditionEffect(conditions: string[], kind: RollKind, ability: Ability | null, ruleset: Ruleset): ConditionEffect {
+  const out: ConditionEffect = { sources: [], notes: [] };
+  const has = (name: string) => conditions.includes(name);
+  const dis = (label: string) => out.sources.push({ label, mode: "disadvantage" });
+  const isCheck = kind === "check" || kind === "skill" || kind === "initiative";
+  if (kind === "attack") {
+    for (const name of ["Blind", "Liegend", "Festgesetzt", "Vergiftet", "Verängstigt"]) if (has(name)) dis(name);
+    if (has("Unsichtbar")) out.sources.push({ label: "Unsichtbar", mode: "advantage" });
+    if (has("Gepackt") && ruleset === "2024") out.notes.push("Gepackt: Nachteil auf Angriffe gegen andere als den Packenden.");
+  }
+  if (isCheck) {
+    for (const name of ["Vergiftet", "Verängstigt"]) if (has(name)) dis(name);
+  }
+  if (kind === "initiative" && ruleset === "2024") {
+    if (has("Unsichtbar")) out.sources.push({ label: "Unsichtbar", mode: "advantage" });
+    if (has("Kampfunfähig")) dis("Kampfunfähig");
+  }
+  if (kind === "save") {
+    if (ability === "dex" && has("Festgesetzt")) dis("Festgesetzt");
+    const autoFail = ["Betäubt", "Bewusstlos", "Gelähmt", "Versteinert"].filter(has);
+    if (autoFail.length && (ability === "str" || ability === "dex")) out.notes.push(`${autoFail.join(", ")}: STR- und GES-Rettungswürfe scheitern automatisch.`);
+  }
+  return out;
+}
+
 /** Bezeichnungen, die sich zwischen den Regelversionen unterscheiden. */
 export function rulesTerms(ruleset: Ruleset) {
   return ruleset === "2024"

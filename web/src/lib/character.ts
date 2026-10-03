@@ -2,6 +2,8 @@ import {
   ABILITIES,
   SKILLS,
   abilityMod,
+  conditionEffect,
+  exhaustionEffect,
   proficiencyBonus,
   type Ability,
   type SkillKey,
@@ -374,8 +376,32 @@ export function initiative(c: CharacterData, ruleset: Ruleset) {
   return mod(c, "dex") + c.initiativeBonus + jackBonus(c, ruleset);
 }
 
-export function passive(c: CharacterData, key: SkillKey) {
-  return 10 + skillBonus(c, key);
+/**
+ * Passiver Wert. Nachteil auf den Wurf (Erschöpfung 2014, Vergiftet,
+ * Verängstigt) zieht 5 ab.
+ */
+export function passive(c: CharacterData, key: SkillKey, ruleset: Ruleset) {
+  const skill = SKILLS.find(s => s.key === key)!;
+  const sources = [
+    ...(exhaustionEffect(ruleset, c.exhaustion, "skill").disadvantage ? [{ mode: "disadvantage" }] : []),
+    ...conditionEffect(c.conditions, "skill", skill.ability, ruleset).sources,
+  ];
+  const adv = sources.some(s => s.mode === "advantage");
+  const dis = sources.some(s => s.mode === "disadvantage");
+  return 10 + skillBonus(c, key) + (adv && !dis ? 5 : dis && !adv ? -5 : 0);
+}
+
+/** TP-Maximum unter Erschöpfung (2014 ab Stufe 4 halbiert) */
+export function effectiveMaxHp(c: CharacterData, ruleset: Ruleset) {
+  return ruleset === "2014" && c.exhaustion >= 4 ? Math.floor(c.hp.max / 2) : c.hp.max;
+}
+
+/** Bewegungsrate in ft unter Erschöpfung (2014: Stufe 2 halbiert, ab 5 null; 2024: −5 ft je Stufe) */
+export function effectiveSpeed(c: CharacterData, ruleset: Ruleset) {
+  if (!c.exhaustion) return c.speed;
+  if (ruleset === "2024") return Math.max(0, c.speed - 5 * c.exhaustion);
+  if (c.exhaustion >= 5) return 0;
+  return c.exhaustion >= 2 ? Math.floor(c.speed / 2) : c.speed;
 }
 
 export function spellAttackBonus(c: CharacterData) {
@@ -521,7 +547,9 @@ export function shortRest(c: CharacterData) {
 }
 
 export function longRest(c: CharacterData, ruleset: "2014" | "2024") {
-  c.hp.current = c.hp.max;
+  // Erst die Erschöpfung senken, dann bis zum (dann gültigen) Maximum heilen
+  c.exhaustion = Math.max(0, c.exhaustion - 1);
+  c.hp.current = effectiveMaxHp(c, ruleset);
   c.hp.temp = 0;
   c.deathSaves = { successes: 0, failures: 0 };
   for (const s of c.spellcasting.slots) s.used = 0;
@@ -538,7 +566,6 @@ export function longRest(c: CharacterData, ruleset: "2014" | "2024") {
     if (p.used - back) used[p.die] = p.used - back;
   }
   c.hitDiceUsed = used;
-  c.exhaustion = Math.max(0, c.exhaustion - 1);
   restFeatures(c, "long");
 }
 
@@ -589,8 +616,9 @@ export function applyDeathSave(c: CharacterData, kept: number, total: number): s
   return kept === 1 ? "Natürliche 1: zwei Fehlschläge." : total >= 10 ? "Erfolg." : "Fehlschlag.";
 }
 
-export function applyHealing(c: CharacterData, amount: number) {
+/** Heilen bis zum TP-Maximum (unter Erschöpfung ggf. das verringerte) */
+export function applyHealing(c: CharacterData, amount: number, maxHp = c.hp.max) {
   if (amount <= 0) return;
   if (c.hp.current <= 0) c.deathSaves = { successes: 0, failures: 0 };
-  c.hp.current = Math.min(Math.max(c.hp.max, 0), Math.max(0, c.hp.current) + amount);
+  c.hp.current = Math.min(Math.max(maxHp, 0), Math.max(0, c.hp.current) + amount);
 }

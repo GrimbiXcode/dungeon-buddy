@@ -183,6 +183,7 @@
       subtitle: activeBefore.length ? `Mit: ${activeBefore.map(o => o.feature.name).join(", ")}` : undefined,
       modifier: toHit,
       kind: "attack",
+      conditions: c.conditions,
       critRange: c.critRange,
       ruleset: ctx.ruleset,
       exhaustion: c.exhaustion,

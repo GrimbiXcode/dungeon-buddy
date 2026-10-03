@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { addExpr, critExpr, diceString, formatDice, parseDice, rollDie, scaleExpr } from "./dice";
-import { abilityMod, cantripMultiplier, exhaustionEffect, formatMod, proficiencyBonus } from "./dnd";
+import { abilityMod, cantripMultiplier, conditionEffect, exhaustionEffect, formatMod, proficiencyBonus } from "./dnd";
 import {
   applyDamage,
   applyHealing,
   applyDeathSave,
   attackDamageBonus,
+  effectiveMaxHp,
+  effectiveSpeed,
   attackToHit,
   hitDiceLeft,
   hitDicePools,
@@ -121,7 +123,8 @@ describe("Charakter", () => {
     expect(saveBonus(c, "dex")).toBe(1);
     expect(skillBonus(c, "athletics")).toBe(6);
     expect(skillBonus(c, "intimidation")).toBe(6); // CHA 10 (+0) + Expertise (2 × 3)
-    expect(passive(c, "perception")).toBe(11);
+    expect(passive(c, "perception", "2024")).toBe(11);
+    expect(passive(c, "perception", "2014")).toBe(6); // Erschöpfung 2 (2014): Nachteil → −5
     expect(initiative(c, "2014")).toBe(1);
     expect(spellAttackBonus(c)).toBe(4);
     expect(spellSaveDc(c)).toBe(12);
@@ -215,5 +218,36 @@ describe("Todesrettung", () => {
     applyDeathSave(d, 20, 20);
     expect(d.hp.current).toBe(1);
     expect(d.deathSaves).toEqual({ successes: 0, failures: 0 });
+  });
+});
+
+describe("Zustände und Erschöpfung", () => {
+  it("Zustände setzen Vorteil/Nachteil", () => {
+    expect(conditionEffect(["Vergiftet"], "attack", null, "2024").sources).toEqual([{ label: "Vergiftet", mode: "disadvantage" }]);
+    expect(conditionEffect(["Vergiftet"], "skill", "wis", "2014").sources).toHaveLength(1);
+    expect(conditionEffect(["Liegend"], "save", "dex", "2024").sources).toEqual([]);
+    expect(conditionEffect(["Festgesetzt"], "save", "dex", "2024").sources).toHaveLength(1);
+    expect(conditionEffect(["Unsichtbar"], "initiative", "dex", "2024").sources[0]!.mode).toBe("advantage");
+    expect(conditionEffect(["Unsichtbar"], "initiative", "dex", "2014").sources).toEqual([]);
+    expect(conditionEffect(["Gelähmt"], "save", "str", "2014").notes).toHaveLength(1);
+  });
+
+  it("Erschöpfung verringert TP-Maximum und Bewegung", () => {
+    const c = normalizeCharacter({ hp: { max: 30, current: 30 }, speed: 30, exhaustion: 4 });
+    expect(effectiveMaxHp(c, "2014")).toBe(15);
+    expect(effectiveMaxHp(c, "2024")).toBe(30);
+    expect(effectiveSpeed(c, "2014")).toBe(15);
+    expect(effectiveSpeed(c, "2024")).toBe(10);
+    c.exhaustion = 5;
+    expect(effectiveSpeed(c, "2014")).toBe(0);
+    c.hp.current = 10;
+    c.exhaustion = 5;
+    longRest(c, "2014"); // Stufe 4: Maximum noch halbiert
+    expect(c.hp.current).toBe(15);
+  });
+
+  it("Passive Wahrnehmung −5 bei Nachteil", () => {
+    const c = normalizeCharacter({ abilities: { wis: 10 }, conditions: ["Vergiftet"] });
+    expect(passive(c, "perception", "2024")).toBe(5);
   });
 });

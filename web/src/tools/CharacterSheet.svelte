@@ -144,6 +144,8 @@
           kind,
           ruleset,
           exhaustion: data.exhaustion,
+          conditions: data.conditions,
+          ability: opts.ability ?? null,
           rollMode: data.rollMode,
           target: opts.target,
           critRange: data.critRange,
