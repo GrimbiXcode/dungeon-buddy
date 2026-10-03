@@ -217,6 +217,8 @@ export type Feature = {
   damageOtherTarget: boolean;
   /** Weiteres Ziel: Wurf ist kritisch, wenn der auslösende Angriff kritisch war */
   critWithAttack: boolean;
+  /** Der Wurf heilt (statt Schaden); unabhängig von der angezeigten Art */
+  heals: boolean;
   /** Sonstige Wirkung des Wurfs statt Schaden/Heilung, z. B. "vom erlittenen Schaden abziehen" */
   effectText: string;
   /** Rettungswurf der Ziele, z. B. "GES-Rettungswurf, halber Schaden" */
@@ -291,6 +293,7 @@ export function newFeature(partial: Partial<Feature> = {}): Feature {
     damageTypeFromAttack: false,
     damageOtherTarget: false,
     critWithAttack: false,
+    heals: partial.effectType === "healing",
     effectText: "",
     save: "",
     duration: { kind: "instant", amount: 1, text: "" },
@@ -386,6 +389,8 @@ export function normalizeFeature(raw: unknown): Feature {
     damageTypeFromAttack: f.damageTypeFromAttack === true,
     damageOtherTarget: f.damageOtherTarget === true,
     critWithAttack: f.critWithAttack === true,
+    // Ältere Daten: Heilung war nur an der Art erkennbar
+    heals: typeof f.heals === "boolean" ? f.heals : f.effectType === "healing",
     effectText: str(f.effectText).slice(0, 200),
     save: str(f.save),
     duration: {
@@ -461,13 +466,17 @@ export function dependentFeatures(c: CharacterData, f: Feature) {
   return c.features.filter(x => x.id !== f.id && x.links.some(l => l.featureId === f.id));
 }
 
-/** Verbleibende Einsätze; null = unbegrenzt. Verknüpfte Fähigkeiten begrenzen mit. */
+/**
+ * Verbleibende Einsätze; null = unbegrenzt. Verknüpfte Fähigkeiten begrenzen
+ * mit, aber nur mit ihren eigenen Nutzungen (wie beim Verbrauch, nicht über
+ * deren Verknüpfungen weiter).
+ */
 export function usesLeft(c: CharacterData, f: Feature, depth = 0): number | null {
   const own = f.uses.max == null ? null : Math.max(0, f.uses.max - f.uses.used);
   const res = resourceOf(c, f);
   const fromResource = res && f.resourceCost > 0 ? Math.floor((res.max - res.used) / f.resourceCost) : null;
   let left = minLeft(own, fromResource);
-  if (depth < 3) {
+  if (depth < 1) {
     for (const { link, feature } of linkedFeatures(c, f)) {
       const other = usesLeft(c, feature, depth + 1);
       if (other != null && link.cost > 0) left = minLeft(left, Math.floor(other / link.cost));
@@ -505,6 +514,38 @@ export function confirmLinkSuccess(c: CharacterData, f: Feature, featureId: stri
   const link = f.links.find(l => l.featureId === featureId);
   const other = c.features.find(x => x.id === featureId);
   if (link && other) consumeUses(c, other, link.cost);
+}
+
+/**
+ * Änderungen an Nutzungen, Ressourcen und Aktionsarten durch `run` erfassen
+ * und rückgängig machbar machen. Zurückgegeben wird nur, was `run` wirklich
+ * verbraucht hat (z. B. nichts, wenn die Ressource schon leer war).
+ */
+export function trackUsage<T>(c: CharacterData, run: () => T): { result: T; undo: () => void } {
+  const uses = new Map(c.features.map(f => [f.id, f.uses.used]));
+  const res = new Map(c.resources.map(r => [r.id, r.used]));
+  const economy = { ...c.combat.used };
+  const effects = new Set(c.combat.effects.map(e => e.id));
+  const result = run();
+  const usedDelta = c.features.map(f => ({ id: f.id, d: f.uses.used - (uses.get(f.id) ?? f.uses.used) })).filter(x => x.d);
+  const resDelta = c.resources.map(r => ({ id: r.id, d: r.used - (res.get(r.id) ?? r.used) })).filter(x => x.d);
+  const slots = (Object.keys(economy) as (keyof CombatState["used"])[]).filter(k => !economy[k] && c.combat.used[k]);
+  const added = c.combat.effects.filter(e => !effects.has(e.id)).map(e => e.id);
+  return {
+    result,
+    undo() {
+      for (const { id, d } of usedDelta) {
+        const f = c.features.find(x => x.id === id);
+        if (f) f.uses.used = Math.max(0, f.uses.used - d);
+      }
+      for (const { id, d } of resDelta) {
+        const r = c.resources.find(x => x.id === id);
+        if (r) r.used = Math.max(0, r.used - d);
+      }
+      for (const k of slots) c.combat.used[k] = false;
+      if (added.length) c.combat.effects = c.combat.effects.filter(e => !added.includes(e.id));
+    },
+  };
 }
 
 export function isAvailable(c: CharacterData, f: Feature) {
@@ -601,6 +642,7 @@ export function endCombat(c: CharacterData) {
   c.combat.active = false;
   c.combat.round = 1;
   resetTurn(c);
+  for (const f of c.features) if (f.uses.reset === "turn") f.uses.used = 0;
   // Effekte mit Rundendauer enden mit dem Kampf, längere bleiben
   c.combat.effects = c.combat.effects.filter(e => e.remaining == null || e.remaining > 10);
 }
@@ -777,10 +819,10 @@ export function featureDamageType(f: Pick<Feature, "damageType" | "damageTypeFro
  * Was der Wurf der Fähigkeit bewirkt: Schaden, Heilung oder eine sonstige
  * Wirkung als Text; null ohne Wurf.
  */
-export function featureRollKind(f: Pick<Feature, "effectType" | "effectText">): "damage" | "healing" | "other" | null {
+export function featureRollKind(f: Pick<Feature, "damage" | "damageAdds" | "heals" | "effectText">): "damage" | "healing" | "other" | null {
+  if (!f.damage.trim() && !f.damageAdds.length) return null;
   if (f.effectText.trim()) return "other";
-  if (f.effectType === "damage" || f.effectType === "healing") return f.effectType;
-  return null;
+  return f.heals ? "healing" : "damage";
 }
 
 /** Text hinter den Würfeln: Schadensart oder sonstige Wirkung */

@@ -5,6 +5,7 @@
   import Modal from "../../components/Modal.svelte";
   import { hitDiceLeft, hitDicePools, hitDiceSummary, leftOf, mod, newResource, spendHitDie as markHitDie } from "../../lib/character";
   import { CONDITIONS } from "../../lib/dnd";
+  import { confirmDialog } from "../../lib/confirm.svelte";
   import { sheet } from "./context";
 
   const ctx = sheet();
@@ -30,6 +31,15 @@
   }
 
   const pools = $derived(hitDicePools(c));
+
+  /** Ressource entfernen; Fähigkeiten, die sie verbrauchten, verlieren den Bezug (statt unbegrenzt zu werden) */
+  async function removeResource(id: string) {
+    const users = c.features.filter(f => f.resourceId === id);
+    const name = c.resources.find(r => r.id === id)?.name || "Ressource";
+    if (users.length && !(await confirmDialog(`„${name}“ wird von ${users.map(f => f.name).join(", ")} verbraucht. Diese Fähigkeiten verbrauchen danach nichts mehr.`, { confirmLabel: "Entfernen" }))) return;
+    for (const f of users) f.resourceId = null;
+    c.resources = c.resources.filter(x => x.id !== id);
+  }
 
   function setUsed(die: number, used: number) {
     c.hitDiceUsed = { ...c.hitDiceUsed, [die]: used };
@@ -112,7 +122,7 @@
             <option value="long">Lange Rast</option>
             <option value="none">Nie</option>
           </select>
-          <button class="btn btn-sm btn-icon btn-danger" aria-label="Entfernen" onclick={() => (c.resources = c.resources.filter(x => x.id !== r.id))}><Trash2 size={14} /></button>
+          <button class="btn btn-sm btn-icon btn-danger" aria-label="Entfernen" onclick={() => removeResource(r.id)}><Trash2 size={14} /></button>
         </div>
       {:else}
         <div class="res">

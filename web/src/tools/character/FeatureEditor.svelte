@@ -108,7 +108,7 @@
   // svelte-ignore state_referenced_locally
   const startOther = Boolean(f.effectText.trim());
   // svelte-ignore state_referenced_locally
-  const startHealing = f.effectType === "healing" && !startOther;
+  const startHealing = f.heals && !startOther;
   // svelte-ignore state_referenced_locally
   let on = $state<Record<Single, boolean>>({
     twice: f.rollMods.some(isDamageTwice),
@@ -168,8 +168,13 @@
     if (m.target === "attack" || m.target === "damage") ensureScope();
   }
 
+  /** Auslöser rund um Angriffe brauchen einen Angriffsbezug, sonst erscheint die Fähigkeit nie im Angriff */
+  const ATTACK_TRIGGERS: Trigger[] = ["attack", "hit", "crit", "miss"];
+
   function toggleTrigger(t: Trigger) {
-    f.triggers = f.triggers.includes(t) ? f.triggers.filter(x => x !== t) : [...f.triggers, t];
+    const on = !f.triggers.includes(t);
+    f.triggers = on ? [...f.triggers, t] : f.triggers.filter(x => x !== t);
+    if (on && ATTACK_TRIGGERS.includes(t)) ensureScope();
   }
 
   /** Attribut eines Zuschlags an-/abwählen; mindestens eines bleibt */
@@ -212,6 +217,7 @@
     switch (key) {
       case "bonus":
         bonusMods = [...bonusMods, newRollMod({ target: "attack" })];
+        ensureScope();
         anchor = `bonus-${bonusMods.length - 1}`;
         break;
       case "adv":
@@ -334,6 +340,7 @@
       return;
     }
     if (!on.other) f.effectText = "";
+    f.heals = on.healing;
     if (f.damageAdds.some(a => a.kind === "classLevel" && !a.className.trim())) {
       error = "Bitte bei „Klassenstufe“ die Klasse angeben (z. B. Kämpfer).";
       return;
@@ -344,6 +351,10 @@
       return;
     }
     f.rollMods = composedMods();
+    // Ohne Angriffsbezug wirken Angriffs-/Schadenswürfe und Angriffs-Auslöser nirgends
+    if (f.appliesTo.scope === "none" && (f.rollMods.some(m => m.target === "attack" || m.target === "damage") || f.triggers.some(t => ATTACK_TRIGGERS.includes(t)))) {
+      f.appliesTo = { scope: "all", attackIds: [] };
+    }
     f.tags = on.tags ? tags : [];
     if (!on.uses) f.uses.max = null;
     else if (f.uses.max == null) f.uses.max = 1;
