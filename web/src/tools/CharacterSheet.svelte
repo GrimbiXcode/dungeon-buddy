@@ -295,14 +295,16 @@
     void load();
     // Würfe in „Letzte Würfe“ diesem Charakter zuordnen
     roller.owner = characterId;
+    // Tab wird verborgen/geschlossen: sofort speichern (auch wenn gerade ein Speichern läuft)
     const flushOnHide = () => {
-      if (document.visibilityState === "hidden" && saveState === "dirty") save.flush();
+      if (document.visibilityState === "hidden") flushNow();
     };
     document.addEventListener("visibilitychange", flushOnHide);
     return () => {
       if (roller.owner === characterId) roller.owner = null;
       document.removeEventListener("visibilitychange", flushOnHide);
-      if (saveState === "dirty") save.flush();
+      destroyed = true;
+      flushNow();
     };
   });
 
@@ -326,7 +328,12 @@
     return JSON.stringify({ name, ruleset, data: $state.snapshot(data) });
   }
 
-  const save = debounce(async () => {
+  /** Bogen geschlossen: keine Wiederholungen mehr, nur noch ein letzter Versuch */
+  let destroyed = false;
+  /** Während eines laufenden Speicherns verlangt: danach sofort weiterspeichern */
+  let flushAfterSave = false;
+
+  async function doSave() {
     if (!record) return;
     const current = snapshot();
     if (current === lastSaved) {
@@ -334,26 +341,43 @@
       return;
     }
     saveState = "saving";
+    // Beim Verlassen soll die Anfrage das Schliessen des Tabs überleben
+    const final = destroyed || document.visibilityState === "hidden" || flushAfterSave;
+    flushAfterSave = false;
     try {
       const body = JSON.parse(current) as { name: string; ruleset: Ruleset; data: CharacterData };
-      const updated = await put<CharacterRecord>(url, {
-        name: body.name.trim() || "Unbenannt",
-        ruleset: body.ruleset,
-        data: body.data,
-        revision: record.revision,
-      });
+      const updated = await put<CharacterRecord>(
+        url,
+        { name: body.name.trim() || "Unbenannt", ruleset: body.ruleset, data: body.data, revision: record.revision },
+        { keepalive: final }
+      );
       record.revision = updated.revision;
       lastSaved = current;
       saveState = snapshot() === current ? "saved" : "dirty";
-      if (saveState === "dirty") save();
+      if (saveState === "dirty") {
+        if (flushAfterSave || destroyed) void doSave();
+        else save();
+      }
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) saveState = "conflict";
-      else {
-        saveState = "error";
-        setTimeout(() => saveState === "error" && save(), 5000);
-      }
+      else saveState = "error";
+      if (destroyed) toast("Änderungen am Bogen konnten nicht gespeichert werden.", "error");
+      else if (saveState === "error") setTimeout(() => !destroyed && saveState === "error" && save(), 5000);
     }
-  }, 700);
+  }
+
+  const save = debounce(() => void doSave(), 700);
+
+  /** Sofort speichern, statt auf die Verzögerung zu warten */
+  function flushNow() {
+    if (!record || saveState === "conflict") return;
+    if (saveState === "saving") {
+      flushAfterSave = true;
+      return;
+    }
+    save.cancel();
+    if (snapshot() !== lastSaved) void doSave();
+  }
 
   // Jede Änderung am Bogen speichert automatisch
   $effect(() => {
@@ -372,7 +396,7 @@
       const latest = await get<CharacterRecord>(url);
       record!.revision = latest.revision;
       saveState = "dirty";
-      save.flush();
+      flushNow();
     } else {
       await load();
       toast("Bogen neu geladen.");

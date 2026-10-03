@@ -9,7 +9,8 @@ export class ApiError extends Error {
   }
 }
 
-type Options = { method?: string; body?: unknown; signal?: AbortSignal };
+/** keepalive: Anfrage überlebt das Schliessen des Tabs (nur für kleine Bodies) */
+type Options = { method?: string; body?: unknown; signal?: AbortSignal; keepalive?: boolean };
 
 /**
  * Dünne Hülle um fetch für die JSON-API. Wirft ApiError mit der
@@ -17,13 +18,16 @@ type Options = { method?: string; body?: unknown; signal?: AbortSignal };
  */
 export async function api<T = unknown>(path: string, opts: Options = {}): Promise<T> {
   let resp: Response;
+  const body = opts.body !== undefined ? JSON.stringify(opts.body) : undefined;
   try {
     resp = await fetch(path, {
       method: opts.method ?? (opts.body !== undefined ? "POST" : "GET"),
       headers: opts.body !== undefined ? { "Content-Type": "application/json" } : undefined,
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      body,
       credentials: "same-origin",
       signal: opts.signal,
+      // Browser erlauben keepalive nur bis 64 KB
+      keepalive: Boolean(opts.keepalive && (body?.length ?? 0) < 60_000),
     });
   } catch (e) {
     if ((e as Error).name === "AbortError") throw e;
@@ -45,7 +49,7 @@ export async function api<T = unknown>(path: string, opts: Options = {}): Promis
 export const get = <T>(path: string) => api<T>(path);
 export const post = <T>(path: string, body: unknown = {}) => api<T>(path, { method: "POST", body });
 export const patch = <T>(path: string, body: unknown) => api<T>(path, { method: "PATCH", body });
-export const put = <T>(path: string, body: unknown) => api<T>(path, { method: "PUT", body });
+export const put = <T>(path: string, body: unknown, opts: { keepalive?: boolean } = {}) => api<T>(path, { method: "PUT", body, ...opts });
 export const del = (path: string, body?: unknown) => api<void>(path, { method: "DELETE", body });
 
 /** Basis-URL für kampagnenbezogene Tool-Daten. */
