@@ -205,6 +205,10 @@ export type Feature = {
   /** Zum Würfelergebnis addiert: Attributsmodifikator, Stufe, Klassenstufe, Übungsbonus */
   damageAdds: DamageAdd[];
   damageType: string;
+  /** Schadensart des auslösenden Angriffs übernehmen (Weit ausholender Angriff) statt `damageType` */
+  damageTypeFromAttack: boolean;
+  /** Schaden trifft ein weiteres Ziel: eigener Wurf statt Zuschlag auf den Angriffsschaden */
+  damageOtherTarget: boolean;
   /** Rettungswurf der Ziele, z. B. "GES-Rettungswurf, halber Schaden" */
   save: string;
   duration: { kind: DurationKind; amount: number; text: string };
@@ -274,6 +278,8 @@ export function newFeature(partial: Partial<Feature> = {}): Feature {
     damage: "",
     damageAdds: [],
     damageType: "",
+    damageTypeFromAttack: false,
+    damageOtherTarget: false,
     save: "",
     duration: { kind: "instant", amount: 1, text: "" },
     uses: { max: null, used: 0, reset: "long" },
@@ -360,6 +366,8 @@ export function normalizeFeature(raw: unknown): Feature {
       });
     }),
     damageType: str(f.damageType),
+    damageTypeFromAttack: f.damageTypeFromAttack === true,
+    damageOtherTarget: f.damageOtherTarget === true,
     save: str(f.save),
     duration: {
       kind: oneOf(DURATIONS, duration.kind, "instant"),
@@ -719,6 +727,15 @@ export function featureDamageExpr(c: CharacterData, f: Pick<Feature, "damage" | 
   if (!base || (!base.groups.length && !base.bonus && !f.damageAdds.length)) return null;
   const bonus = f.damageAdds.reduce((sum, a) => sum + damageAddValue(c, a), 0);
   return addExpr(base, { groups: [], bonus });
+}
+
+/**
+ * Schadensart der Fähigkeit; mit „wie der Angriff“ die Art des auslösenden
+ * Angriffs, ohne Angriff ein Platzhalter für Listen.
+ */
+export function featureDamageType(f: Pick<Feature, "damageType" | "damageTypeFromAttack">, attack?: Pick<Attack, "damageType">): string {
+  if (!f.damageTypeFromAttack) return f.damageType.trim();
+  return attack ? attack.damageType.trim() : "wie Angriff";
 }
 
 /** Kurztext der Zuschläge mit aktuellem Wert, z. B. "Kämpferstufe +3, KON-Mod. +2" */

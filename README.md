@@ -20,6 +20,7 @@ Als Web-App für Smartphone, Tablet und Desktop, installierbar als PWA.
     - wie oft einsetzbar (pro Zug, Rast, Tagesanbruch) oder welche Ressource verbraucht wird
     - Wirkung (Buff, Fluff, Schaden, Heilung …), Ziel, Nutzen, Bedingung und Dauer
     - Auslöser (beim Angriff, bei Treffer …) und für welche Waffen sie gilt
+    - Schaden mit fester Schadensart oder **wie der auslösende Angriff** (Waffe oder Zauber), als Zuschlag auf den Angriffsschaden oder als **eigener Wurf gegen ein weiteres Ziel**. Beispiel: Weit ausholender Angriff macht 1W8 gegen eine zweite Kreatur, mit der Schadensart der Waffe.
     - **Würfe verändern**: Angriffs-, Schadens-, Attributs-, Fertigkeits-, Rettungs-, Initiative- und Todesrettungswürfe, mit Zahl oder Würfel (z. B. +2, 1W4, −1W4) und Vorteil/Nachteil, optional nur für ein Attribut oder eine Fertigkeit. Passive und aktive Fähigkeiten wirken automatisch; Fähigkeiten ohne Dauer (frei, vor der Aktion, Reaktion) wählst du im Würfeldialog dazu, auch nach dem Wurf.
     - **Abhängigkeiten**: Eine Fähigkeit kann Nutzungen einer anderen verbrauchen, beim Einsetzen oder erst „wenn es gelingt“. Beispiel: Taktisches Verständnis zeigt die Verknüpfung zu Durchschnaufen und verbraucht dessen Nutzung erst, wenn du „Gelungen“ antippst.
     - **Rüstungsklasse**: z. B. +5 (Schild), Grund-RK + GES (Magierrüstung) oder Mindest-RK (Rindenhaut), solange die Fähigkeit wirkt.

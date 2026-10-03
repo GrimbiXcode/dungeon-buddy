@@ -20,6 +20,7 @@
     attackOptions,
     describeRollMods,
     featureDamageExpr,
+    featureDamageType,
     isDamageTwice,
     label,
     sumMods,
@@ -92,14 +93,24 @@
       types.push(attack.extraDamageType);
     }
     for (const o of [...activeBefore, ...activeHit]) {
+      if (o.feature.damageOtherTarget) continue;
       const d = o.feature.effectType === "damage" ? featureDamageExpr(c, o.feature) : null;
       if (d) {
         expr = addExpr(expr, d);
-        types.push(o.feature.damageType);
+        types.push(featureDamageType(o.feature, attack));
       }
     }
     return { expr, types: [...new Set(types.filter(Boolean))] };
   });
+
+  /** Schaden gegen weitere Ziele (Weit ausholender Angriff): eigener Wurf je Fähigkeit */
+  const otherTargets = $derived(
+    [...activeBefore, ...activeHit].flatMap(o => {
+      const d = o.feature.damageOtherTarget && o.feature.effectType === "damage" ? featureDamageExpr(c, o.feature) : null;
+      return d ? [{ feature: o.feature, expr: d, type: featureDamageType(o.feature, attack) }] : [];
+    })
+  );
+  let otherRolled = $state<string[]>([]);
 
   const economySpentNow = $derived(c.combat.active && !(offhand && nick) && c.combat.used[economy]);
 
@@ -161,10 +172,11 @@
 
   function rollDamage() {
     consume(activeHit);
+    const included = [...activeBefore, ...activeHit].filter(o => !o.feature.damageOtherTarget).map(o => o.feature.name);
     openRoll({
       type: "damage",
       title: `${attack.name || "Angriff"} – Schaden`,
-      subtitle: activeHit.length || activeBefore.length ? `Inklusive ${[...activeBefore, ...activeHit].map(o => o.feature.name).join(", ")}` : undefined,
+      subtitle: included.length ? `Inklusive ${included.join(", ")}` : undefined,
       dice: diceString(damage.expr),
       damageType: damage.types.join(" / "),
       crit: outcome === "crit",
@@ -176,7 +188,20 @@
       physical: isPhysical(c.rollMode),
     });
     damageRolled = true;
-    if (!offhandChoices.length) onclose();
+    if (!offhandChoices.length && !otherTargets.length) onclose();
+  }
+
+  function rollOtherTarget(o: (typeof otherTargets)[number]) {
+    openRoll({
+      type: "damage",
+      title: `${o.feature.name} – Schaden`,
+      subtitle: `Weiteres Ziel, ausgelöst durch ${attack.name || "Angriff"}`,
+      dice: diceString(o.expr),
+      damageType: o.type || undefined,
+      canCrit: true,
+      physical: isPhysical(c.rollMode),
+    });
+    otherRolled = [...otherRolled, o.feature.id];
   }
 
   function startOffhand(a: Attack) {
@@ -206,7 +231,9 @@
       <span class="tiny muted block">
         {[
           describeRollMods(f.rollMods.filter(m => m.target === "attack" || m.target === "damage")),
-          f.effectType === "damage" && featureDamageExpr(c, f) ? `+${formatDice(featureDamageExpr(c, f)!)} ${f.damageType}` : "",
+          f.effectType === "damage" && featureDamageExpr(c, f)
+            ? `${f.damageOtherTarget ? "Weiteres Ziel: " : "+"}${formatDice(featureDamageExpr(c, f)!)} ${featureDamageType(f, attack)}`.trim()
+            : "",
           convertText(f.benefit, unitSystem()),
         ]
           .filter(Boolean)
@@ -322,6 +349,19 @@
         <p class="small muted">Verfehlt. Nächster Versuch!</p>
       {/if}
     {/if}
+  {/if}
+
+  {#if step === "result" && damageRolled && otherTargets.length}
+    <div class="offhand">
+      <h4 class="label">Weitere Ziele</h4>
+      <div class="row">
+        {#each otherTargets as o (o.feature.id)}
+          <button class="btn btn-sm" class:btn-primary={!otherRolled.includes(o.feature.id)} onclick={() => rollOtherTarget(o)}>
+            <Icon name="attack" size={14} /> {o.feature.name}: {formatDice(o.expr)}{o.type ? ` ${o.type}` : ""}
+          </button>
+        {/each}
+      </div>
+    </div>
   {/if}
 
   {#if step === "result" && offhandChoices.length}

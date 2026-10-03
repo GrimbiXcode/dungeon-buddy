@@ -12,6 +12,7 @@ import {
   describeRollMods,
   economySpent,
   featureDamageExpr,
+  featureDamageType,
   endCombat,
   isAvailable,
   isDamageTwice,
@@ -251,5 +252,35 @@ describe("Zuschläge auf Schaden und Heilung", () => {
   it("normalisiert unbekannte Zuschläge", () => {
     const f = normalizeFeature({ damageAdds: [{ kind: "quatsch", ability: "xyz" }, "kaputt"] });
     expect(f.damageAdds).toEqual([newDamageAdd(), newDamageAdd()]);
+  });
+});
+
+describe("Schadensart wie der Angriff", () => {
+  it("übernimmt die Schadensart des auslösenden Angriffs", () => {
+    const sweep = buildPreset("sweeping", "2024", "Spezies");
+    const axe = newAttack({ name: "Zweihandaxt", ability: "str", damage: "1d12", damageType: "Hieb", kind: "melee" });
+    const hammer = newAttack({ name: "Kriegshammer", ability: "str", damage: "1d8", damageType: "Wucht", kind: "melee" });
+    expect(featureDamageType(sweep, axe)).toBe("Hieb");
+    expect(featureDamageType(sweep, hammer)).toBe("Wucht");
+    expect(featureDamageType(sweep)).toBe("wie Angriff");
+    expect(sweep.damageOtherTarget).toBe(true);
+  });
+
+  it("feste Schadensart bleibt, alte Daten ohne die Felder auch", () => {
+    const f = normalizeFeature({ damage: "1d8", damageType: "Feuer" });
+    expect(f.damageTypeFromAttack).toBe(false);
+    expect(f.damageOtherTarget).toBe(false);
+    expect(featureDamageType(f, newAttack({ damageType: "Hieb" }))).toBe("Feuer");
+    expect(normalizeFeature({ damageTypeFromAttack: true, damageOtherTarget: "ja" })).toMatchObject({ damageTypeFromAttack: true, damageOtherTarget: false });
+  });
+
+  it("wird beim Angriff als Option nach dem Treffer angeboten", () => {
+    const c = normalizeCharacter({ classes: [{ name: "Kämpfer", level: 3, hitDie: 10 }] });
+    const sword = newAttack({ name: "Langschwert", ability: "str", damage: "1d8", damageType: "Hieb", kind: "melee" });
+    const bow = newAttack({ name: "Langbogen", ability: "dex", damage: "1d8", damageType: "Stich", kind: "ranged" });
+    c.attacks = [sword, bow];
+    c.features = [buildPreset("sweeping", "2014", "Volk")];
+    expect(attackOptions(c, sword).onHit.map(o => o.feature.name)).toEqual(["Weit ausholender Angriff"]);
+    expect(attackOptions(c, bow).onHit).toEqual([]);
   });
 });

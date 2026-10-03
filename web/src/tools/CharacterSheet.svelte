@@ -54,6 +54,7 @@
     confirmLinkSuccess,
     describeDamageAdds,
     featureDamageExpr,
+    featureDamageType,
     linkedFeatures,
     refundFeature,
     rollFeatures,
@@ -156,8 +157,8 @@
         const adds = f.damageAdds.length ? `Inklusive ${describeDamageAdds(data, f.damageAdds)}` : "";
         this.rollDamage(f.name, diceString(expr), {
           heal: f.effectType === "healing",
-          damageType: f.damageType || undefined,
-          subtitle: [adds, f.save ? `Rettungswurf: ${f.save}` : ""].filter(Boolean).join(" · ") || undefined,
+          damageType: featureDamageType(f) || undefined,
+          subtitle: [f.damageOtherTarget ? "Weiteres Ziel" : "", adds, f.save ? `Rettungswurf: ${f.save}` : ""].filter(Boolean).join(" · ") || undefined,
         });
       } else {
         toast(`${f.name} eingesetzt${f.benefit ? `: ${f.benefit}` : "."}`, "success");

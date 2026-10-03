@@ -108,7 +108,7 @@
     twice: f.rollMods.some(isDamageTwice),
     ac: f.acMod.mode !== "none",
     scope: f.appliesTo.scope !== "none",
-    damage: Boolean(f.damage.trim() || f.damageType.trim() || f.damageAdds.length) && !startHealing,
+    damage: Boolean(f.damage.trim() || f.damageType.trim() || f.damageTypeFromAttack || f.damageAdds.length) && !startHealing,
     healing: Boolean(f.damage.trim() || f.damageAdds.length) && startHealing,
     save: Boolean(f.save.trim()),
     target: f.target !== "self" || Boolean(f.targetText.trim()),
@@ -255,6 +255,8 @@
       case "healing":
         f.damage = "";
         f.damageType = "";
+        f.damageTypeFromAttack = false;
+        f.damageOtherTarget = false;
         f.damageAdds = [];
         break;
       case "save":
@@ -467,10 +469,25 @@
         {@render blockHead("damage", () => remove("damage"))}
         <div class="grid-2">
           <input class="input mono" bind:value={f.damage} placeholder="2d6+3" aria-label="Schadenswürfel" />
-          <input class="input" bind:value={f.damageType} placeholder="Feuer" aria-label="Schadensart" />
+          <input
+            class="input"
+            value={f.damageTypeFromAttack ? "wie der Angriff" : f.damageType}
+            oninput={e => (f.damageType = e.currentTarget.value)}
+            disabled={f.damageTypeFromAttack}
+            placeholder="Feuer"
+            aria-label="Schadensart"
+          />
         </div>
         {@render damageAddsEditor()}
-        <p class="tiny muted">Bei Angriffen kommt der Schaden zum Waffenschaden dazu, wenn „Bei Treffer“ als Auslöser gesetzt ist oder die Fähigkeit vor dem Angriff gewählt wird.</p>
+        <label class="checkbox small"><input type="checkbox" bind:checked={f.damageTypeFromAttack} /> Schadensart des auslösenden Angriffs (Waffe oder Zauber)</label>
+        <label class="checkbox small"><input type="checkbox" bind:checked={f.damageOtherTarget} /> Trifft ein weiteres Ziel (eigener Schadenswurf)</label>
+        <p class="tiny muted">
+          {#if f.damageOtherTarget}
+            Im Angriffs-Assistenten würfelst du den Schaden nach dem Waffenschaden separat für das weitere Ziel, ohne Boni des Angriffs.
+          {:else}
+            Bei Angriffen kommt der Schaden zum Waffenschaden dazu, wenn „Bei Treffer“ als Auslöser gesetzt ist oder die Fähigkeit vor dem Angriff gewählt wird.
+          {/if}
+        </p>
       </div>
     {/if}
     {#if on.healing}
