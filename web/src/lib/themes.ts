@@ -1,4 +1,5 @@
 import { appearance } from "./appearance.svelte";
+import { MODE_COLORS, modeIconLinks } from "./logo";
 import type { ColorMode } from "./types";
 
 export const CAMPAIGN_THEMES = [
@@ -25,8 +26,6 @@ export function rulesetLabel(r: string) {
 
 const COLOR_MODE_KEY = "db-color-mode";
 
-const THEME_COLORS = { light: "#f6f2ea", dark: "#1a1625", adventurer: "#1e1f22" } as const;
-
 /** Farbschema anwenden und lokal merken (für theme-init.js beim nächsten Start). */
 export function applyColorMode(mode: ColorMode = "system") {
   try {
@@ -42,7 +41,11 @@ export function applyColorMode(mode: ColorMode = "system") {
       : mode;
   document.documentElement.dataset.mode = resolved;
   appearance.mode = resolved;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLORS[resolved]);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", MODE_COLORS[resolved].background);
+  for (const [rel, href] of Object.entries(modeIconLinks(resolved))) {
+    const link = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
+    if (link && link.getAttribute("href") !== href) link.href = href;
+  }
 }
 
 /** Ob das aktuell angewendete Schema dunkel ist (Dunkel oder Adventurer). */
