@@ -49,6 +49,7 @@
   import Features from "./character/Features.svelte";
   import CombatAssistant from "./character/CombatAssistant.svelte";
   import AttackWizard from "./character/AttackWizard.svelte";
+  import ScrollFade from "../components/ScrollFade.svelte";
   import AbilityPicker from "./character/AbilityPicker.svelte";
   import Modal from "../components/Modal.svelte";
   import { diceString, formatDice } from "../lib/dice";
@@ -506,10 +507,14 @@
 
   <Vitals />
 
-  <div class="tabs" role="tablist">
-    {#each tabs as t (t.key)}
-      <button role="tab" aria-selected={tab === t.key} class:active={tab === t.key} onclick={() => (tab = t.key)}>{t.label}</button>
-    {/each}
+  <div class="tab-bar">
+    <ScrollFade>
+      <div class="tabs" role="tablist">
+        {#each tabs as t (t.key)}
+          <button role="tab" aria-selected={tab === t.key} class:active={tab === t.key} onclick={() => (tab = t.key)}>{t.label}</button>
+        {/each}
+      </div>
+    </ScrollFade>
   </div>
 
   <div class="tab-content">
@@ -670,13 +675,14 @@
     background: var(--accent-soft);
     color: var(--accent-text);
   }
+  .tab-bar { margin-bottom: 1rem; }
   .tabs {
     display: flex;
     gap: 0.2rem;
-    overflow-x: auto;
+    /* Scrollt im ScrollFade; die Linie läuft unter allen Reitern durch */
+    width: max-content;
+    min-width: 100%;
     border-bottom: 1px solid var(--border);
-    margin-bottom: 1rem;
-    scrollbar-width: none;
   }
   .tabs button {
     padding: 0.55rem 0.9rem;
