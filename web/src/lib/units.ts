@@ -54,6 +54,24 @@ export function feetToInput(ft: number, system: UnitSystem) {
   return system === "metric" ? ftToM(ft) : ft;
 }
 
+/**
+ * Reichweite aus altem Freitext lesen: "80/320 ft", "5 ft", "24/96 m", "30".
+ * Ergebnis in Fuss; null, wenn der Text kein solches Muster ist.
+ */
+export function parseRangeText(text: string): { normal: number; long: number | null } | null {
+  const m = /^\s*(\d+(?:[.,]\d+)?)\s*(?:\/\s*(\d+(?:[.,]\d+)?))?\s*(ft\.?|feet|foot|fuß|fuss|m|meter)?\s*$/i.exec(text);
+  if (!m) return null;
+  const metric = /^m/i.test(m[3] ?? "");
+  const toFeet = (s: string) => (metric ? Math.round(mToFt(parseNum(s))) : parseNum(s));
+  return { normal: toFeet(m[1]!), long: m[2] ? toFeet(m[2]) : null };
+}
+
+/** Reichweite (in Fuss) anzeigen: "80/320 ft" bzw. "24/96 m", ohne Fernreichweite "5 ft". */
+export function formatRange(normal: number, long: number | null, system: UnitSystem) {
+  const n = (ft: number) => nf.format(feetToInput(ft, system));
+  return `${n(normal)}${long != null ? `/${n(long)}` : ""} ${distanceUnit(system)}`;
+}
+
 function parseNum(s: string) {
   return Number(s.replace(/['’]/g, "").replace(",", "."));
 }

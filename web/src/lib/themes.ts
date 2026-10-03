@@ -1,4 +1,5 @@
 import { appearance } from "./appearance.svelte";
+import { appIconLinks, faviconHref, MODE_COLORS, type LogoMode } from "./logo";
 import type { ColorMode } from "./types";
 
 export const CAMPAIGN_THEMES = [
@@ -25,8 +26,6 @@ export function rulesetLabel(r: string) {
 
 const COLOR_MODE_KEY = "db-color-mode";
 
-const THEME_COLORS = { light: "#f6f2ea", dark: "#1a1625", adventurer: "#1e1f22" } as const;
-
 /** Farbschema anwenden und lokal merken (für theme-init.js beim nächsten Start). */
 export function applyColorMode(mode: ColorMode = "system") {
   try {
@@ -42,7 +41,35 @@ export function applyColorMode(mode: ColorMode = "system") {
       : mode;
   document.documentElement.dataset.mode = resolved;
   appearance.mode = resolved;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLORS[resolved]);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", MODE_COLORS[resolved].background);
+  setLink("icon", faviconHref(resolved));
+}
+
+function setLink(rel: string, href: string) {
+  const link = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
+  if (link && link.getAttribute("href") !== href) link.href = href;
+}
+
+const APP_ICON_KEY = "db-app-icon";
+
+/** Gewähltes Icon für die installierte App auf diesem Gerät. */
+export function storedAppIcon(): LogoMode {
+  try {
+    const icon = localStorage.getItem(APP_ICON_KEY);
+    return icon === "light" || icon === "adventurer" ? icon : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+/** App-Icon wählen: verlinkt Manifest und Apple-Icon der Variante und merkt die Wahl lokal. */
+export function applyAppIcon(icon: LogoMode) {
+  try {
+    localStorage.setItem(APP_ICON_KEY, icon);
+  } catch {
+    /* privates Fenster o. ä. */
+  }
+  for (const [rel, href] of Object.entries(appIconLinks(icon))) setLink(rel, href);
 }
 
 /** Ob das aktuell angewendete Schema dunkel ist (Dunkel oder Adventurer). */
